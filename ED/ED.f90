@@ -1,0 +1,130 @@
+MODULE GLOBAL
+	IMPLICIT NONE
+	REAL(8),SAVE :: V(0:37,36)=0D0,T0=1D0,U=6D0
+END MODULE
+PROGRAM MAIN
+	USE GLOBAL
+	IMPLICIT NONE
+	REAL(8) :: NV(36)=0D0,AP(36)=0D0,BT(0:36)=0D0,CACHE,Z(36,36),WORK(70)
+	INTEGER :: TF(36),A(6)=(/ 3,5,6,9,10,12 /),i,j,k,l,INFO,DG=0
+	OPEN(UNIT=10,FILE='../DATA/output.dat')
+	DO j=1,6
+		DO k=1,6
+			TF((j-1)*6+k)=A(j)*16+A(k)
+		ENDDO
+	ENDDO
+	! V(1,2)=1
+	! CALL RN(V(1,:),CACHE)
+	! CALL HEMILTION(1,TF,NV)
+	! WRITE(*,"(F5.1F5.1B10.8)")(V(1,i),NV(i),TF(i),i=1,36)
+	CALL RANDOM_SEED
+	CALL RANDOM_NUMBER(V(1,:))
+	! CALL RN(V(1,:),CACHE)
+	! CALL HEMILTION(1,TF,NV)
+	! WRITE(*,"(F5.1F5.1B10.8)")(V(1,i),NV(i),TF(i),i=1,36)
+	CALL RN(V(1,:),CACHE)
+	! WRITE(10,"(36E9.2)")(V(k,:),k=0,3)
+	! WRITE(*,*)V(1,:)
+	DO i=1,36
+		CALL HEMILTION(i,TF,NV)
+		AP(i)=DOT_PRODUCT(V(i,:),NV)
+		! WRITE(10,"(2E11.4)")(V(i,j),NV(j),j=1,36)
+		! WRITE(10,*)AP(i)
+		V(i+1,:)=NV(:)-AP(i)*V(i,:)-BT(i-1)*V(i-1,:)
+		IF(MOD(i,4)==0) THEN
+			CALL RO(i+1)
+		ENDIF
+		CALL RN(V(i+1,:),BT(i))
+		! WRITE(10,"(E11.3)")BT(i)
+		IF(BT(i)<1E-5) THEN
+			BT(i)=0
+			DG=DG+1
+			! DO WHILE(.TRUE.)
+				CALL RANDOM_NUMBER(V(i+1,:))
+				CALL RO(i+1)
+				CALL RN(V(i+1,:),CACHE)
+				! IF(CACHE>1E-10) THEN
+					! EXIT
+				! ENDIF
+			! ENDDO
+		ENDIF
+		WRITE(10,*)DOT_PRODUCT(V(i+1,:),V(i-1,:)),DOT_PRODUCT(V(i+1,:),V(i-5,:)),BT(i)
+		! WRITE(10,*)DOT_PRODUCT(V(i+1,:),V(i,:)),BT(i),DOT_PRODUCT(NV(:),V(i+1,:))
+		! WRITE(10,"(36E9.2)")V(i+1,:)
+	ENDDO
+	WRITE(10,"(E13.5,E13.5)")(AP(i),BT(i),i=1,36)
+	CALL DSTEQR('I',36,AP,BT(1:35),Z,36,WORK,INFO)
+	IF(INFO==0) THEN
+		WRITE(10,"(E13.5)")AP
+	ENDIF
+
+	CLOSE(10)
+END PROGRAM MAIN
+
+
+SUBROUTINE HEMILTION(p,TF,NV)
+	USE GLOBAL
+	IMPLICIT NONE
+	REAL(8) :: NV(36),CACHE
+	INTEGER :: TF(36),i,j,k,l=0,p,CTF,NOS,UOS
+	NV=0
+	DO i=1,36
+		DO j=0,1
+			DO k=0,3
+				CTF=TF(i)
+				IF(IBITS(TF(i),j*4+k,1)/=IBITS(TF(i),MOD((k+1),4)+j*4,1)) THEN
+					IF(BTEST(TF(i),j*4+k)) THEN
+						CTF=IBSET(CTF,MOD((j*4+k+1),4)+j*4)
+						CTF=IBCLR(CTF,j*4+k)
+					ELSE
+						CTF=IBCLR(CTF,MOD((j*4+k+1),4)+j*4)
+						CTF=IBSET(CTF,j*4+k)
+					ENDIF
+					CALL FD(TF,CTF,l)
+					NV(l)=NV(l)+T0*V(p,i)
+				ENDIF
+			ENDDO
+		ENDDO
+		UOS=IAND(IBITS(TF(i),0,4),IBITS(TF(i),4,4))
+		NOS=0
+		DO j=0,3
+			IF(BTEST(UOS,j)) THEN
+				NOS=NOS+1
+			ENDIF
+		ENDDO
+		NV(i)=NV(i)+V(p,i)*U*NOS
+	ENDDO
+END SUBROUTINE HEMILTION
+
+SUBROUTINE FD(TF,CTF,l)
+	IMPLICIT NONE
+	INTEGER :: TF(36),i,l,CTF
+	DO i=1,36
+		IF(TF(i)==CTF) THEN
+			l=i
+			EXIT
+		ENDIF
+	ENDDO
+END SUBROUTINE FD
+
+SUBROUTINE RN(V,X)
+	IMPLICIT NONE
+	REAL(8) :: V(36),SUN=0,X
+	INTEGER :: i
+	SUN=DOT_PRODUCT(V,V)
+	X=SQRT(ABS(SUN))
+	V=V/X
+END SUBROUTINE RN
+
+SUBROUTINE RO(i)
+	USE GLOBAL
+	IMPLICIT NONE
+	INTEGER :: i,j
+	DO j=1,i-1
+		V(i,:)=V(i,:)-DOT_PRODUCT(V(j,:),V(i,:))*V(j,:)
+	ENDDO
+END
+
+
+
+

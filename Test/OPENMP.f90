@@ -1,0 +1,38 @@
+PROGRAM MAIN
+	IMPLICIT NONE
+	INTEGER,PARAMETER :: DN=4
+	REAL(8),PARAMETER :: PI=3.14159
+	INTEGER :: i,j,n_MOD(3),n
+	REAL(8) :: x,DOS,hhn(0:2,DN*DN)
+	OPEN(10,FILE="../DATA/OUTPUT.dat")
+	DO j=1,1000
+		x=j/1300.
+		DOS=0
+		!$OMP PARALLEL DO REDUCTION(+:DOS) PRIVATE(hhn) NUM_THREADS(1)
+		DO i=1,DN*DN
+			hhn=0
+			hhn(0,i)=1D0
+			DOS=DOS+hhn(0,i)
+			CALL CRSMV(hhn(0,:),hhn(1,:),DN*DN)
+			DOS=DOS+hhn(1,i)
+			DO n=2,10
+				n_MOD(1)=MOD(n-2,3)
+				n_MOD(2)=MOD(n-1,3)
+				n_MOD(3)=MOD(n,3)
+				CALL CRSMV(hhn(n_MOD(2),:),hhn(n_MOD(3),:),DN*DN)
+				DOS=DOS+hhn(n_MOD(3),i)
+			ENDDO
+		ENDDO
+		!$OMP END PARALLEL DO
+		WRITE(10,*)x,DOS
+	ENDDO
+	CLOSE(10)
+END PROGRAM MAIN
+SUBROUTINE CRSMV(X,Y,M)
+	IMPLICIT NONE
+	INTEGER :: i,M
+	REAL(8) :: Y(*),X(*)
+	DO i=1,M
+		Y(i)=X(i)
+	ENDDO
+END
