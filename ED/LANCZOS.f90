@@ -1,9 +1,9 @@
 MODULE GLOBAL
 	IMPLICIT NONE
 	SAVE
-	INTEGER(8),PARAMETER :: DN=4,DN2=16,NS=2
-	INTEGER(8) :: PBC(DN2,0:1)
-	REAL(8) :: T=1D0,U=0D0
+	INTEGER(8),PARAMETER :: DN=4,DN2=16,NS=3
+	INTEGER(8) :: PBC(DN2,0:1)=0
+	REAL(8) :: T=-1D0,U=0D0
 END MODULE
 PROGRAM LANCZOS
 	USE GLOBAL
@@ -81,9 +81,10 @@ EX:	DO WHILE(.TRUE.)
 		V(:,MODI(2))=V(:,MODI(2))/BT(is)
 	ENDDO
 	WRITE(10,"(E17.6)")E(1:is)
+	! V(2,1)=1
 	! CALL HUBBARD(V(:,1),V(:,2),ABIT,im)
 	! DO i=1,im*im
-		! IF(V(i,2)>1E-5) THEN
+		! IF(ABS(V(i,2))>1E-5) THEN
 			! WRITE(10,"(E17.6,B17.16,B17.16)")V(i,2),ABIT(i-(i-1)/im*im),ABIT((i-1)/im+1)
 		! ENDIF
 	! ENDDO
@@ -108,12 +109,13 @@ END
 SUBROUTINE HUBBARD(VA,VB,ABIT,SZ)
 	USE GLOBAL
 	IMPLICIT NONE
-	INTEGER(8) :: i,ii,iA(0:1),M,K,L,A,j,iON,AON,n,TMP,SZ,ABIT(SZ)
+	INTEGER(8) :: i,ii,iii,iA(0:1),M,K,L,A,j,iON,AON,n,TMP,SZ,ABIT(SZ),SIG
+	LOGICAL :: FLAG
 	REAL(8) :: VA(SZ*SZ),VB(SZ*SZ)
 	VB(:)=0D0
 	!$OMP PARALLEL DO REDUCTION(+:VB) PRIVATE(iA,AON,iON,M,K,L,A,j,TMP) SCHEDULE(GUIDED)
 	DO n=1,SZ*SZ
-		! WRITE(10,*)n
+		! WRITE(*,*)n
 		iA(0)=(n-1)/SZ+1
 		iA(1)=n-(n-1)/SZ*SZ
 		! WRITE(10,"(2B17.16)")ABIT(iA(0)),ABIT(iA(1))
@@ -121,6 +123,8 @@ SUBROUTINE HUBBARD(VA,VB,ABIT,SZ)
 		iON=0
 		DO i=1,DN2
 			DO ii=0,3
+				FLAG=.FALSE.
+				SIG=1
 				M=PBC(i,MOD(ii,2))
 				K=IAND(ABIT(iA(ii/2)),M)
 				IF(K==M.OR.K==0) THEN
@@ -128,15 +132,19 @@ SUBROUTINE HUBBARD(VA,VB,ABIT,SZ)
 				ENDIF
 				L=IEOR(K,M)
 				A=ABIT(iA(ii/2))-K+L
-				CALL FINDSTATE(A,j,ABIT,SZ)
-				IF(iA(ii/2)/=j) THEN
-					TMP=iA(ii/2)
-					iA(ii/2)=j
-					! WRITE(10,"(2B17.16)")ABIT(iA(0)),ABIT(iA(1))
-					j=(iA(0)-1)*SZ+iA(1)
-					VB(j)=VB(j)+T*VA(n)
-					iA(ii/2)=TMP
-				ENDIF
+				TMP=iA(ii/2)
+				CALL FINDSTATE(A,iA(ii/2),ABIT,SZ)
+				DO iii=0,DN2-1
+					IF(BTEST(M,iii)) THEN
+						FLAG=.NOT.FLAG
+					ELSEIF(FLAG.AND.BTEST(ABIT(TMP),iii)) THEN
+						SIG=-1*SIG
+					ENDIF
+				ENDDO
+				! WRITE(10,"(2B17.16I2)")ABIT(TMP),ABIT(iA(ii/2)),SIG
+				j=(iA(0)-1)*SZ+iA(1)
+				VB(j)=VB(j)+T*SIG*VA(n)
+				iA(ii/2)=TMP
 			ENDDO
 			IF(BTEST(AON,i-1)) THEN
 				iON=iON+1
