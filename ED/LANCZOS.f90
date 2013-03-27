@@ -1,17 +1,17 @@
 MODULE GLOBAL
 	IMPLICIT NONE
 	SAVE
-	INTEGER(8),PARAMETER :: DN=4,DN2=16,NS=3
+	INTEGER(8),PARAMETER :: DN=4,DN2=16,NS=2
 	INTEGER(8) :: PBC(DN2,0:1)=0
-	REAL(8) :: T=-1D0,U=0D0
+	REAL(8) :: T=-1D0,U=4D0
 END MODULE
 PROGRAM LANCZOS
 	USE GLOBAL
 	IMPLICIT NONE
-	REAL(8),ALLOCATABLE :: V(:,:),AP(:),BT(:),FE(:),E(:),TMP(:)
+	REAL(8),ALLOCATABLE :: V(:,:),AP(:),BT(:),FE(:),E(:),TMP(:),WORK(:),Z(:,:),EV(:)
 	INTEGER(8) :: i,j,k,im,MODI(0:2)
 	INTEGER(8),ALLOCATABLE :: A(:),ABIT(:)
-	REAL(8) :: SUN,WORK
+	REAL(8) :: SUN
 	INTEGER :: INFO,is,M=400
 	OPEN(UNIT=10,FILE="../DATA/OUTPUT.DAT")
 	ALLOCATE(A(1000000))
@@ -48,7 +48,7 @@ EX:	DO WHILE(.TRUE.)
 		ENDDO
 	ENDDO EX
 	im=i-1
-	ALLOCATE(ABIT(im),V(im*im,0:2),AP(M),BT(0:M),TMP(0:M),E(M),FE(M))
+	ALLOCATE(ABIT(im),V(im*im,0:2),AP(M),BT(0:M),TMP(0:M),E(M),FE(M),WORK(2*M-2))
 	ABIT=A(1:im)
 	DEALLOCATE(A)
 	V=0D0
@@ -56,31 +56,54 @@ EX:	DO WHILE(.TRUE.)
 	V(:,0)=0D0
 	BT(0)=0D0
 	CALL INIT_RANDOM_SEED()
-	CALL RANDOM_NUMBER(V(:,1))
+	CALL RANDOM_NUMBER(V(:,2))
+	V(:,1)=V(:,2)
 	SUN=DOT_PRODUCT(V(:,1),V(:,1))
 	V(:,1)=V(:,1)/SQRT(ABS(SUN))
 	DO is=1,M
-		MODI(2)=MOD(is+1,3)
-		MODI(1)=MOD(is,3)
-		MODI(0)=MOD(is-1,3)
-		CALL HUBBARD(V(:,MODI(1)),V(:,MODI(2)),ABIT,im)
-		AP(is)=DOT_PRODUCT(V(:,MODI(1)),V(:,MODI(2)))
+		MODI(1)=MOD(is,2)
+		MODI(0)=MOD(is-1,2)
+		V(:,MODI(0))=-1*BT(is-1)*V(:,MODI(0))
+		CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),ABIT,im)
+		AP(is)=DOT_PRODUCT(V(:,MODI(1)),V(:,MODI(0)))
 		IF(is>10) THEN
 			E(1:is)=AP(1:is)
 			TMP(1:is-1)=BT(1:is-1)
 			CALL DSTEQR('N',is,E(1:is),TMP(1:is-1),WORK,is,WORK,INFO)
 			IF(ABS(E(1)-FE(1))<1E-12.OR.INFO/=0) THEN
+				E(1:is)=AP(1:is)
+				TMP(1:is-1)=BT(1:is-1)
+				ALLOCATE(Z(is,is),EV(is))
+				CALL DSTEQR('I',is,E(1:is),TMP(1:is-1),Z,is,WORK,INFO)
+				EV=Z(:,1)
 				WRITE(*,*)"INFO=",INFO,is
 				EXIT
 			ENDIF
 			FE=E
 		ENDIF
-		V(:,MODI(2))=V(:,MODI(2))-AP(is)*V(:,MODI(1))-BT(is-1)*V(:,MODI(0))
-		SUN=DOT_PRODUCT(V(:,MODI(2)),V(:,MODI(2)))
+		V(:,MODI(0))=V(:,MODI(0))-AP(is)*V(:,MODI(1))
+		SUN=DOT_PRODUCT(V(:,MODI(0)),V(:,MODI(0)))
 		BT(is)=SQRT(ABS(SUN))
-		V(:,MODI(2))=V(:,MODI(2))/BT(is)
+		V(:,MODI(0))=V(:,MODI(0))/BT(is)
 	ENDDO
-	WRITE(10,"(E17.6)")E(1:is)
+	! WRITE(10,"(E17.6)")E(1:is)
+	V(:,1)=V(:,2)
+	V(:,2)=0D0
+	DO is=1,SIZE(EV)
+		MODI(1)=MOD(is,2)
+		MODI(0)=MOD(is-1,2)
+		V(:,2)=V(:,2)+EV(is)*V(:,MODI(1))
+		V(:,MODI(0))=-1*BT(is-1)*V(:,MODI(0))
+		CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),ABIT,im)
+		V(:,MODI(0))=V(:,MODI(0))-AP(is)*V(:,MODI(1))
+		V(:,MODI(0))=V(:,MODI(0))/BT(is)
+	ENDDO
+	WRITE(10,"(E17.6)")E(1:SIZE(EV))
+	WRITE(10,*)"----------------------------------------------"
+	WRITE(10,"(E17.6)")V(:,2)
+	! V(:,1)=0D0
+	! CALL HUBBARD(V(:,2),V(:,1),ABIT,im)
+	! WRITE(10,"(E17.6)")V(:,1)-E(1)*V(:,2)
 	! V(2,1)=1
 	! CALL HUBBARD(V(:,1),V(:,2),ABIT,im)
 	! DO i=1,im*im
@@ -112,7 +135,6 @@ SUBROUTINE HUBBARD(VA,VB,ABIT,SZ)
 	INTEGER(8) :: i,ii,iii,iA(0:1),M,K,L,A,j,iON,AON,n,TMP,SZ,ABIT(SZ),SIG
 	LOGICAL :: FLAG
 	REAL(8) :: VA(SZ*SZ),VB(SZ*SZ)
-	VB(:)=0D0
 	!$OMP PARALLEL DO REDUCTION(+:VB) PRIVATE(iA,AON,iON,M,K,L,A,j,TMP) SCHEDULE(GUIDED)
 	DO n=1,SZ*SZ
 		! WRITE(*,*)n
