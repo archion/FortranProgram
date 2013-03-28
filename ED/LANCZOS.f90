@@ -1,18 +1,21 @@
 MODULE GLOBAL
 	IMPLICIT NONE
 	SAVE
-	INTEGER(8),PARAMETER :: DN=4,DN2=16,NS=2
+	INTEGER(8),PARAMETER :: DN=4,DN2=16,NT=4,NS=4
 	INTEGER(8) :: PBC(DN2,0:1)=0
-	REAL(8) :: T=-1D0,U=4D0
+	REAL(8) :: T=-1D0,U=0D0
 END MODULE
+
 PROGRAM LANCZOS
 	USE GLOBAL
+	USE HUBBARD_MODULE
 	IMPLICIT NONE
 	REAL(8),ALLOCATABLE :: V(:,:),AP(:),BT(:),FE(:),E(:),TMP(:),WORK(:),Z(:,:),EV(:)
-	INTEGER(8) :: i,j,k,im,MODI(0:2)
-	INTEGER(8),ALLOCATABLE :: A(:),ABIT(:)
-	REAL(8) :: SUN
+	INTEGER(8) :: i,j,k,im(2),MODI(0:2)
+	INTEGER(8),ALLOCATABLE :: A(:),ABITU(:),ABITD(:)
+	REAL(8) :: SUN,SITE(DN2,2)
 	INTEGER :: INFO,is,M=400
+	LOGICAL :: FLAG=.TRUE.
 	OPEN(UNIT=10,FILE="../DATA/OUTPUT.DAT")
 	ALLOCATE(A(1000000))
 	DO i=1,DN2
@@ -20,7 +23,11 @@ PROGRAM LANCZOS
 		PBC(i,0)=IBSET(PBC(i,0),MOD(MOD(i-1,DN)+1,DN)+(i-1)/DN*DN)
 		PBC(i,1)=IBSET(PBC(i,1),MOD(i+DN-1,DN2))
 	ENDDO
-	DO i=1,NS
+	IF(NS==0) THEN
+		FLAG=.FALSE.
+	ENDIF
+	A=0
+	DO i=1,(NT+NS)/2
 		A(1)=IBSET(A(1),i-1)
 	ENDDO
 	i=1
@@ -47,10 +54,48 @@ EX:	DO WHILE(.TRUE.)
 			ENDIF
 		ENDDO
 	ENDDO EX
-	im=i-1
-	ALLOCATE(ABIT(im),V(im*im,0:2),AP(M),BT(0:M),TMP(0:M),E(M),FE(M),WORK(2*M-2))
-	ABIT=A(1:im)
+	im(1)=i-1
+	ALLOCATE(ABITD(im(1)))
+	ABITD=A(1:im(1))
+	IF(FLAG) THEN
+		A=0
+		DO i=1,(NT-NS)/2
+			A(1)=IBSET(A(1),i-1)
+		ENDDO
+		i=1
+EX2:	DO WHILE(.TRUE.)
+			A(i+1)=A(i)
+			i=i+1
+			DO j=0,DN2-1
+				IF(j==DN2-1) THEN
+					EXIT EX2
+				ENDIF
+				IF(IBITS(A(i),j,2)==1) THEN
+					A(i)=IBSET(A(i),j+1)
+					A(i)=IBCLR(A(i),j)
+					DO k=0,j/2-1
+						IF(BTEST(A(i),k)) THEN
+							EXIT
+						ENDIF
+						IF(BTEST(A(i),j-k-1)) THEN
+							A(i)=IBSET(A(i),k)
+							A(i)=IBCLR(A(i),j-k-1)
+						ENDIF
+					ENDDO
+					EXIT
+				ENDIF
+			ENDDO
+		ENDDO EX2
+		im(2)=i-1
+		ALLOCATE(ABITU(im(2)))
+		ABITU=A(1:im(2))
+	ELSE
+		im(2)=im(1)
+		ALLOCATE(ABITU(im(2)))
+		ABITU=ABITD
+	ENDIF
 	DEALLOCATE(A)
+	ALLOCATE(V(im(1)*im(2),0:2),AP(M),BT(0:M),TMP(0:M),E(M),FE(M),WORK(2*M-2))
 	V=0D0
 	FE(1)=1000
 	V(:,0)=0D0
@@ -64,7 +109,7 @@ EX:	DO WHILE(.TRUE.)
 		MODI(1)=MOD(is,2)
 		MODI(0)=MOD(is-1,2)
 		V(:,MODI(0))=-1*BT(is-1)*V(:,MODI(0))
-		CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),ABIT,im)
+		CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),ABITU,ABITD,im)
 		AP(is)=DOT_PRODUCT(V(:,MODI(1)),V(:,MODI(0)))
 		IF(is>10) THEN
 			E(1:is)=AP(1:is)
@@ -94,13 +139,26 @@ EX:	DO WHILE(.TRUE.)
 		MODI(0)=MOD(is-1,2)
 		V(:,2)=V(:,2)+EV(is)*V(:,MODI(1))
 		V(:,MODI(0))=-1*BT(is-1)*V(:,MODI(0))
-		CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),ABIT,im)
+		CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),ABITU,ABITD,im)
 		V(:,MODI(0))=V(:,MODI(0))-AP(is)*V(:,MODI(1))
 		V(:,MODI(0))=V(:,MODI(0))/BT(is)
 	ENDDO
 	WRITE(10,"(E17.6)")E(1:SIZE(EV))
 	WRITE(10,*)"----------------------------------------------"
 	WRITE(10,"(E17.6)")V(:,2)
+	WRITE(10,*)"----------------------------------------------"
+	SITE=0D0
+	DO j=1,DN2
+		DO i=1,SIZE(V(:,2))
+			IF(BTEST(ABITD((i-1)/im(2)+1),j-1)) THEN
+				SITE(j,1)=SITE(j,1)+V(i,2)**2
+			ENDIF
+			IF(BTEST(ABITU(i-(i-1)/im(2)*im(2)),j-1)) THEN
+				SITE(j,2)=SITE(j,2)+V(i,2)**2
+			ENDIF
+		ENDDO
+		WRITE(10,"(2E17.6)")SITE(j,1),SITE(j,2)
+	ENDDO
 	! V(:,1)=0D0
 	! CALL HUBBARD(V(:,2),V(:,1),ABIT,im)
 	! WRITE(10,"(E17.6)")V(:,1)-E(1)*V(:,2)
@@ -112,70 +170,89 @@ EX:	DO WHILE(.TRUE.)
 		! ENDIF
 	! ENDDO
 END
-SUBROUTINE FINDSTATE(A,n,ABIT,SZ)
-	IMPLICIT NONE
-	INTEGER(8) :: A,n,i,ia,ib,ABIT(*),SZ
-	ia=1
-	ib=SZ+1
-	i=(ia+ib)/2
-	DO WHILE(A/=ABIT(i))
-		IF(A<ABIT(i)) THEN
-			ib=i
-		ELSE
-			ia=i
-		ENDIF
+
+MODULE HUBBARD_MODULE
+	CONTAINS
+	SUBROUTINE FINDSTATE(A,n,ABIT,SZ)
+		IMPLICIT NONE
+		INTEGER(8) :: A,n,i,ia,ib,SZ
+		INTEGER(8),POINTER :: ABIT(:)
+		ia=1
+		ib=SZ+1
 		i=(ia+ib)/2
-		! WRITE(10,*)ia,i,ib
-	ENDDO
-	n=i
-END
-SUBROUTINE HUBBARD(VA,VB,ABIT,SZ)
-	USE GLOBAL
-	IMPLICIT NONE
-	INTEGER(8) :: i,ii,iii,iA(0:1),M,K,L,A,j,iON,AON,n,TMP,SZ,ABIT(SZ),SIG
-	LOGICAL :: FLAG
-	REAL(8) :: VA(SZ*SZ),VB(SZ*SZ)
-	!$OMP PARALLEL DO REDUCTION(+:VB) PRIVATE(iA,AON,iON,M,K,L,A,j,TMP) SCHEDULE(GUIDED)
-	DO n=1,SZ*SZ
-		! WRITE(*,*)n
-		iA(0)=(n-1)/SZ+1
-		iA(1)=n-(n-1)/SZ*SZ
-		! WRITE(10,"(2B17.16)")ABIT(iA(0)),ABIT(iA(1))
-		AON=IAND(ABIT(iA(0)),ABIT(iA(1)))
-		iON=0
-		DO i=1,DN2
-			DO ii=0,3
-				FLAG=.FALSE.
-				SIG=1
-				M=PBC(i,MOD(ii,2))
-				K=IAND(ABIT(iA(ii/2)),M)
-				IF(K==M.OR.K==0) THEN
-					CYCLE
-				ENDIF
-				L=IEOR(K,M)
-				A=ABIT(iA(ii/2))-K+L
-				TMP=iA(ii/2)
-				CALL FINDSTATE(A,iA(ii/2),ABIT,SZ)
-				DO iii=0,DN2-1
-					IF(BTEST(M,iii)) THEN
-						FLAG=.NOT.FLAG
-					ELSEIF(FLAG.AND.BTEST(ABIT(TMP),iii)) THEN
-						SIG=-1*SIG
-					ENDIF
-				ENDDO
-				! WRITE(10,"(2B17.16I2)")ABIT(TMP),ABIT(iA(ii/2)),SIG
-				j=(iA(0)-1)*SZ+iA(1)
-				VB(j)=VB(j)+T*SIG*VA(n)
-				iA(ii/2)=TMP
-			ENDDO
-			IF(BTEST(AON,i-1)) THEN
-				iON=iON+1
+		DO WHILE(A/=ABIT(i))
+			IF(A<ABIT(i)) THEN
+				ib=i
+			ELSE
+				ia=i
 			ENDIF
+			i=(ia+ib)/2
+			! WRITE(*,*)ia,i,ib
 		ENDDO
-		VB(n)=VB(n)+U*iON*VA(n)
-	ENDDO
-	!$OMP END PARALLEL DO
-END
+		n=i
+	END SUBROUTINE
+	SUBROUTINE HUBBARD(VA,VB,ABITU,ABITD,SZ)
+		USE GLOBAL
+		IMPLICIT NONE
+		INTEGER(8) :: i,ii,iii,iA(0:1),M,K,L,A,j,iON,AON,n,TMP,SZ(2),SIG
+		LOGICAL :: FLAG
+		REAL(8) :: VA(SZ(1)*SZ(2)),VB(SZ(1)*SZ(2))
+		INTEGER(8),TARGET :: ABITD(SZ(1)),ABITU(SZ(2))
+		INTEGER(8),POINTER :: ABIT(:)
+		!$OMP PARALLEL DO REDUCTION(+:VB) PRIVATE(iA,AON,iON,M,K,L,A,j,TMP) SCHEDULE(GUIDED)
+		DO n=1,SZ(1)*SZ(2)
+			! WRITE(*,*)n
+			iA(0)=(n-1)/SZ(2)+1
+			iA(1)=n-(n-1)/SZ(2)*SZ(2)
+			! WRITE(*,"(2B17.16,2I5)")ABITD(iA(0)),ABITU(iA(1)),iA
+			AON=IAND(ABITD(iA(0)),ABITU(iA(1)))
+			iON=0
+			DO i=1,DN2
+				DO ii=0,3
+					IF(ii/2==0) THEN
+						ABIT=>ABITD
+					ELSE
+						ABIT=>ABITU
+					ENDIF
+					FLAG=.FALSE.
+					SIG=1
+					! WRITE(*,"(B17.16)")ABIT(iA(ii/2))
+					M=PBC(i,MOD(ii,2))
+					! WRITE(*,"(B17.16)")M
+					K=IAND(ABIT(iA(ii/2)),M)
+					! WRITE(*,"(B17.16)")K
+					IF(K==M.OR.K==0) THEN
+						CYCLE
+					ENDIF
+					L=IEOR(K,M)
+					! WRITE(*,"(B17.16)")L
+					A=ABIT(iA(ii/2))-K+L
+					TMP=iA(ii/2)
+					! WRITE(*,*)"a=",a
+					CALL FINDSTATE(A,iA(ii/2),ABIT,SZ(ii/2+1))
+					! WRITE(*,*)iA(ii/2)
+					DO iii=0,DN2-1
+						IF(BTEST(M,iii)) THEN
+							FLAG=.NOT.FLAG
+						ELSEIF(FLAG.AND.BTEST(ABIT(TMP),iii)) THEN
+							SIG=-1*SIG
+						ENDIF
+					ENDDO
+					! WRITE(10,"(2B17.16I2)")ABIT(TMP),ABIT(iA(ii/2)),SIG
+					j=(iA(0)-1)*SZ(2)+iA(1)
+					VB(j)=VB(j)+T*SIG*VA(n)
+					iA(ii/2)=TMP
+				ENDDO
+				IF(BTEST(AON,i-1)) THEN
+					iON=iON+1
+				ENDIF
+			ENDDO
+			VB(n)=VB(n)+U*iON*VA(n)
+		ENDDO
+		!$OMP END PARALLEL DO
+	END SUBROUTINE
+END MODULE
+
 SUBROUTINE INIT_RANDOM_SEED()
 	INTEGER :: i, n, clock
 	INTEGER, DIMENSION(:), ALLOCATABLE :: seed
