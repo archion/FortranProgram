@@ -1,41 +1,115 @@
 MODULE GLOBAL
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!    设定晶格模型参数及初始化                                           !
+!		参数:                                                           !
+!     		DN*DN：晶格大小                                             !
+!     		NT：粒子总数                                                !
+!     		NS：总自旋z分量                                             !
+!     		T：hopping值                                                !
+!     		U：Hubbard U                                                !
+!     		PBC：近邻格点信息                                           !
+!    	子程序:                                                         !
+!     		INIT_LATTICE：将格点i的PBC设置为近邻与i位置为1，其余为零    !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	IMPLICIT NONE
 	SAVE
-	INTEGER(8),PARAMETER :: DN=4,DN2=16,NT=3,NS=3
-	INTEGER(8) :: PBC(DN2,0:1)=0
+	INTEGER(8),PARAMETER :: DN=4,DN2=16,NT=2
+	REAL(8),PARAMETER :: PI=3.14159265358979D0
+	INTEGER(8) :: PBC(DN2,0:1)=0,NS=0
 	REAL(8) :: T=-1D0,U=0D0
+	CONTAINS
+	SUBROUTINE INIT_LATTICE()
+		IMPLICIT NONE
+		INTEGER :: i
+		PBC(DN2,0:1)=0
+		DO i=1,DN2
+			PBC(i,:)=IBSET(0,i-1)
+			PBC(i,0)=IBSET(PBC(i,0),MOD(MOD(i-1,DN)+1,DN)+(i-1)/DN*DN)
+			PBC(i,1)=IBSET(PBC(i,1),MOD(i+DN-1,DN2))
+		ENDDO
+	END SUBROUTINE
 END MODULE
 MODULE LANCZOS
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!       LANCZOS过程                                                                                                  !
+!       依赖与GLOBAL                                                                                                 !
+!       参数：                                                                                                       !
+!       	AD，AU：自旋下，自旋上的排序向量                                                                         !
+!       	CA：在原来的基础上产生一个电子的排序向量，需要手动释放内存                                               !
+!       	ABITD，ABITU：分别指向自旋下，自旋上排序向量的指针                                                       !
+!       	ABIT：指向ABITD，ABITU的指针，用于查找态                                                                 !
+!       子程序：                                                                                                     !
+!       	INITIALSTATE：初始化排序向量                                                                             !
+!       		参数：                                                                                               !
+!       			A：输入：一个大向量，输出：排序向量                                                              !
+!       			SZ：输出：排序向量大小                                                                           !
+!       			n：粒子个数                                                                                      !
+!       	FINDSTATE：查找态值所对应的指标，查找的排序向量由指针ABIT指定                                            !
+!       		参数：                                                                                               !
+!       			A：输入：查找的态值                                                                              !
+!       			SZ：输入：查找的排序向量大小                                                                     !
+!       			n：输出：态的指标                                                                                !
+!       	HUBBARD：哈密顿量作用到向量上，使用前需要指定ABITD和ABITU，hopping作用由PBC实现                          !
+!       		参数：                                                                                               !
+!       			VA：输入：作用的向量                                                                             !
+!       			VB：输入：没有初始化，输出：作用的结果                                                           !
+!       			SZ：向量的维数                                                                                   !
+!       	LANC：标准LANCZOS过程，需要调用HUBBARD和对角化程序                                                       !
+!       		参数：                                                                                               !
+!       			V：输入：V(:,1:2)为归一化的初始向量，输出：V(:,2)为本征向量（已经归一化）                        !
+!       			E：输入：大向量，输出：本征值                                                                    !
+!       			M：输入：最大的LANCZOS过程次数（即AP的维数），输出：不变                                         !
+!       			Mo：输出：实际执行LANCZOS过程的次数，即E的有效维数                                               !
+!       			FLAG：输入：是否计算本征向量，.TRUE.为计算，输出：不变                                           !
+!       			INFO：输出：对角化成功的指示信息                                                                 !
+!       	CREATE：计算在一个态上产生（消灭）一个电子的态，需要用到指针ABITU和ABITD，程序结束后其中一指针指向CA     !
+!       		参数：                                                                                               !
+!       			V：输入：初始态（基态），输出：不变                                                              !
+!       			CV：输出：指针，指向结果态，需要手动释放内存                                                     !
+!       			i，SPIN：输入：产生粒子的坐标和自旋                                                              !
+!       			SZ：输入：原始态的维数，输出：结果态的维数                                                       !
+!       			FLAG：输入：产生或者消灭，.TRUE.为产生                                                           !
+!       	CALCU：计算动力学关联（在此释放CV的内存），需要用到指针ABITU和ABITD                                      !
+!       		参数：                                                                                               !
+!       			CV：特定的初始LANCZOS态V（即CREATE中的结果）                                                     !
+!       			SZ：输入：态的维数                                                                               !
+!       			M：输入：LANCZOS过程的次数                                                                       !
+!       			FQ：输入：计算的频率向量                                                                         !
+!       			Y：输入：不置零，输出：计算的动力学关联结果向量                                                  !
+!       			img：输入：取的谱展宽                                                                            !
+!       	INIT_RANDOM_SEED：随机数种子                                                                             !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	USE GLOBAL
 	IMPLICIT NONE
 	INTEGER(8),POINTER :: ABIT(:),ABITD(:),ABITU(:)
 	INTEGER(8),ALLOCATABLE,TARGET :: AD(:),AU(:),CA(:)
 	CONTAINS
-	SUBROUTINE INITIALSTATE(A,SZ,n)
+	SUBROUTINE INITIALSTATE(P,SZ,n)
 		IMPLICIT NONE
-		INTEGER(8) :: A(:),i,n,j,k,SZ
-		A=0
+		INTEGER(8),ALLOCATABLE,TARGET :: P(:)
+		INTEGER(8) :: TMP(10000000),i,n,j,k,SZ
+		TMP=0
 		DO i=1,n
-			A(1)=IBSET(A(1),i-1)
+			TMP(1)=IBSET(TMP(1),i-1)
 		ENDDO
 		i=1
 EX:		DO WHILE(.TRUE.)
-			A(i+1)=A(i)
+			TMP(i+1)=TMP(i)
 			i=i+1
 			DO j=0,DN2-1
 				IF(j==DN2-1) THEN
 					EXIT EX
 				ENDIF
-				IF(IBITS(A(i),j,2)==1) THEN
-					A(i)=IBSET(A(i),j+1)
-					A(i)=IBCLR(A(i),j)
+				IF(IBITS(TMP(i),j,2)==1) THEN
+					TMP(i)=IBSET(TMP(i),j+1)
+					TMP(i)=IBCLR(TMP(i),j)
 					DO k=0,j/2-1
-						IF(BTEST(A(i),k)) THEN
+						IF(BTEST(TMP(i),k)) THEN
 							EXIT
 						ENDIF
-						IF(BTEST(A(i),j-k-1)) THEN
-							A(i)=IBSET(A(i),k)
-							A(i)=IBCLR(A(i),j-k-1)
+						IF(BTEST(TMP(i),j-k-1)) THEN
+							TMP(i)=IBSET(TMP(i),k)
+							TMP(i)=IBCLR(TMP(i),j-k-1)
 						ENDIF
 					ENDDO
 					EXIT
@@ -43,6 +117,8 @@ EX:		DO WHILE(.TRUE.)
 			ENDDO
 		ENDDO EX
 		SZ=i-1
+		ALLOCATE(P(SZ))
+		P=TMP(1:SZ)
 	END SUBROUTINE
 	SUBROUTINE FINDSTATE(A,n,SZ)
 		IMPLICIT NONE
@@ -65,13 +141,11 @@ EX:		DO WHILE(.TRUE.)
 		IMPLICIT NONE
 		INTEGER(8) :: i,ii,iii,iA(0:1),M,K,L,A,j,iON,AON,n,TMP,SZ(2),SIG
 		LOGICAL :: FLAG
-		REAL(8) :: VA(SZ(1)*SZ(2)),VB(SZ(1)*SZ(2))
+		REAL(8) :: VA(:),VB(:)
 		!$OMP PARALLEL DO REDUCTION(+:VB) PRIVATE(iA,AON,iON,M,K,L,A,j,TMP,ABIT,FLAG,SIG) SCHEDULE(GUIDED)
 		DO n=1,SZ(1)*SZ(2)
-			! WRITE(*,*)n
 			iA(0)=(n-1)/SZ(2)+1
 			iA(1)=n-(n-1)/SZ(2)*SZ(2)
-			! WRITE(*,"(2B17.16,2I5)")ABITD(iA(0)),ABITU(iA(1)),iA
 			AON=IAND(ABITD(iA(0)),ABITU(iA(1)))
 			iON=0
 			DO i=1,DN2
@@ -83,21 +157,15 @@ EX:		DO WHILE(.TRUE.)
 					ENDIF
 					FLAG=.FALSE.
 					SIG=1
-					! WRITE(*,"(B17.16)")ABIT(iA(ii/2))
 					M=PBC(i,MOD(ii,2))
-					! WRITE(*,"(B17.16)")M
 					K=IAND(ABIT(iA(ii/2)),M)
-					! WRITE(*,"(B17.16)")K
 					IF(K==M.OR.K==0) THEN
 						CYCLE
 					ENDIF
 					L=IEOR(K,M)
-					! WRITE(*,"(B17.16)")L
 					A=ABIT(iA(ii/2))-K+L
 					TMP=iA(ii/2)
-					! WRITE(*,*)"a=",a
 					CALL FINDSTATE(A,iA(ii/2),SZ(ii/2+1))
-					! WRITE(*,*)iA(ii/2)
 					DO iii=0,DN2-1
 						IF(BTEST(M,iii)) THEN
 							FLAG=.NOT.FLAG
@@ -105,7 +173,6 @@ EX:		DO WHILE(.TRUE.)
 							SIG=-1*SIG
 						ENDIF
 					ENDDO
-					! WRITE(10,"(2B17.16I2)")ABIT(TMP),ABIT(iA(ii/2)),SIG
 					j=(iA(0)-1)*SZ(2)+iA(1)
 					VB(j)=VB(j)+T*SIG*VA(n)
 					iA(ii/2)=TMP
@@ -118,14 +185,13 @@ EX:		DO WHILE(.TRUE.)
 		ENDDO
 		!$OMP END PARALLEL DO
 	END SUBROUTINE
-	SUBROUTINE LANC(V,AP,BT,E,SZ,M,FLAG,INFO)
+	SUBROUTINE LANC(V,E,SZ,M,Mo,FLAG,INFO)
 		IMPLICIT NONE
 		INTEGER(8) :: SZ(2),MODI(0:1)
-		INTEGER :: INFO,is,M
-		REAL(8) :: V(SZ(1)*SZ(2),0:2),AP(M),BT(0:M),E(M),TMP(0:M),FE(M),WORK(2*M-2),SUN
+		INTEGER :: INFO,is,M,Mo
+		REAL(8) :: V(SZ(1)*SZ(2),0:2),AP(M),BT(0:M),E(:),TMP(0:M),FE(M),WORK(2*M-2),SUN
 		REAL(8),ALLOCATABLE :: Z(:,:),EV(:)
 		LOGICAL :: FLAG
-		M=400
 		V(:,0)=0D0
 		FE(1)=1000
 		BT(0)=0D0
@@ -135,7 +201,7 @@ EX:		DO WHILE(.TRUE.)
 			V(:,MODI(0))=-1*BT(is-1)*V(:,MODI(0))
 			CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),SZ)
 			AP(is)=DOT_PRODUCT(V(:,MODI(1)),V(:,MODI(0)))
-			IF(is>10) THEN
+			IF(is>3) THEN
 				E(1:is)=AP(1:is)
 				TMP(1:is-1)=BT(1:is-1)
 				CALL DSTEQR('N',is,E(1:is),TMP(1:is-1),WORK,is,WORK,INFO)
@@ -147,7 +213,7 @@ EX:		DO WHILE(.TRUE.)
 						CALL DSTEQR('I',is,E(1:is),TMP(1:is-1),Z,is,WORK,INFO)
 						EV=Z(:,1)
 					ENDIF
-					M=is
+					Mo=is
 					WRITE(*,*)"INFO=",INFO,is
 					EXIT
 				ENDIF
@@ -162,7 +228,7 @@ EX:		DO WHILE(.TRUE.)
 			V(:,0)=0D0
 			V(:,1)=V(:,2)
 			V(:,2)=0D0
-			DO is=1,M
+			DO is=1,Mo
 				MODI(1)=MOD(is,2)
 				MODI(0)=MOD(is-1,2)
 				V(:,2)=V(:,2)+EV(is)*V(:,MODI(1))
@@ -171,48 +237,33 @@ EX:		DO WHILE(.TRUE.)
 				V(:,MODI(0))=V(:,MODI(0))-AP(is)*V(:,MODI(1))
 				V(:,MODI(0))=V(:,MODI(0))/BT(is)
 			ENDDO
+			SUN=DOT_PRODUCT(V(:,2),V(:,2))
+			V(:,2)=V(:,2)/SQRT(SUN)
 		ENDIF
 	END SUBROUTINE
-	SUBROUTINE CALCU(V,AP,BT,SZ,M,INFO)
+	SUBROUTINE CREATE(V,CV,i,SPIN,SZ,FLAG)
 		IMPLICIT NONE
-		INTEGER(8) :: SZ(2),MODI(0:1)
-		INTEGER :: INFO,is,M
-		REAL(8) :: V(SZ(1)*SZ(2),0:2),AP(M),BT(0:M),SUN
-		REAL(8),ALLOCATABLE :: Z(:,:),EV(:)
-		V(:,0)=0D0
-		BT(0)=0D0
-		DO is=1,M
-			MODI(1)=MOD(is,2)
-			MODI(0)=MOD(is-1,2)
-			V(:,MODI(0))=-1*BT(is-1)*V(:,MODI(0))
-			CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),SZ)
-			AP(is)=DOT_PRODUCT(V(:,MODI(1)),V(:,MODI(0)))
-			V(:,MODI(0))=V(:,MODI(0))-AP(is)*V(:,MODI(1))
-			SUN=DOT_PRODUCT(V(:,MODI(0)),V(:,MODI(0)))
-			BT(is)=SQRT(ABS(SUN))
-			V(:,MODI(0))=V(:,MODI(0))/BT(is)
-		ENDDO
-	END SUBROUTINE
-	SUBROUTINE CREATE(V,CV,i,SPIN,SZ)
-		IMPLICIT NONE
-		INTEGER(8) :: i,SPIN,SZ(2),ii,j,n,SIG,TMP,X
+		INTEGER(8) :: i,SPIN,SZ(2),ii,j,n,SIG,TMP,X,C,Ci
 		REAL(8),POINTER :: CV(:)
+		INTEGER(8),POINTER :: P(:)
 		REAL(8) :: V(:)
-		INTEGER(8),ALLOCATABLE :: A(:)
-		ALLOCATE(A(1000000))
+		LOGICAL :: FLAG
+		IF(FLAG) THEN
+			C=1
+		ELSE
+			C=-1
+		ENDIF
+		Ci=IBSET(0,i-1)
 		IF(SPIN==0) THEN
 			TMP=SZ(1)
-			CALL INITIALSTATE(A,SZ(1),(NT-NS)/2+1)
-			ALLOCATE(CA(SZ(1)))
-			CA=A(1:SZ(1))
-			DEALLOCATE(A)
+			CALL INITIALSTATE(CA,SZ(1),(NT-NS)/2+C)
 			ALLOCATE(CV(SZ(2)*SZ(1)))
 			CV=0D0
 			DO n=1,TMP
 				ABIT=>CA
-				IF(.NOT.BTEST(ABITD(n),i-1)) THEN
+				IF(FLAG.NEQV.BTEST(ABITD(n),i-1)) THEN
 					SIG=1**((NT+NS)/2)
-					X=IBSET(ABITD(n),i-1)
+					X=IEOR(ABITD(n),Ci)
 					CALL FINDSTATE(X,j,SZ(1))
 					DO ii=i,DN2
 						IF(BTEST(ABIT(n),i)) THEN
@@ -225,17 +276,14 @@ EX:		DO WHILE(.TRUE.)
 			ABITD=>CA
 		ELSE
 			TMP=SZ(2)
-			CALL INITIALSTATE(A,SZ(2),(NT+NS)/2+1)
-			ALLOCATE(CA(SZ(2)))
-			CA=A(1:SZ(2))
-			DEALLOCATE(A)
+			CALL INITIALSTATE(CA,SZ(2),(NT+NS)/2+C)
 			ALLOCATE(CV(SZ(2)*SZ(1)))
 			CV=0D0
 			ABIT=>CA
 			DO n=1,TMP
-				IF(.NOT.BTEST(ABITU(n),i-1)) THEN
+				IF(FLAG.NEQV.BTEST(ABITU(n),i-1)) THEN
 					SIG=1
-					X=IBSET(ABITU(n),i-1)
+					X=IEOR(ABITU(n),Ci)
 					CALL FINDSTATE(X,j,SZ(2))
 					DO ii=i,DN2
 						IF(BTEST(ABIT(n),i)) THEN
@@ -248,6 +296,39 @@ EX:		DO WHILE(.TRUE.)
 			ABITU=>CA
 		ENDIF
 	END SUBROUTINE
+	SUBROUTINE CALCU(CV,SZ,M,FQ,Y,img)
+		IMPLICIT NONE
+		INTEGER(8) :: SZ(2),MODI(0:1)
+		INTEGER :: is,M,i,j
+		REAL(8) :: SUN,FQ(:),Y(:),img,PII,AP(1:M),BT(0:M),V(SZ(1)*SZ(2),0:1)
+		REAL(8),POINTER :: CV(:)
+		COMPLEX(8) :: X,Z
+		V(:,0)=0D0
+		V(:,1)=CV
+		BT(0)=0D0
+		PII=-1D0/PI
+		DO is=1,M
+			MODI(1)=MOD(is,2)
+			MODI(0)=MOD(is-1,2)
+			V(:,MODI(0))=-1*BT(is-1)*V(:,MODI(0))
+			CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),SZ)
+			AP(is)=DOT_PRODUCT(V(:,MODI(1)),V(:,MODI(0)))
+			V(:,MODI(0))=V(:,MODI(0))-AP(is)*V(:,MODI(1))
+			SUN=DOT_PRODUCT(V(:,MODI(0)),V(:,MODI(0)))
+			BT(is)=SQRT(ABS(SUN))
+			V(:,MODI(0))=V(:,MODI(0))/BT(is)
+		ENDDO
+		BT(0)=DOT_PRODUCT(CV,CV)
+		DEALLOCATE(CV)
+		DO i=1,SIZE(FQ)
+			X=0D0
+			Z=CMPLX(FQ(i),img)
+			DO j=M,1,-1
+				X=BT(j-1)**2/(Z-AP(j)-X)
+			ENDDO
+			Y(i)=Y(i)+DIMAG(X)*PII
+		ENDDO
+	END SUBROUTINE
 	SUBROUTINE INIT_RANDOM_SEED()
 		INTEGER :: i, n, clock
 		INTEGER, DIMENSION(:), ALLOCATABLE :: seed
@@ -259,81 +340,82 @@ EX:		DO WHILE(.TRUE.)
 		DEALLOCATE(seed)
 	END SUBROUTINE
 END MODULE
+
+
 PROGRAM MAIN
 	USE GLOBAL
 	USE LANCZOS
 	IMPLICIT NONE
-	REAL(8),ALLOCATABLE :: V(:,:),AP(:),BT(:),E(:),V2(:)
+	REAL(8),ALLOCATABLE :: V(:,:),E(:),V2(:)
 	REAL(8),POINTER :: CV(:)
-	INTEGER(8) :: i,j,k,im(2),TMP(2),SPIN
-	INTEGER(8),ALLOCATABLE :: A(:)
-	REAL(8) :: SUN,SITE(DN2,2),Y(-1000:500)
-	INTEGER :: M=400,INFO
-	COMPLEX(8) :: Z,X
-	OPEN(UNIT=10,FILE="../DATA/OUTPUT.DAT")
-	ALLOCATE(A(1000000))
-	DO i=1,DN2
-		PBC(i,:)=IBSET(0,i-1)
-		PBC(i,0)=IBSET(PBC(i,0),MOD(MOD(i-1,DN)+1,DN)+(i-1)/DN*DN)
-		PBC(i,1)=IBSET(PBC(i,1),MOD(i+DN-1,DN2))
+	INTEGER(8) :: i,j,k,SZ(2),TMP(2),NSLOW
+	REAL(8),ALLOCATABLE :: FQ(:),Y(:)
+	REAL(8) :: SUN,OMIN,OMAX,LOWE
+	INTEGER :: M=200,INFO,Mo
+	! OPEN(UNIT=10,FILE="../DATA/OUTPUT.DAT")
+	CALL INIT_RANDOM_SEED()
+	CALL INIT_LATTICE()
+	LOWE=100
+	ALLOCATE(V2(1))
+	ALLOCATE(E(M))
+	DO NS=0,0,-2
+		CALL INITIALSTATE(AD,SZ(1),(NT-NS)/2)
+		IF(NS==0) THEN
+			SZ(2)=SZ(1)
+			ALLOCATE(AU(SZ(2)))
+			AU=AD
+		ELSE
+			CALL INITIALSTATE(AU,SZ(2),(NT+NS)/2)
+		ENDIF
+		ALLOCATE(V(SZ(1)*SZ(2),0:2))
+		CALL RANDOM_NUMBER(V(:,2))
+		V(:,1)=V(:,2)
+		SUN=DOT_PRODUCT(V(:,1),V(:,1))
+		V(:,1)=V(:,1)/SQRT(ABS(SUN))
+		ABITD=>AD
+		ABITU=>AU
+		CALL LANC(V,E,SZ,M,Mo,.TRUE.,INFO)
+		IF(E(1)<LOWE) THEN
+			LOWE=E(1)
+			WRITE(*,"(E17.6)")E(1)
+			DEALLOCATE(V2)
+			ALLOCATE(V2(SZ(1)*SZ(2)))
+			NSLOW=NS
+			V2=V(:,2)
+		ENDIF
+		DEALLOCATE(V,AD,AU)
 	ENDDO
-	CALL INITIALSTATE(A,im(1),(NT-NS)/2)
-	ALLOCATE(AD(im(1)))
-	AD=A(1:im(1))
+	NS=NSLOW
+	CALL INITIALSTATE(AD,SZ(1),(NT-NS)/2)
 	IF(NS==0) THEN
-		im(2)=im(1)
-		ALLOCATE(AU(im(2)))
+		SZ(2)=SZ(1)
+		ALLOCATE(AU(SZ(2)))
 		AU=AD
 	ELSE
-		CALL INITIALSTATE(A,im(2),(NT+NS)/2)
-		ALLOCATE(AU(im(2)))
-		AU=A(1:im(2))
+		CALL INITIALSTATE(AU,SZ(2),(NT+NS)/2)
 	ENDIF
-	DEALLOCATE(A)
-	ALLOCATE(V(im(1)*im(2),0:2),AP(M),BT(0:M),E(M))
-	CALL INIT_RANDOM_SEED()
-	CALL RANDOM_NUMBER(V(:,2))
-	V(:,1)=V(:,2)
-	SUN=DOT_PRODUCT(V(:,1),V(:,1))
-	V(:,1)=V(:,1)/SQRT(ABS(SUN))
-	ABITD=>AD
-	ABITU=>AU
-	CALL LANC(V,AP,BT,E,im,M,.TRUE.,INFO)
-	WRITE(10,"(E17.6)")E(1:M)
+	WRITE(10,"(E17.6)")E(1:Mo)
 	WRITE(10,*)"----------------------------------------------"
-	! WRITE(10,"(E17.6)")V(:,2)
-	! WRITE(10,*)"----------------------------------------------"
-	! V(:,1)=0D0
-	! CALL HUBBARD(V(:,2),V(:,1),im)
-	! WRITE(10,"(E17.6)")V(:,1)-E(1)*V(:,2)
-	SUN=DOT_PRODUCT(V(:,2),V(:,2))
-	ALLOCATE(V2(im(1)*im(2)))
-	V2=V(:,2)/SQRT(ABS(SUN))
+	IF(NT==0) THEN
+		V2=1D0
+	ENDIF
+	ALLOCATE(FQ(1237),Y(1237))
+	OMIN=E(1)-5D0
+	OMAX=5D0*(NT+1)
+	DO i=1,SIZE(FQ)
+		FQ(i)=OMIN+(OMAX-OMIN)/SIZE(FQ)*i
+	ENDDO
 	Y=0D0
-	DO k=1,DN2
-		TMP=im
+	M=400
+	DO k=1,2*DN2
+		TMP=SZ
 		ABITU=>AU
 		ABITD=>AD
-		CALL CREATE(V2,CV,MOD(k-1,16)+1,(k-1)/16,im)
-		DEALLOCATE(V)
-		ALLOCATE(V(im(2)*im(1),0:2))
-		V(:,2)=CV
-		DEALLOCATE(CV)
-		V(:,1)=V(:,2)
-		M=400
-		CALL CALCU(V,AP,BT,im,M,INFO)
+		CALL CREATE(V2,CV,MOD(k-1,DN2)+1,(k-1)/DN2,SZ,.TRUE.)
+		CALL CALCU(CV,SZ,M,FQ,Y,0.01D0)
 		DEALLOCATE(CA)
 		WRITE(*,*)k
-		DO j=-1000,500
-			X=0D0
-			BT(0)=DOT_PRODUCT(V(:,2),V(:,2))
-			Z=CMPLX(10D0/1000D0*j+E(1),0.0001)
-			DO i=M,1,-1
-				X=BT(i-1)**2/(Z-AP(i)-X)
-			ENDDO
-			Y(j)=Y(j)+DIMAG(X)
-		ENDDO
-		im=TMP
+		SZ=TMP
 	ENDDO
-	WRITE(10,"(2E17.6)")(10D0/1000D0*j+E(1),Y(j),j=-1000,500)
+	WRITE(10,"(2E17.6)")(FQ(j)-LOWE,Y(j),j=1,SIZE(FQ))
 END
