@@ -16,7 +16,7 @@ MODULE GLOBAL
 	INTEGER(8),PARAMETER :: DN=4,DN2=16,NT=2
 	REAL(8),PARAMETER :: PI=3.14159265358979D0
 	INTEGER(8) :: PBC(DN2,0:1)=0,NS=0
-	REAL(8) :: T=-1D0,U=0D0
+	REAL(8) :: T=-1D0,U=4D0
 	CONTAINS
 	SUBROUTINE INIT_LATTICE()
 		IMPLICIT NONE
@@ -41,7 +41,7 @@ MODULE LANCZOS
 !       子程序：                                                                                                     !
 !       	INITIALSTATE：初始化排序向量                                                                             !
 !       		参数：                                                                                               !
-!       			A：输入：一个大向量，输出：排序向量                                                              !
+!       			A：输出：排序向量                                                                                !
 !       			SZ：输出：排序向量大小                                                                           !
 !       			n：粒子个数                                                                                      !
 !       	FINDSTATE：查找态值所对应的指标，查找的排序向量由指针ABIT指定                                            !
@@ -185,13 +185,16 @@ EX:		DO WHILE(.TRUE.)
 		ENDDO
 		!$OMP END PARALLEL DO
 	END SUBROUTINE
-	SUBROUTINE LANC(V,E,SZ,M,Mo,FLAG,INFO)
+	SUBROUTINE LANC(V2,E,SZ,M,Mo,FLAG,INFO)
 		IMPLICIT NONE
 		INTEGER(8) :: SZ(2),MODI(0:1)
 		INTEGER :: INFO,is,M,Mo
-		REAL(8) :: V(SZ(1)*SZ(2),0:2),AP(M),BT(0:M),E(:),TMP(0:M),FE(M),WORK(2*M-2),SUN
+		REAL(8) :: V(SZ(1)*SZ(2),0:1),AP(M),BT(0:M),E(:),TMP(0:M),FE(M),WORK(2*M-2),SUN,V2(:)
 		REAL(8),ALLOCATABLE :: Z(:,:),EV(:)
 		LOGICAL :: FLAG
+		V(:,1)=V2
+		SUN=DOT_PRODUCT(V(:,1),V(:,1))
+		V(:,1)=V(:,1)/SQRT(ABS(SUN))
 		V(:,0)=0D0
 		FE(1)=1000
 		BT(0)=0D0
@@ -205,7 +208,7 @@ EX:		DO WHILE(.TRUE.)
 				E(1:is)=AP(1:is)
 				TMP(1:is-1)=BT(1:is-1)
 				CALL DSTEQR('N',is,E(1:is),TMP(1:is-1),WORK,is,WORK,INFO)
-				IF(ABS(E(1)-FE(1))<1E-12.OR.INFO/=0) THEN
+				IF(ABS(E(1)-FE(1))<1E-12.OR.INFO/=0.OR.BT(is-1)<1E-8) THEN
 					IF(FLAG) THEN
 						E(1:is)=AP(1:is)
 						TMP(1:is-1)=BT(1:is-1)
@@ -214,7 +217,8 @@ EX:		DO WHILE(.TRUE.)
 						EV=Z(:,1)
 					ENDIF
 					Mo=is
-					WRITE(*,*)"INFO=",INFO,is
+					WRITE(*,*)"INFO=",INFO
+					WRITE(*,"(2E17.6,I5)")BT(is-1),ABS(E(1)-FE(1)),is
 					EXIT
 				ENDIF
 				FE=E
@@ -226,26 +230,25 @@ EX:		DO WHILE(.TRUE.)
 		ENDDO
 		IF(FLAG) THEN
 			V(:,0)=0D0
-			V(:,1)=V(:,2)
-			V(:,2)=0D0
+			V(:,1)=V2
+			V2=0D0
 			DO is=1,Mo
 				MODI(1)=MOD(is,2)
 				MODI(0)=MOD(is-1,2)
-				V(:,2)=V(:,2)+EV(is)*V(:,MODI(1))
+				V2=V2+EV(is)*V(:,MODI(1))
 				V(:,MODI(0))=-1*BT(is-1)*V(:,MODI(0))
 				CALL HUBBARD(V(:,MODI(1)),V(:,MODI(0)),SZ)
 				V(:,MODI(0))=V(:,MODI(0))-AP(is)*V(:,MODI(1))
 				V(:,MODI(0))=V(:,MODI(0))/BT(is)
 			ENDDO
-			SUN=DOT_PRODUCT(V(:,2),V(:,2))
-			V(:,2)=V(:,2)/SQRT(SUN)
+			SUN=DOT_PRODUCT(V2,V2)
+			V2=V2/SQRT(SUN)
 		ENDIF
 	END SUBROUTINE
 	SUBROUTINE CREATE(V,CV,i,SPIN,SZ,FLAG)
 		IMPLICIT NONE
 		INTEGER(8) :: i,SPIN,SZ(2),ii,j,n,SIG,TMP,X,C,Ci
 		REAL(8),POINTER :: CV(:)
-		INTEGER(8),POINTER :: P(:)
 		REAL(8) :: V(:)
 		LOGICAL :: FLAG
 		IF(FLAG) THEN
@@ -259,14 +262,14 @@ EX:		DO WHILE(.TRUE.)
 			CALL INITIALSTATE(CA,SZ(1),(NT-NS)/2+C)
 			ALLOCATE(CV(SZ(2)*SZ(1)))
 			CV=0D0
+			ABIT=>CA
 			DO n=1,TMP
-				ABIT=>CA
 				IF(FLAG.NEQV.BTEST(ABITD(n),i-1)) THEN
-					SIG=1**((NT+NS)/2)
+					SIG=-1**((NT+NS)/2)
 					X=IEOR(ABITD(n),Ci)
 					CALL FINDSTATE(X,j,SZ(1))
-					DO ii=i,DN2
-						IF(BTEST(ABIT(n),i)) THEN
+					DO ii=i,DN2-1
+						IF(BTEST(ABITD(n),ii)) THEN
 							SIG=-1*SIG
 						ENDIF
 					ENDDO
@@ -285,8 +288,8 @@ EX:		DO WHILE(.TRUE.)
 					SIG=1
 					X=IEOR(ABITU(n),Ci)
 					CALL FINDSTATE(X,j,SZ(2))
-					DO ii=i,DN2
-						IF(BTEST(ABIT(n),i)) THEN
+					DO ii=i,DN2-1
+						IF(BTEST(ABITU(n),ii)) THEN
 							SIG=-1*SIG
 						ENDIF
 					ENDDO
@@ -305,6 +308,8 @@ EX:		DO WHILE(.TRUE.)
 		COMPLEX(8) :: X,Z
 		V(:,0)=0D0
 		V(:,1)=CV
+		SUN=DOT_PRODUCT(V(:,1),V(:,1))
+		V(:,1)=V(:,1)/SQRT(ABS(SUN))
 		BT(0)=0D0
 		PII=-1D0/PI
 		DO is=1,M
@@ -316,6 +321,10 @@ EX:		DO WHILE(.TRUE.)
 			V(:,MODI(0))=V(:,MODI(0))-AP(is)*V(:,MODI(1))
 			SUN=DOT_PRODUCT(V(:,MODI(0)),V(:,MODI(0)))
 			BT(is)=SQRT(ABS(SUN))
+			IF(BT(is)<1E-8.AND.is>10) THEN
+				WRITE(*,"(E17.6,I5)")BT(is),is
+				EXIT
+			ENDIF
 			V(:,MODI(0))=V(:,MODI(0))/BT(is)
 		ENDDO
 		BT(0)=DOT_PRODUCT(CV,CV)
@@ -323,11 +332,12 @@ EX:		DO WHILE(.TRUE.)
 		DO i=1,SIZE(FQ)
 			X=0D0
 			Z=CMPLX(FQ(i),img)
-			DO j=M,1,-1
+			DO j=is,1,-1
 				X=BT(j-1)**2/(Z-AP(j)-X)
 			ENDDO
 			Y(i)=Y(i)+DIMAG(X)*PII
 		ENDDO
+		DEALLOCATE(CA)
 	END SUBROUTINE
 	SUBROUTINE INIT_RANDOM_SEED()
 		INTEGER :: i, n, clock
@@ -346,19 +356,20 @@ PROGRAM MAIN
 	USE GLOBAL
 	USE LANCZOS
 	IMPLICIT NONE
-	REAL(8),ALLOCATABLE :: V(:,:),E(:),V2(:)
+	REAL(8),ALLOCATABLE :: V2(:),V_LOW(:),E(:),LOWE(:)
 	REAL(8),POINTER :: CV(:)
 	INTEGER(8) :: i,j,k,SZ(2),TMP(2),NSLOW
 	REAL(8),ALLOCATABLE :: FQ(:),Y(:)
-	REAL(8) :: SUN,OMIN,OMAX,LOWE
+	REAL(8) :: OMIN,OMAX
 	INTEGER :: M=200,INFO,Mo
-	! OPEN(UNIT=10,FILE="../DATA/OUTPUT.DAT")
+	LOGICAL :: FLAG
+	OPEN(UNIT=10,FILE="../DATA/OUTPUT.DAT")
 	CALL INIT_RANDOM_SEED()
 	CALL INIT_LATTICE()
-	LOWE=100
-	ALLOCATE(V2(1))
-	ALLOCATE(E(M))
-	DO NS=0,0,-2
+	ALLOCATE(V_LOW(1))
+	ALLOCATE(E(M),LOWE(M))
+	LOWE(1)=100
+	DO NS=NT,0,-2
 		CALL INITIALSTATE(AD,SZ(1),(NT-NS)/2)
 		IF(NS==0) THEN
 			SZ(2)=SZ(1)
@@ -367,23 +378,19 @@ PROGRAM MAIN
 		ELSE
 			CALL INITIALSTATE(AU,SZ(2),(NT+NS)/2)
 		ENDIF
-		ALLOCATE(V(SZ(1)*SZ(2),0:2))
-		CALL RANDOM_NUMBER(V(:,2))
-		V(:,1)=V(:,2)
-		SUN=DOT_PRODUCT(V(:,1),V(:,1))
-		V(:,1)=V(:,1)/SQRT(ABS(SUN))
+		ALLOCATE(V2(SZ(1)*SZ(2)))
+		CALL RANDOM_NUMBER(V2)
 		ABITD=>AD
 		ABITU=>AU
-		CALL LANC(V,E,SZ,M,Mo,.TRUE.,INFO)
-		IF(E(1)<LOWE) THEN
-			LOWE=E(1)
-			WRITE(*,"(E17.6)")E(1)
-			DEALLOCATE(V2)
-			ALLOCATE(V2(SZ(1)*SZ(2)))
+		CALL LANC(V2,E,SZ,M,Mo,.TRUE.,INFO)
+		IF(E(1)<LOWE(1)) THEN
+			DEALLOCATE(LOWE,V_LOW)
+			ALLOCATE(LOWE(Mo),V_LOW(SZ(1)*SZ(2)))
+			LOWE=E(1:Mo)
 			NSLOW=NS
-			V2=V(:,2)
+			V_LOW=V2
 		ENDIF
-		DEALLOCATE(V,AD,AU)
+		DEALLOCATE(V2,AD,AU)
 	ENDDO
 	NS=NSLOW
 	CALL INITIALSTATE(AD,SZ(1),(NT-NS)/2)
@@ -394,28 +401,39 @@ PROGRAM MAIN
 	ELSE
 		CALL INITIALSTATE(AU,SZ(2),(NT+NS)/2)
 	ENDIF
-	WRITE(10,"(E17.6)")E(1:Mo)
+	WRITE(10,"(E17.6)")LOWE
 	WRITE(10,*)"----------------------------------------------"
 	IF(NT==0) THEN
-		V2=1D0
+		V_LOW=1D0
 	ENDIF
 	ALLOCATE(FQ(1237),Y(1237))
-	OMIN=E(1)-5D0
-	OMAX=5D0*(NT+1)
-	DO i=1,SIZE(FQ)
-		FQ(i)=OMIN+(OMAX-OMIN)/SIZE(FQ)*i
-	ENDDO
-	Y=0D0
-	M=400
-	DO k=1,2*DN2
+	M=100
+	DEALLOCATE(E)
+	ALLOCATE(E(M))
+	! ABITU=>AU
+	! ABITD=>AD
+	! ALLOCATE(V2(SZ(1)*SZ(2)))
+	! V2=0D0
+	! CALL HUBBARD(V_LOW,V2,SZ)
+	! WRITE(10,"(E17.6)")V_LOW
+	! WRITE(10,*)"----------------------------------------------"
+	FLAG=.TRUE.
+	DO k=0,3
+		FLAG=.NOT.FLAG
+		WRITE(*,*)FLAG,k,k/2
+		Y=0D0
 		TMP=SZ
 		ABITU=>AU
 		ABITD=>AD
-		CALL CREATE(V2,CV,MOD(k-1,DN2)+1,(k-1)/DN2,SZ,.TRUE.)
-		CALL CALCU(CV,SZ,M,FQ,Y,0.01D0)
-		DEALLOCATE(CA)
-		WRITE(*,*)k
+		CALL CREATE(V_LOW,CV,k/10+1,k/2,SZ,FLAG)
+		CALL LANC(CV,E,SZ,M,Mo,.FALSE.,INFO)
+		OMIN=E(1)-0.5
+		OMAX=E(Mo)+0.5
+		DO i=1,SIZE(FQ)
+			FQ(i)=OMIN+(OMAX-OMIN)/SIZE(FQ)*i
+		ENDDO
+		CALL CALCU(CV,SZ,M,FQ,Y,0.02D0)
 		SZ=TMP
+		WRITE(10,"(2E17.6)")(FQ(j)-LOWE(1),Y(j),j=1,SIZE(FQ))
 	ENDDO
-	WRITE(10,"(2E17.6)")(FQ(j)-LOWE,Y(j),j=1,SIZE(FQ))
 END
