@@ -1,9 +1,9 @@
 program main
 	implicit none
-	real(8),parameter :: t=0.25d0,tp=-0.05d0,tpp=0.02d0,tppp=0.035d0,tiv=0d0,nf=1.15d0,&
-		pi=3.1415926d0,cvg=1e-5
+	real(8),parameter :: t=0.25d0,tp=-0.025d0,tpp=0.012d0,tppp=0.035d0,tiv=0d0,nf=0.8d0,&
+		pi=3.1415926d0,cvg=1e-7
 	real(8) :: te,bt,u=0.318,v=-0.3
-	integer,parameter :: mp1=128,mp2=1024
+	integer,parameter :: mp1=1024,mp2=10000
 	complex(8) :: img=(0d0,1d0)
 	real(8) :: eka,eks,e1(2),e2(2),e(4),kx,ky,n,US,USp,sp=-0.2,sa,sb,sp0,dk,dt(2),dtp(2),gk(2),hn(4),wide,tmp,tmp1,tmpa,z,th,gap,&
 		u2(2),v2(2),uv(2),cos2,sin2,sc,h(4,4),work(15)
@@ -16,12 +16,12 @@ program main
 	open(unit=30,file="../data/temp.dat")
 	open(unit=40,file="../data/gap.dat")
 	flag=.false.
-	do p=1,1
+	do p=245,245
 		te=p
 		bt=1d0/(te*8.6e-5)
 		! u=0.375d0+p/20d0
-		u=0.575d0
-		v=0d0
+		u=0.375d0
+		v=-0.39d0
 		wide=1d0
 		sp=-0.135d0
 		sp0=sp+wide
@@ -106,18 +106,17 @@ program main
 		enddo
 		write(*,"(4e16.3)")te,USp,dtp(1),sp
 		write(30,"(5e16.3)")te,USp,dtp(1),sp
-		if(flag) then
-			cycle
-		endif
-		flag=.true.
-		US=0.09d0
+		! if(flag) then
+			! cycle
+		! endif
+		! flag=.true.
 		do i=0,100
 			gap=1000d0
 			th=i*pi/4d0/100d0
 			!$OMP PARALLEL DO PRIVATE(kx,ky,gk,dk,u2,v2,cos2,sin2,hn,tmp,tmpa,e1,e2,e) SCHEDULE(GUIDED)
 			do j=0,mp2
-				ky=j*pi/mp2
-				kx=ky*tan(th)
+				ky=pi-j*pi/mp2
+				kx=pi-j*pi/mp2*tan(th)
 				gk(1)=0.5d0*(cos(kx)-cos(ky))
 				! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
 				dk=dt(1)*gk(1) ! +dt(2)*gk(2)
@@ -176,33 +175,33 @@ program main
 			hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)
 			write(10,"(8e16.3)")(e(l),hn(l),l=1,4)
 		enddo
-		do i=0,mp2
-			do j=0,mp2
-				tmp1=0
-				kx=pi/mp2*i
-				ky=pi/mp2*j
-				gk(1)=0.5d0*(cos(kx)-cos(ky))
-				! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
-				dk=dt(1)*gk(1) ! +dt(2)*gk(2)
-				tmpa=eka(kx,ky)
-				tmp=sqrt((tmpa)**2+US**2)
-				e1=eks(kx,ky)+(/-tmp,tmp/)*sign(1d0,tmpa)
-				e2=sqrt(e1**2+dk**2)
-				e=(/e2*sign(1d0,-e1),-e2*sign(1d0,-e1)/)
-				u2=(1d0-abs(e1)/e2)*0.5d0
-				v2=(1d0+abs(e1)/e2)*0.5d0
-				cos2=(1d0-abs(tmpa)/tmp)*0.5d0
-				sin2=(1d0+abs(tmpa)/tmp)*0.5d0
-				hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)
-				do l=1,4
-					if(abs(e(l))<0.01) then
-						tmp1=tmp1+hn(l)
-					endif
-				enddo
-				write(20,"(3e16.3)")kx,ky,tmp1
-			enddo
-			write(20,"(1x)")
-		enddo
+		! do i=0,mp2
+			! kx=pi/mp2*i
+			! do j=0,mp2
+				! tmp1=0
+				! ky=pi/mp2*j
+				! gk(1)=0.5d0*(cos(kx)-cos(ky))
+				! ! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
+				! dk=dt(1)*gk(1) ! +dt(2)*gk(2)
+				! tmpa=eka(kx,ky)
+				! tmp=sqrt((tmpa)**2+US**2)
+				! e1=eks(kx,ky)+(/-tmp,tmp/)*sign(1d0,tmpa)
+				! e2=sqrt(e1**2+dk**2)
+				! e=(/e2*sign(1d0,-e1),-e2*sign(1d0,-e1)/)
+				! u2=(1d0-abs(e1)/e2)*0.5d0
+				! v2=(1d0+abs(e1)/e2)*0.5d0
+				! cos2=(1d0-abs(tmpa)/tmp)*0.5d0
+				! sin2=(1d0+abs(tmpa)/tmp)*0.5d0
+				! hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)
+				! do l=1,4
+					! if(abs(e(l))<0.01) then
+						! tmp1=tmp1+hn(l)
+					! endif
+				! enddo
+				! write(20,"(3e16.3)")kx,ky,tmp1
+			! enddo
+			! write(20,"(1x)")
+		! enddo
 	enddo
 	close(10)
 	close(20)
