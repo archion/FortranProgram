@@ -6,13 +6,13 @@ gap='e:\Projects\FortranProgram\DATA\gap.dat'
 # fermi='C:\Users\Administrator\Application Data\SSH\temp\fermi.dat'
 # temp='C:\Users\Administrator\Application Data\SSH\temp\temp1.dat'
 # gap='C:\Users\Administrator\Application Data\SSH\temp\gap.dat'
-# set multiplot layout 2,2
+set multiplot layout 1,2
 # plot the energy band
-# unset key
-# set size square
-# set xtic 50
-# plot for[i=1:4] energy using 0:(column(2*i-1)):(column(i*2)) with points lt 1 pt 7 ps variable,\
-	 # for[i=1:4] energy using 0:(column(2*i-1)) with points lt 0
+unset key
+set size square
+set xtic 50
+plot for[i=1:4] energy using 0:(column(2*i-1)):(column(i*2)) with points lt 1 pt 7 ps variable,\
+	 for[i=1:4] energy using 0:(column(2*i-1)) with points lt 0
 # # plot for[i=1:4] energy using 0:(column(2*i-1)-(column(i*2)*0.01)):(column(2*i-1)+(column(i*2)*0.01)) with filledcurves lt 1,\
 	# # for[i=1:4] energy using 0:(column(2*i-1)) with line lt 0
 

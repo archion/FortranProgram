@@ -1,6 +1,6 @@
 program main
 	implicit none
-	real(8),parameter :: t=0.25d0,tp=-0.025d0,tpp=0.012d0,tppp=0.035d0,tiv=0d0,nf=0.8d0,&
+	real(8),parameter :: t=0.25d0,tp=-0.05d0,tpp=0.02d0,tppp=0.035d0,tiv=0d0,nf=1.15d0,&
 		pi=3.1415926d0,cvg=1e-5
 	real(8) :: te,bt,u=0.318,v=-0.3
 	integer,parameter :: mp1=128,mp2=1024
@@ -16,12 +16,12 @@ program main
 	open(unit=30,file="../data/temp.dat")
 	open(unit=40,file="../data/gap.dat")
 	flag=.false.
-	do p=150,150
+	do p=1,1
 		te=p
 		bt=1d0/(te*8.6e-5)
 		! u=0.375d0+p/20d0
-		u=0.375d0
-		v=-0.4d0
+		u=0.575d0
+		v=0d0
 		wide=1d0
 		sp=-0.135d0
 		sp0=sp+wide
@@ -110,6 +110,7 @@ program main
 			cycle
 		endif
 		flag=.true.
+		US=0.09d0
 		do i=0,100
 			gap=1000d0
 			th=i*pi/4d0/100d0

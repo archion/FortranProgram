@@ -4,6 +4,7 @@
 # Libraries
 *.lib
 *.a
+*.mod
 
 # Shared objects (inc. Windows DLLs)
 *.dll
@@ -18,6 +19,7 @@
 
 # Datas
 *.dat
+*.qti
 DATA/
 Test/
 
