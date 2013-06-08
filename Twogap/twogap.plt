@@ -1,12 +1,14 @@
-# energy='e:\projects\fortranprogram\data\energy.dat'
-# fermi='e:\projects\fortranprogram\data\fermi.dat'
-# temp='e:\projects\fortranprogram\data\temp.dat'
-# gap='e:\Projects\FortranProgram\DATA\gap.dat'
 energy='C:\Users\Administrator\Application Data\SSH\temp\energy.dat'
 fermi='C:\Users\Administrator\Application Data\SSH\temp\fermi.dat'
 temp='C:\Users\Administrator\Application Data\SSH\temp\temp.dat'
 gap='C:\Users\Administrator\Application Data\SSH\temp\gap.dat'
-# set multiplot layout 1,2
+raman='C:\Users\Administrator\Application Data\SSH\temp\raman.dat'
+energy='e:\projects\fortranprogram\data\energy.dat'
+fermi='e:\projects\fortranprogram\data\fermi.dat'
+temp='e:\projects\fortranprogram\data\temp.dat'
+gap='e:\Projects\FortranProgram\DATA\gap.dat'
+raman='e:\Projects\FortranProgram\DATA\raman.dat'
+set multiplot layout 1,2
 # plot the energy band
 unset key
 # set size square
@@ -29,9 +31,12 @@ unset key
 
 # # plot the temprature dependence
 # set xtic 50
-# plot temp using 1:2 with line lw 5 , temp using 1:3 with line lw 5
+# plot temp using 1:2 with linespoints pt 7 lw 5 , temp using 1:3 with linespoints pt 7 lw 5
 
-# plot gap
-set xtic 5
-plot gap using 1:2 with line
+# # plot gap
+# set xtic 5
+# plot [:] gap using 1:2 with line
 
+# plot Raman
+plot [:][0:] raman using 1:2 with line lw 3 
+plot [:][0:] raman using 1:3 with line lw 3
