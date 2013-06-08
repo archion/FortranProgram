@@ -8,7 +8,7 @@ fermi='e:\projects\fortranprogram\data\fermi.dat'
 temp='e:\projects\fortranprogram\data\temp.dat'
 gap='e:\Projects\FortranProgram\DATA\gap.dat'
 raman='e:\Projects\FortranProgram\DATA\raman.dat'
-set multiplot layout 1,2
+set multiplot layout 1,3
 # plot the energy band
 unset key
 # set size square
@@ -40,3 +40,4 @@ unset key
 # plot Raman
 plot [:][0:] raman using 1:2 with line lw 3 
 plot [:][0:] raman using 1:3 with line lw 3
+plot raman using 1:4 with line lw 3
