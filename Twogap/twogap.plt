@@ -1,14 +1,14 @@
-energy='C:\Users\Administrator\Application Data\SSH\temp\energy.dat'
-fermi='C:\Users\Administrator\Application Data\SSH\temp\fermi.dat'
-temp='C:\Users\Administrator\Application Data\SSH\temp\temp.dat'
-gap='C:\Users\Administrator\Application Data\SSH\temp\gap.dat'
-raman='C:\Users\Administrator\Application Data\SSH\temp\raman.dat'
 energy='e:\projects\fortranprogram\data\energy.dat'
 fermi='e:\projects\fortranprogram\data\fermi.dat'
 temp='e:\projects\fortranprogram\data\temp.dat'
 gap='e:\Projects\FortranProgram\DATA\gap.dat'
 raman='e:\Projects\FortranProgram\DATA\raman.dat'
-set multiplot layout 1,3
+energy='C:\Users\Administrator\Application Data\SSH\temp\energy.dat'
+fermi='C:\Users\Administrator\Application Data\SSH\temp\fermi.dat'
+temp='C:\Users\Administrator\Application Data\SSH\temp\temp.dat'
+gap='C:\Users\Administrator\Application Data\SSH\temp\gap.dat'
+raman='C:\Users\Administrator\Application Data\SSH\temp\raman.dat'
+# set multiplot layout 3,1
 # plot the energy band
 unset key
 # set size square
@@ -38,6 +38,7 @@ unset key
 # plot [:] gap using 1:2 with line
 
 # plot Raman
-plot [:][0:] raman using 1:2 with line lw 3 
-plot [:][0:] raman using 1:3 with line lw 3
-plot raman using 1:4 with line lw 3
+set xtic 0.01
+plot [0:][0:] raman using 1:2 with line
+# plot [0:][0:] raman using 1:3 with line
+# plot [0:] raman using 1:4 with line

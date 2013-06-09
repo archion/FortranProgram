@@ -1,6 +1,6 @@
 program main
 	implicit none
-	real(8),parameter :: t=0.25d0,tp=-0.0d0,tpp=0.0d0,tppp=0d0,tiv=0d0,nf=0.85d0,&
+	real(8),parameter :: t=0.25d0,tp=-0.025d0,tpp=0.012d0,tppp=0.035d0,tiv=0d0,nf=0.8d0,&
 		pi=3.1415926d0,cvg=1e-5
 	real(8) :: te,bt,u=0.318,v=-0.3
 	integer,parameter :: mp1=256,mp2=100000
@@ -21,17 +21,17 @@ program main
 				.false.,.true.,.false.,.false.,&
 				.false.,.false.,.true.,.false.,&
 				.false.,.false.,.false.,.true. /),(/4,4/))
-	do p=1,1,1
+	do p=100,100,1
 		te=p
 		bt=1d0/(te*8.6e-5)
 		! u=0.375d0+p/20d0
-		u=0.41d0
+		u=0.375d0
 		v=-0.39d0
 		wide=1d0
-		sp=0d0
+		sp=-0.128d0
 		sp0=sp+wide
 		US=0.0d0
-		dt=0.08d0
+		dt=0.0226d0
 		dtp(1)=2d0
 		! dtp(2)=-2d0
 		USp=2d0
@@ -150,40 +150,40 @@ program main
 			! write(40,"(2e16.3)")th/pi*180,gap
 		! enddo
 		! write(40,"(1x)")
-		! i=0
-		! j=0
-		! a=1
-		! b=0
-		! do while(i>=0)
-			! if(i==mp1.and.j==0) then
-				! a=0
-				! b=1
-			! endif
-			! if(i==mp1.and.j==mp1) then
-				! a=-1
-				! b=-1
-			! endif
-			! i=i+a
-			! j=j+b
-			! kx=pi/mp1*i
-			! ky=pi/mp1*j
-			! gk(1)=0.5d0*(cos(kx)-cos(ky))
-			! ! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
-			! dk=dt(1)*gk(1) ! +dt(2)*gk(2)
-			! tmpa=eka(kx,ky)
-			! tmp=sqrt((tmpa)**2+US**2)
-			! e1=eks(kx,ky)+(/-tmp,tmp/)*sign(1d0,tmpa)
-			! e2=sqrt(e1**2+dk**2)
-			! e=(/e2*sign(1d0,-e1),-e2*sign(1d0,-e1)/)
-			! u2=(1d0-abs(e1)/e2)*0.5d0
-			! v2=(1d0+abs(e1)/e2)*0.5d0
-			! cos2=(1d0-abs(tmpa)/tmp)*0.5d0
-			! sin2=(1d0+abs(tmpa)/tmp)*0.5d0
-			! hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)
-			! write(10,"(8e16.3)")(e(l),hn(l),l=1,4)
-		! enddo
-		do l=0,500
-			omg=l*0.001d0
+		! ! i=0
+		! ! j=0
+		! ! a=1
+		! ! b=0
+		! ! do while(i>=0)
+			! ! if(i==mp1.and.j==0) then
+				! ! a=0
+				! ! b=1
+			! ! endif
+			! ! if(i==mp1.and.j==mp1) then
+				! ! a=-1
+				! ! b=-1
+			! ! endif
+			! ! i=i+a
+			! ! j=j+b
+			! ! kx=pi/mp1*i
+			! ! ky=pi/mp1*j
+			! ! gk(1)=0.5d0*(cos(kx)-cos(ky))
+			! ! ! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
+			! ! dk=dt(1)*gk(1) ! +dt(2)*gk(2)
+			! ! tmpa=eka(kx,ky)
+			! ! tmp=sqrt((tmpa)**2+US**2)
+			! ! e1=eks(kx,ky)+(/-tmp,tmp/)*sign(1d0,tmpa)
+			! ! e2=sqrt(e1**2+dk**2)
+			! ! e=(/e2*sign(1d0,-e1),-e2*sign(1d0,-e1)/)
+			! ! u2=(1d0-abs(e1)/e2)*0.5d0
+			! ! v2=(1d0+abs(e1)/e2)*0.5d0
+			! ! cos2=(1d0-abs(tmpa)/tmp)*0.5d0
+			! ! sin2=(1d0+abs(tmpa)/tmp)*0.5d0
+			! ! hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)
+			! ! write(10,"(8e16.3)")(e(l),hn(l),l=1,4)
+		! ! enddo
+		do l=0,1000
+			omg=l*0.0002d0
 			R=0d0
 			DOS=0d0
 			!$OMP PARALLEL DO REDUCTION(+:R,DOS) PRIVATE(kx,ky,gk,dk,gm,h,work,e,info,f,rtmp) SCHEDULE(GUIDED)
@@ -213,16 +213,16 @@ program main
 						enddo
 					enddo
 					do m1=1,4
-						DOS=DOS+DIMAG(1d0/(omg-e(m1)+img*0.005d0))
+						DOS=DOS-DIMAG(1d0/(omg-e(m1)+img*0.005d0))
 						do m2=1,4
 							R=R+(/sum(matmul(rtmp(:,:,m1,1),rtmp(:,:,m2,1)),Tr),sum(matmul(rtmp(:,:,m1,2),rtmp(:,:,m2,2)),Tr)/)*&
-								(-f(m1)+f(m2))*DIMAG(1d0/(omg+e(m1)-e(m2)+img*0.005d0))
+								(-f(m1)+f(m2))*DIMAG(1d0/(omg+e(m1)-e(m2)+img*0.002d0))
 						enddo
 					enddo
 				enddo
 			enddo
 			!$OMP END PARALLEL DO
-			write(50,"(4e16.3)")omg,2d0*R/mp1**2,DOS
+			write(50,"(4e16.3)")omg,2d0*R/mp1**2,2d0*DOS/mp1**2
 		enddo
 	enddo
 	close(10)
