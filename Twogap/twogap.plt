@@ -8,7 +8,7 @@ fermi='C:\Users\Administrator\Application Data\SSH\temp\fermi.dat'
 temp='C:\Users\Administrator\Application Data\SSH\temp\temp.dat'
 gap='C:\Users\Administrator\Application Data\SSH\temp\gap.dat'
 raman='C:\Users\Administrator\Application Data\SSH\temp\raman.dat'
-# set multiplot layout 3,1
+set multiplot layout 2,1
 # plot the energy band
 unset key
 # set size square
@@ -38,7 +38,6 @@ unset key
 # plot [:] gap using 1:2 with line
 
 # plot Raman
-set xtic 0.01
-plot [0:][0:] raman using 1:2 with line
-# plot [0:][0:] raman using 1:3 with line
-# plot [0:] raman using 1:4 with line
+set xtic 0.02
+plot [:][:] raman using 1:2 with line axis x1y1, raman using 1:3 with line axis x1y2
+plot [:][:] raman using 1:4 with line axis x1y1, raman using 1:5 with line axis x1y2
