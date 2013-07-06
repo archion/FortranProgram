@@ -30,84 +30,84 @@ program main
 		wide=1d0
 		sp=-0.128d0
 		sp0=sp+wide
-		US=0.0d0
-		dt=0.04d0
+		US=0.1d0
+		dt=0.07d0
 		dtp(1)=2d0
 		! dtp(2)=-2d0
 		USp=2d0
-		do while(abs(dtp(1)-dt(1))>cvg.or.abs(USp-US)>cvg)
-			dt=dtp
-			US=USp
-			sa=sp
-			sb=sp
-			n=0d0
-			flaga=.true.
-			flagb=.true.
-			do while(abs(n-nf)>cvg)
-				sp=0.5d0*(sa+sb)
-				n=0d0
-				USp=0d0
-				dtp=0d0
-				!$OMP PARALLEL DO REDUCTION(+:n,USp,dtp) PRIVATE(kx,ky,gk,dk,u2,v2,uv,cos2,sin2,sc,hn,tmp,tmpa,e1,e2,e)&
-				!$OMP SCHEDULE(GUIDED)
-				do i=0,mk
-					do j=0,min(i,mk-i)
-						kx=pi/mk*i
-						ky=pi/mk*j
-						gk(1)=0.5d0*(cos(kx)-cos(ky))
-						! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
-						tmpa=eka(kx,ky)
-						dk=dt(1)*gk(1) ! +dt(2)*gk(2)
-						tmp=sqrt((tmpa)**2+US**2)
-						e1=eks(kx,ky)+(/-tmp,tmp/)*sign(1d0,tmpa)
-						e2=sqrt(e1**2+dk**2)
-						e=(/e2*sign(1d0,-e1),-e2*sign(1d0,-e1)/)
-						e=1d0/(1d0+exp(bt*e))
-						u2=(1d0-abs(e1)/e2)*0.5d0
-						v2=(1d0+abs(e1)/e2)*0.5d0
-						uv=0.5d0*dk/e2*sign(1d0,-e1)
-						cos2=(1d0-abs(tmpa)/tmp)*0.5d0
-						sin2=(1d0+abs(tmpa)/tmp)*0.5d0
-						sc=0.5d0*US*sign(1d0,tmpa)/tmp
-						hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)+(/u2(1)*sin2,u2(2)*cos2,v2(1)*sin2,v2(2)*cos2/)-&
-						   (/v2(1)*cos2,v2(2)*sin2,u2(1)*cos2,u2(2)*sin2/)-(/v2(1)*sin2,v2(2)*cos2,u2(1)*sin2,u2(2)*cos2/)
-						n=n+dot_product(hn,e)
-						hn=(/u2(1),-u2(2),v2(1),-v2(2)/)+(/-v2(1),v2(2),-u2(1),u2(2)/)
-						USp=USp+u*dot_product(hn*sc,e)
-						hn=(/uv(1)*cos2,uv(2)*sin2,-uv(1)*cos2,-uv(2)*sin2/)-(/-uv(1)*sin2,-uv(2)*cos2,uv(1)*sin2,uv(2)*cos2/)
-						tmp=dot_product(hn,e)
-						dtp(1)=dtp(1)+v*gk(1)*tmp
-						! dtp(2)=dtp(2)+v*gk(2)*tmp
-						n=2d0+n
-					enddo
-				enddo
-				!$OMP END PARALLEL DO
-				n=n/(mk**2)*2d0
-				USp=USp/(mk**2)*2d0
-				dtp=dtp/(mk**2)*2d0
-				if(abs(n-nf)<=cvg) then
-					exit
-				endif
-				if(n<nf) then
-					flaga=.false.
-					sa=sp
-					if(flaga.or.flagb) then
-						sb=sp+wide
-						sp=sb
-					endif
-				else
-					flagb=.false.
-					sb=sp
-					if(flaga.or.flagb) then
-						sa=sp-wide
-						sp=sa
-					endif
-				endif
-			enddo
-			! write(*,*)n,USp,dtp
-			wide=max(abs(sp0-sp),100*cvg)
-			sp0=sp
-		enddo
+		! do while(abs(dtp(1)-dt(1))>cvg.or.abs(USp-US)>cvg)
+			! dt=dtp
+			! US=USp
+			! sa=sp
+			! sb=sp
+			! n=0d0
+			! flaga=.true.
+			! flagb=.true.
+			! do while(abs(n-nf)>cvg)
+				! sp=0.5d0*(sa+sb)
+				! n=0d0
+				! USp=0d0
+				! dtp=0d0
+				! !$OMP PARALLEL DO REDUCTION(+:n,USp,dtp) PRIVATE(kx,ky,gk,dk,u2,v2,uv,cos2,sin2,sc,hn,tmp,tmpa,e1,e2,e)&
+				! !$OMP SCHEDULE(GUIDED)
+				! do i=0,mk
+					! do j=0,min(i,mk-i)
+						! kx=pi/mk*i
+						! ky=pi/mk*j
+						! gk(1)=0.5d0*(cos(kx)-cos(ky))
+						! ! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
+						! tmpa=eka(kx,ky)
+						! dk=dt(1)*gk(1) ! +dt(2)*gk(2)
+						! tmp=sqrt((tmpa)**2+US**2)
+						! e1=eks(kx,ky)+(/tmp,-tmp/)
+						! e2=sqrt(e1**2+dk**2)
+						! e=(/e2,-e2/)
+						! e=1d0/(1d0+exp(bt*e))
+						! u2=(1d0+e1/e2)*0.5d0
+						! v2=(1d0-e1/e2)*0.5d0
+						! uv=0.5d0*dk/e2
+						! cos2=(1d0+tmpa/tmp)*0.5d0
+						! sin2=(1d0-tmpa/tmp)*0.5d0
+						! sc=0.5d0*US/tmp
+						! hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)+(/u2(1)*sin2,u2(2)*cos2,v2(1)*sin2,v2(2)*cos2/)-&
+						   ! (/v2(1)*cos2,v2(2)*sin2,u2(1)*cos2,u2(2)*sin2/)-(/v2(1)*sin2,v2(2)*cos2,u2(1)*sin2,u2(2)*cos2/)
+						! n=n+dot_product(hn,e)
+						! hn=(/u2(1),-u2(2),v2(1),-v2(2)/)+(/-v2(1),v2(2),-u2(1),u2(2)/)
+						! USp=USp+u*dot_product(hn*sc,e)
+						! hn=(/uv(1)*cos2,uv(2)*sin2,-uv(1)*cos2,-uv(2)*sin2/)-(/-uv(1)*sin2,-uv(2)*cos2,uv(1)*sin2,uv(2)*cos2/)
+						! tmp=dot_product(hn,e)
+						! dtp(1)=dtp(1)+v*gk(1)*tmp
+						! ! dtp(2)=dtp(2)+v*gk(2)*tmp
+						! n=2d0+n
+					! enddo
+				! enddo
+				! !$OMP END PARALLEL DO
+				! n=n/(mk**2)*2d0
+				! USp=USp/(mk**2)*2d0
+				! dtp=dtp/(mk**2)*2d0
+				! if(abs(n-nf)<=cvg) then
+					! exit
+				! endif
+				! if(n<nf) then
+					! flaga=.false.
+					! sa=sp
+					! if(flaga.or.flagb) then
+						! sb=sp+wide
+						! sp=sb
+					! endif
+				! else
+					! flagb=.false.
+					! sb=sp
+					! if(flaga.or.flagb) then
+						! sa=sp-wide
+						! sp=sa
+					! endif
+				! endif
+			! enddo
+			! ! write(*,*)n,USp,dtp
+			! wide=max(abs(sp0-sp),100*cvg)
+			! sp0=sp
+		! enddo
 		write(*,"(4e16.3)")te,US,dt(1),sp
 		write(30,"(5e16.3)")te,US,dt(1),sp
 		! if(flag) then
@@ -117,6 +117,24 @@ program main
 		if(abs(USp)<=cvg*2) then
 			US=0d0
 		endif
+		do i=1,3*ms-1
+			kx=pi*(min((i/ms)*ms,ms)+(1-i/ms)*mod(i,ms))/ms
+			ky=pi*min(max((i-ms),0),3*ms-i)/ms
+			gk(1)=0.5d0*(cos(kx)-cos(ky))
+			! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
+			dk=dt(1)*gk(1) ! +dt(2)*gk(2)
+			tmpa=eka(kx,ky)
+			tmp=sqrt((tmpa)**2+US**2)
+			e1=eks(kx,ky)+(/tmp,-tmp/)
+			e2=sqrt(e1**2+dk**2)
+			e=(/e2,-e2/)
+			u2=(1d0+e1/e2)*0.5d0
+			v2=(1d0-e1/e2)*0.5d0
+			cos2=(1d0+tmpa/tmp)*0.5d0
+			sin2=(1d0-tmpa/tmp)*0.5d0
+			hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)
+			write(10,"(8e16.3)")(e(l),hn(l),l=1,4)
+		enddo
 		do i=0,200
 			gap=1000d0
 			th=i*pi/4d0/200d0
@@ -129,13 +147,13 @@ program main
 				dk=dt(1)*gk(1) ! +dt(2)*gk(2)
 				tmpa=eka(kx,ky)
 				tmp=sqrt((tmpa)**2+US**2)
-				e1=eks(kx,ky)+(/-tmp,tmp/)*sign(1d0,tmpa)
+				e1=eks(kx,ky)+(/tmp,-tmp/)
 				e2=sqrt(e1**2+dk**2)
-				e=(/e2*sign(1d0,-e1),-e2*sign(1d0,-e1)/)
-				u2=(1d0-abs(e1)/e2)*0.5d0
-				v2=(1d0+abs(e1)/e2)*0.5d0
-				cos2=(1d0-abs(tmpa)/tmp)*0.5d0
-				sin2=(1d0+abs(tmpa)/tmp)*0.5d0
+				e=(/e2,-e2/)
+				u2=(1d0+e1/e2)*0.5d0
+				v2=(1d0-e1/e2)*0.5d0
+				cos2=(1d0+tmpa/tmp)*0.5d0
+				sin2=(1d0-tmpa/tmp)*0.5d0
 				hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)
 				! write(*,"(4e16.3)")e
 				do l=1,4
@@ -150,24 +168,6 @@ program main
 			write(40,"(2e16.3)")th/pi*180,gap
 		enddo
 		write(40,"(1x)")
-		do i=1,3*ms-1
-			kx=pi*(min((i/ms)*ms,ms)+(1-i/ms)*mod(i,ms))/ms
-			ky=pi*min(max((i-ms),0),3*ms-i)/ms
-			gk(1)=0.5d0*(cos(kx)-cos(ky))
-			! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
-			dk=dt(1)*gk(1) ! +dt(2)*gk(2)
-			tmpa=eka(kx,ky)
-			tmp=sqrt((tmpa)**2+US**2)
-			e1=eks(kx,ky)+(/-tmp,tmp/)*sign(1d0,tmpa)
-			e2=sqrt(e1**2+dk**2)
-			e=(/e2*sign(1d0,-e1),-e2*sign(1d0,-e1)/)
-			u2=(1d0-abs(e1)/e2)*0.5d0
-			v2=(1d0+abs(e1)/e2)*0.5d0
-			cos2=(1d0-abs(tmpa)/tmp)*0.5d0
-			sin2=(1d0+abs(tmpa)/tmp)*0.5d0
-			hn=(/u2(1)*cos2,u2(2)*sin2,v2(1)*cos2,v2(2)*sin2/)
-			write(10,"(8e16.3)")(e(l),hn(l),l=1,4)
-		enddo
 !  Raman
 		d=0.001d0
 		omgp=0d0
