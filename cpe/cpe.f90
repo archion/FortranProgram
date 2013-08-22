@@ -1,469 +1,469 @@
-MODULE GLOBAL
-	IMPLICIT NONE
-	SAVE
-	REAL(8) :: T=1
-	INTEGER, PARAMETER :: DN=4
-	REAL(8), PARAMETER :: PI=3.14159
-	INTEGER :: PBC(0:DN+1)
-END MODULE
-PROGRAM CPE
-	USE GLOBAL
-	IMPLICIT NONE
-	INTEGER,PARAMETER :: SZ=1600,COF=1024
-	INTEGER :: i,j,JA(DN*DN*5),IA(DN*DN+1),NJ(4),n,n_MOD(3),SHF(SZ),INFO
-	REAL(8) :: VA(DN*DN*5),x,W,hhn(0:2,DN*DN),P(0:2),EMAX,EMIN,a,b,An(0:2*COF-1),DOS(0:2*COF-1),LD=0.01,TMP_SH
-	OPEN(UNIT=10,FILE="../DATA/output.dat")
-	PBC=(/DN,(i,i=1,DN),1/)
-	CALL INIT_RANDOM_SEED()
-	DO i=1,SZ
-		SHF(i)=-i+100
-	ENDDO
-	CALL FISHER_YATES_SHUFFLE(SHF,SIZE(SHF))
+module global
+	implicit none
+	save
+	real(8) :: t=1
+	integer, parameter :: dn=4
+	real(8), parameter :: pi=3.14159
+	integer :: pbc(0:dn+1)
+end module
+program cpe
+	use global
+	implicit none
+	integer,parameter :: sz=1600,cof=1024
+	integer :: i,j,ja(dn*dn*5),ia(dn*dn+1),nj(4),n,n_mod(3),shf(sz),info
+	real(8) :: va(dn*dn*5),x,w,hhn(0:2,dn*dn),p(0:2),emax,emin,a,b,an(0:2*cof-1),dos(0:2*cof-1),ld=0.01,tmp_sh
+	open(unit=10,file="../data/output.dat")
+	pbc=(/dn,(i,i=1,dn),1/)
+	call init_random_seed()
+	do i=1,sz
+		shf(i)=-i+100
+	enddo
+	call fisher_yates_shuffle(shf,size(shf))
 	n=1
-	IA(1)=1
-	DO i=1,DN*DN
-		! VA(n)=-4
-		! JA(n)=i
+	ia(1)=1
+	do i=1,dn*dn
+		! va(n)=-4
+		! ja(n)=i
 		! n=n+1
-		CALL NNP(i,.TRUE.,NJ)
-		DO j=1,4
-			VA(n)=T
-			JA(n)=NJ(j)
+		call nnp(i,.true.,nj)
+		do j=1,4
+			va(n)=t
+			ja(n)=nj(j)
 			n=n+1
-		ENDDO
-		IA(i+1)=n
-	ENDDO
-	CALL LANMAX(VA,JA,IA,EMAX,EMIN,SIZE(IA)-1,INFO)
-	WRITE(*,*)EMAX,EMIN,INFO
-	a=(EMAX-EMIN)/2+0.1
-	b=(EMAX+EMIN)/2
-	WRITE(*,*)a,b
-	DO i=1,DN*DN
-		DO j=IA(i),IA(i+1)-1
-			IF(JA(j)==i) THEN
-				VA(j)=VA(j)-b
-			ENDIF
-		ENDDO
-	ENDDO
-	VA=VA/a
+		enddo
+		ia(i+1)=n
+	enddo
+	call lanmax(va,ja,ia,emax,emin,size(ia)-1,info)
+	write(*,*)emax,emin,info
+	a=(emax-emin)/2+0.1
+	b=(emax+emin)/2
+	write(*,*)a,b
+	do i=1,dn*dn
+		do j=ia(i),ia(i+1)-1
+			if(ja(j)==i) then
+				va(j)=va(j)-b
+			endif
+		enddo
+	enddo
+	va=va/a
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!                                                                                                                  !!!!!
-!!!!!                                     Expanded by Tchebycheff polynomial                                           !!!!!
+!!!!!                                     expanded by tchebycheff polynomial                                           !!!!!
 !!!!!                                                                                                                  !!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	! DO j=1,SZ
-		! x=SHF(j)/(SZ-99D0)
-		! IF(x*a+b<EMAX.AND.x*a+b>EMIN) THEN
-			! DOS=0
-			! W=1.0/SQRT(1-x**2)
-			! !$OMP PARALLEL DO REDUCTION(+:DOS) PRIVATE(hhn) NUM_THREADS(42)
-			! DO i=1,DN*DN
+	! do j=1,sz
+		! x=shf(j)/(sz-99d0)
+		! if(x*a+b<emax.and.x*a+b>emin) then
+			! dos=0
+			! w=1.0/sqrt(1-x**2)
+			! !$omp parallel do reduction(+:dos) private(hhn) num_threads(42)
+			! do i=1,dn*dn
 				! hhn=0
-				! hhn(0,i)=1D0
-				! DOS=DOS+hhn(0,i)/PI*W
-				! CALL CRSMV(VA,JA,IA,hhn(0,:),hhn(1,:),DN*DN)
-				! DOS=DOS+hhn(1,i)/(2.0*PI)*W*COS(ACOS(x))
-				! DO n=2,COF
-					! n_MOD(1)=MOD(n-2,3)
-					! n_MOD(2)=MOD(n-1,3)
-					! n_MOD(3)=MOD(n,3)
-					! CALL CRSMV(VA,JA,IA,hhn(n_MOD(2),:),hhn(n_MOD(3),:),DN*DN)
-					! hhn(n_MOD(3),:)=2*hhn(n_MOD(3),:)-hhn(n_MOD(1),:)
-					! DOS=DOS+hhn(n_MOD(3),i)/(2.0*PI)*W*COS(n*ACOS(x))
-				! ENDDO
-			! ENDDO
-			! !$OMP END PARALLEL DO
-			! WRITE(10,*)x*a+b,DOS
-		! ENDIF
-	! ENDDO
+				! hhn(0,i)=1d0
+				! dos=dos+hhn(0,i)/pi*w
+				! call crsmv(va,ja,ia,hhn(0,:),hhn(1,:),dn*dn)
+				! dos=dos+hhn(1,i)/(2.0*pi)*w*cos(acos(x))
+				! do n=2,cof
+					! n_mod(1)=mod(n-2,3)
+					! n_mod(2)=mod(n-1,3)
+					! n_mod(3)=mod(n,3)
+					! call crsmv(va,ja,ia,hhn(n_mod(2),:),hhn(n_mod(3),:),dn*dn)
+					! hhn(n_mod(3),:)=2*hhn(n_mod(3),:)-hhn(n_mod(1),:)
+					! dos=dos+hhn(n_mod(3),i)/(2.0*pi)*w*cos(n*acos(x))
+				! enddo
+			! enddo
+			! !$omp end parallel do
+			! write(10,*)x*a+b,dos
+		! endif
+	! enddo
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!                                                                                                                  !!!!!
-!!!!!                                 Expanded by Tchebycheff polynomial using FFT                                     !!!!!
+!!!!!                                 expanded by tchebycheff polynomial using fft                                     !!!!!
 !!!!!                                                                                                                  !!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	DOS=0
-	TMP_SH=SINH(LD)
-	!$OMP PARALLEL DO REDUCTION(+:DOS) PRIVATE(hhn,An,n_MOD) NUM_THREADS(6) SCHEDULE(GUIDED)
-	DO i=1,DN*DN
+	dos=0
+	tmp_sh=sinh(ld)
+	!$omp parallel do reduction(+:dos) private(hhn,an,n_mod) num_threads(6) schedule(guided)
+	do i=1,dn*dn
 		hhn=0
-		hhn(0,i)=1D0
-		An(0)=hhn(0,i)
-		CALL CRSMV(VA,JA,IA,hhn(0,:),hhn(1,:),DN*DN)
-		An(1)=hhn(1,i) !*SINH(LD*(1.0-1.0/COF))/TMP_SH
-		DO n=2,COF-1
-			n_MOD(1)=MOD(n-2,3)
-			n_MOD(2)=MOD(n-1,3)
-			n_MOD(3)=MOD(n,3)
-			CALL CRSMV(VA,JA,IA,hhn(n_MOD(2),:),hhn(n_MOD(3),:),DN*DN)
-			hhn(n_MOD(3),:)=2*hhn(n_MOD(3),:)-hhn(n_MOD(1),:)
-			An(n)=hhn(n_MOD(3),i) !*SINH(LD*(1.0-REAL(n)/COF))/TMP_SH
-		ENDDO
-		An(COF:2*COF-1)=0
-		CALL FFTCOS1_2(An,2*COF,-1)
-		DOS=DOS+An
-	ENDDO
-	!$OMP END PARALLEL DO
-	WRITE(10,"(2E16.3)")(COS(PI*(i+0.5)/(2*COF-1)),DOS(i),i=0,2*COF-1)
+		hhn(0,i)=1d0
+		an(0)=hhn(0,i)
+		call crsmv(va,ja,ia,hhn(0,:),hhn(1,:),dn*dn)
+		an(1)=hhn(1,i) !*sinh(ld*(1.0-1.0/cof))/tmp_sh
+		do n=2,cof-1
+			n_mod(1)=mod(n-2,3)
+			n_mod(2)=mod(n-1,3)
+			n_mod(3)=mod(n,3)
+			call crsmv(va,ja,ia,hhn(n_mod(2),:),hhn(n_mod(3),:),dn*dn)
+			hhn(n_mod(3),:)=2*hhn(n_mod(3),:)-hhn(n_mod(1),:)
+			an(n)=hhn(n_mod(3),i) !*sinh(ld*(1.0-real(n)/cof))/tmp_sh
+		enddo
+		an(cof:2*cof-1)=0
+		call fftcos1_2(an,2*cof,-1)
+		dos=dos+an
+	enddo
+	!$omp end parallel do
+	write(10,"(2e16.3)")(cos(pi*(i+0.5)/(2*cof-1)),dos(i),i=0,2*cof-1)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!                                                                                                                  !!!!!
-!!!!!                                  Expanded by Legendre ploynomial                                                 !!!!!
+!!!!!                                  expanded by legendre ploynomial                                                 !!!!!
 !!!!!                                                                                                                  !!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	! DO j=1,SZ
-		! x=SHF(j)/(SZ-99D0)
-		! IF(x*(BW+0.5)<BW.AND.x*(BW+0.5)>-1*BW) THEN
-			! DOS=0
-			! !$OMP PARALLEL DO REDUCTION(+:DOS) PRIVATE(hhn,P) NUM_THREADS(42)
-			! DO i=1,DN*DN
+	! do j=1,sz
+		! x=shf(j)/(sz-99d0)
+		! if(x*(bw+0.5)<bw.and.x*(bw+0.5)>-1*bw) then
+			! dos=0
+			! !$omp parallel do reduction(+:dos) private(hhn,p) num_threads(42)
+			! do i=1,dn*dn
 				! hhn=0
-				! hhn(0,i)=1D0
-				! P(0)=1
+				! hhn(0,i)=1d0
+				! p(0)=1
 				! p(1)=x
-				! DOS=DOS+hhn(0,i)*0.5*P(0)
-				! CALL CRSMV(VA,JA,IA,hhn(0,:),hhn(1,:),DN*DN)
-				! DOS=DOS+1.5*hhn(1,i)*P(1)
-				! DO n=2,COF
-					! n_MOD(1)=MOD(n-2,3)
-					! n_MOD(2)=MOD(n-1,3)
-					! n_MOD(3)=MOD(n,3)
-					! CALL CRSMV(VA,JA,IA,hhn(n_MOD(2),:),hhn(n_MOD(3),:),DN*DN)
-					! hhn(n_MOD(3),:)=(2*n+1)*1.0/(n+1)*hhn(n_MOD(3),:)-n*1.0/(n+1)*hhn(n_MOD(1),:)
-					! P(n_MOD(3))=(2*n+1)*1.0/(n+1)*x*P(n_MOD(2))-n*1.0/(n+1)*P(n_MOD(1))
-					! DOS=DOS+(2*n+1)/2.0*hhn(n_MOD(3),i)*P(n_MOD(3))
-				! ENDDO
-			! ENDDO
-			! !$OMP END PARALLEL DO
-			! WRITE(10,*)x*(BW+0.5),DOS
-		! ENDIF
-	! ENDDO
-	CLOSE(10)
-END
+				! dos=dos+hhn(0,i)*0.5*p(0)
+				! call crsmv(va,ja,ia,hhn(0,:),hhn(1,:),dn*dn)
+				! dos=dos+1.5*hhn(1,i)*p(1)
+				! do n=2,cof
+					! n_mod(1)=mod(n-2,3)
+					! n_mod(2)=mod(n-1,3)
+					! n_mod(3)=mod(n,3)
+					! call crsmv(va,ja,ia,hhn(n_mod(2),:),hhn(n_mod(3),:),dn*dn)
+					! hhn(n_mod(3),:)=(2*n+1)*1.0/(n+1)*hhn(n_mod(3),:)-n*1.0/(n+1)*hhn(n_mod(1),:)
+					! p(n_mod(3))=(2*n+1)*1.0/(n+1)*x*p(n_mod(2))-n*1.0/(n+1)*p(n_mod(1))
+					! dos=dos+(2*n+1)/2.0*hhn(n_mod(3),i)*p(n_mod(3))
+				! enddo
+			! enddo
+			! !$omp end parallel do
+			! write(10,*)x*(bw+0.5),dos
+		! endif
+	! enddo
+	close(10)
+end
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!                                                                                                                  !!!!!
-!!!!!                                  Find nearest and next-nearest site                                              !!!!!
+!!!!!                                  find nearest and next-nearest site                                              !!!!!
 !!!!!                                                                                                                  !!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!          
-SUBROUTINE NNP(ii,near,jj)
-	USE GLOBAL
-	IMPLICIT NONE
-	INTEGER :: ii,i,j,jj(4)
-	LOGICAL :: near
-	j=PBC(MOD(ii,DN))
-	i=(ii-j)/DN+1
-	IF(near) THEN
-		jj(1)=(i-1)*DN+PBC(j+1)
-		jj(2)=(PBC(i+1)-1)*DN+j
-		jj(3)=(i-1)*DN+PBC(j-1)
-		jj(4)=(PBC(i-1)-1)*DN+j
-	ELSE
-		jj(1)=DN*(PBC(i+1)-1)+PBC(j+1)
-		jj(2)=DN*(PBC(i+1)-1)+PBC(j-1)
-		jj(3)=DN*(PBC(i-1)-1)+PBC(j+1)
-		jj(4)=DN*(PBC(i-1)-1)+PBC(j-1)
-	ENDIF
-END SUBROUTINE NNP
+subroutine nnp(ii,near,jj)
+	use global
+	implicit none
+	integer :: ii,i,j,jj(4)
+	logical :: near
+	j=pbc(mod(ii,dn))
+	i=(ii-j)/dn+1
+	if(near) then
+		jj(1)=(i-1)*dn+pbc(j+1)
+		jj(2)=(pbc(i+1)-1)*dn+j
+		jj(3)=(i-1)*dn+pbc(j-1)
+		jj(4)=(pbc(i-1)-1)*dn+j
+	else
+		jj(1)=dn*(pbc(i+1)-1)+pbc(j+1)
+		jj(2)=dn*(pbc(i+1)-1)+pbc(j-1)
+		jj(3)=dn*(pbc(i-1)-1)+pbc(j+1)
+		jj(4)=dn*(pbc(i-1)-1)+pbc(j-1)
+	endif
+end subroutine nnp
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!                                                                                                                  !!!!!
-!!!!!                                  Vector-Matrix product use CRS storage                                           !!!!!
+!!!!!                                  vector-matrix product use crs storage                                           !!!!!
 !!!!!                                                                                                                  !!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE CRSMV(VA,JA,IA,X,Y,M)
-	IMPLICIT NONE
-	INTEGER :: i,j,M
-	INTEGER :: JA(*),IA(*)
-	REAL(8) :: VA(*),Y(*),X(*)
-	DO i=1,M
-		Y(i)=0
-		DO j=IA(i),IA(i+1)-1
-			Y(i)=Y(i)+VA(j)*X(JA(j))
-		ENDDO
-	ENDDO
-END
+subroutine crsmv(va,ja,ia,x,y,m)
+	implicit none
+	integer :: i,j,m
+	integer :: ja(*),ia(*)
+	real(8) :: va(*),y(*),x(*)
+	do i=1,m
+		y(i)=0
+		do j=ia(i),ia(i+1)-1
+			y(i)=y(i)+va(j)*x(ja(j))
+		enddo
+	enddo
+end
 
-SUBROUTINE FISHER_YATES_SHUFFLE(A,M)
-	IMPLICIT NONE
-	INTEGER :: A(*),i,j,TEM,M
-	REAL(8) :: RAM
-	DO i=M,1,-1
-		CALL RANDOM_NUMBER(RAM)
-		j=CEILING(RAM*i)
-		TEM=A(i)
-		A(i)=A(j)
-		A(j)=TEM
-	ENDDO
-END
+subroutine fisher_yates_shuffle(a,m)
+	implicit none
+	integer :: a(*),i,j,tem,m
+	real(8) :: ram
+	do i=m,1,-1
+		call random_number(ram)
+		j=ceiling(ram*i)
+		tem=a(i)
+		a(i)=a(j)
+		a(j)=tem
+	enddo
+end
 
-SUBROUTINE INIT_RANDOM_SEED()
-	INTEGER :: i, n, clock
-	INTEGER, DIMENSION(:), ALLOCATABLE :: seed
-	CALL RANDOM_SEED(size = n)
-	ALLOCATE(seed(n))
-	CALL SYSTEM_CLOCK(COUNT=clock)
+subroutine init_random_seed()
+	integer :: i, n, clock
+	integer, dimension(:), allocatable :: seed
+	call random_seed(size = n)
+	allocate(seed(n))
+	call system_clock(count=clock)
 	seed = clock + 37 * (/ (i - 1, i = 1, n) /)
-	CALL RANDOM_SEED(PUT = seed)
-	DEALLOCATE(seed)
-END
+	call random_seed(put = seed)
+	deallocate(seed)
+end
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!                                                                                                                  !!!!!
-!!!!!                       Use Lanczos to detect maximum-minimum eigenvalue store in CRS formal                       !!!!!
+!!!!!                       use lanczos to detect maximum-minimum eigenvalue store in crs formal                       !!!!!
 !!!!!                                                                                                                  !!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE LANMAX(VA,JA,IA,EMAX,EMIN,M,INFO)
-	IMPLICIT NONE
-	INTEGER :: JA(*),IA(*),M,MODI(0:2),i,j,INFO
-	REAL(8) :: VA(*),EMAX,EMIN,SUN,WORK
-	REAL(8),ALLOCATABLE :: V(:,:),AP(:),BT(:),TMP(:),E(:),FE(:)
-	ALLOCATE(V(M,0:2),AP(M),BT(0:M),TMP(0:M),E(M),FE(M))
-	FE(1)=1000
-	V(:,0)=0D0
-	BT(0)=0D0
-	CALL RANDOM_NUMBER(V(:,1))
-	SUN=DOT_PRODUCT(V(:,1),V(:,1))
-	V(:,1)=V(:,1)/SQRT(ABS(SUN))
-	DO i=1,M
-		MODI(2)=MOD(i+1,3)
-		MODI(1)=MOD(i,3)
-		MODI(0)=MOD(i-1,3)
-		CALL CRSMV(VA,JA,IA,V(:,MODI(1)),V(:,MODI(2)),M)
-		AP(i)=DOT_PRODUCT(V(:,MODI(1)),V(:,MODI(2)))
-		E(1:i)=AP(1:i)
-		TMP(1:i-1)=BT(1:i-1)
-		CALL DSTEQR('N',i,E(1:i),TMP(1:i-1),WORK,i,WORK,INFO)
-		! WRITE(10,*)E(1:i)
-		IF(ABS(E(1)-FE(1))<1E-3.OR.INFO/=0) THEN
-			EXIT
-		ENDIF
-		FE=E
-		V(:,MODI(2))=V(:,MODI(2))-AP(i)*V(:,MODI(1))-BT(i-1)*V(:,MODI(0))
-		SUN=DOT_PRODUCT(V(:,MODI(2)),V(:,MODI(2)))
-		BT(i)=SQRT(ABS(SUN))
-		V(:,MODI(2))=V(:,MODI(2))/BT(i)
-	ENDDO
-	EMAX=E(MIN(i,M))
-	EMIN=E(1)
-	DEALLOCATE(V,AP,BT,TMP,E,FE)
-END
+subroutine lanmax(va,ja,ia,emax,emin,m,info)
+	implicit none
+	integer :: ja(*),ia(*),m,modi(0:2),i,j,info
+	real(8) :: va(*),emax,emin,sun,work
+	real(8),allocatable :: v(:,:),ap(:),bt(:),tmp(:),e(:),fe(:)
+	allocate(v(m,0:2),ap(m),bt(0:m),tmp(0:m),e(m),fe(m))
+	fe(1)=1000
+	v(:,0)=0d0
+	bt(0)=0d0
+	call random_number(v(:,1))
+	sun=dot_product(v(:,1),v(:,1))
+	v(:,1)=v(:,1)/sqrt(abs(sun))
+	do i=1,m
+		modi(2)=mod(i+1,3)
+		modi(1)=mod(i,3)
+		modi(0)=mod(i-1,3)
+		call crsmv(va,ja,ia,v(:,modi(1)),v(:,modi(2)),m)
+		ap(i)=dot_product(v(:,modi(1)),v(:,modi(2)))
+		e(1:i)=ap(1:i)
+		tmp(1:i-1)=bt(1:i-1)
+		call dsteqr('n',i,e(1:i),tmp(1:i-1),work,i,work,info)
+		! write(10,*)e(1:i)
+		if(abs(e(1)-fe(1))<1e-3.or.info/=0) then
+			exit
+		endif
+		fe=e
+		v(:,modi(2))=v(:,modi(2))-ap(i)*v(:,modi(1))-bt(i-1)*v(:,modi(0))
+		sun=dot_product(v(:,modi(2)),v(:,modi(2)))
+		bt(i)=sqrt(abs(sun))
+		v(:,modi(2))=v(:,modi(2))/bt(i)
+	enddo
+	emax=e(min(i,m))
+	emin=e(1)
+	deallocate(v,ap,bt,tmp,e,fe)
+end
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!       FFT FOR COMPLEX ARRAY IN ONE-DEMENSION              !!!!
+!!!!       fft for complex array in one-demension              !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE FFT1(A,n,SIG)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926
-	INTEGER :: i,j,m,SIG,n
-	COMPLEX(8) :: A(0:n-1),TMP,WP,W
+subroutine fft1(a,n,sig)
+	implicit none
+	real(8),parameter :: pi=3.1415926
+	integer :: i,j,m,sig,n
+	complex(8) :: a(0:n-1),tmp,wp,w
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!          bit-reversal using Gold-Rader algorithm          !!!!
+!!!!          bit-reversal using gold-rader algorithm          !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	j=n/2
-	DO i=1,n-2
-		IF(j>i) THEN
-			TMP=A(i)
-			A(i)=A(j)
-			A(j)=TMP
-		ENDIF
+	do i=1,n-2
+		if(j>i) then
+			tmp=a(i)
+			a(i)=a(j)
+			a(j)=tmp
+		endif
 		m=n/2
-		DO WHILE(j>=m)
+		do while(j>=m)
 			j=j-m
 			m=m/2
-		ENDDO
+		enddo
 		j=j+m
-	ENDDO
+	enddo
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!                     Fast Fourier Transform using Danielson-Lanczos Lemma                          !!!!
-!!!!     trigonometric recurrence relations using 5.5.6 in book "Numerical Recipes in FORTRAN 77"      !!!!
+!!!!                     fast fourier transform using danielson-lanczos lemma                          !!!!
+!!!!     trigonometric recurrence relations using 5.5.6 in book "numerical recipes in fortran 77"      !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m=2
-	DO WHILE(m<=n)
-		WP=CMPLX(-2D0*SIN(SIG*PI/m)**2,SIN(SIG*2D0*PI/m))
-		W=CMPLX(1D0,0D0)
-		DO j=0,m/2-1
-			DO i=j,N-1,m
-				TMP=W*A(i+m/2)
-				A(i+m/2)=A(i)-TMP
-				A(i)=A(i)+TMP
-			ENDDO
-			W=W*WP+W
-		ENDDO
+	do while(m<=n)
+		wp=cmplx(-2d0*sin(sig*pi/m)**2,sin(sig*2d0*pi/m))
+		w=cmplx(1d0,0d0)
+		do j=0,m/2-1
+			do i=j,n-1,m
+				tmp=w*a(i+m/2)
+				a(i+m/2)=a(i)-tmp
+				a(i)=a(i)+tmp
+			enddo
+			w=w*wp+w
+		enddo
 		m=m*2
-	ENDDO
-	IF(SIG==-1) THEN
-		A=A/n
-	ENDIF
-END
+	enddo
+	if(sig==-1) then
+		a=a/n
+	endif
+end
 
 
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!          FFT FOR REAL ARRAY IN ONE-DEMENSION              !!!!
+!!!!          fft for real array in one-demension              !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE FFTREAL1(A,B,n)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926
-	INTEGER :: i,m,n
-	REAL(8) :: A(0:n-1)
-	COMPLEX(8) :: B(0:n-1),H1(0:n/2-1),H2(0:n/2-1),WP,W
-	B=CMPLX(A(0:n-2:2),A(1:n-1:2))
+subroutine fftreal1(a,b,n)
+	implicit none
+	real(8),parameter :: pi=3.1415926
+	integer :: i,m,n
+	real(8) :: a(0:n-1)
+	complex(8) :: b(0:n-1),h1(0:n/2-1),h2(0:n/2-1),wp,w
+	b=cmplx(a(0:n-2:2),a(1:n-1:2))
 	m=n/2
-	CALL FFT1(B(0:m-1),m,1)
-	H1(0)=CMPLX(REAL(B(0)),0)
-	H2(0)=CMPLX(AIMAG(B(0)),0)
-	H1(1:m/2)=0.5*(B(1:m/2)+CONJG(B(m-1:m/2:-1)))
-	H2(1:m/2)=CMPLX(0,-0.5)*(B(1:m/2)-CONJG(B(m-1:m/2:-1)))
-	H1(m-1:m/2:-1)=CONJG(H1(1:m/2))
-	H2(m-1:m/2:-1)=CONJG(H2(1:m/2))
-	WP=CMPLX(-2D0*SIN(PI/n)**2,SIN(2D0*PI/n))
-	W=CMPLX(1D0,0D0)
-	DO i=0,m-1
-		B(i)=H1(i)+W*H2(i)
-		B(i+m)=H1(i)-W*H2(i)
-		W=W*WP+W
-	ENDDO
-END
+	call fft1(b(0:m-1),m,1)
+	h1(0)=cmplx(real(b(0)),0)
+	h2(0)=cmplx(aimag(b(0)),0)
+	h1(1:m/2)=0.5*(b(1:m/2)+conjg(b(m-1:m/2:-1)))
+	h2(1:m/2)=cmplx(0,-0.5)*(b(1:m/2)-conjg(b(m-1:m/2:-1)))
+	h1(m-1:m/2:-1)=conjg(h1(1:m/2))
+	h2(m-1:m/2:-1)=conjg(h2(1:m/2))
+	wp=cmplx(-2d0*sin(pi/n)**2,sin(2d0*pi/n))
+	w=cmplx(1d0,0d0)
+	do i=0,m-1
+		b(i)=h1(i)+w*h2(i)
+		b(i+m)=h1(i)-w*h2(i)
+		w=w*wp+w
+	enddo
+end
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!                      FFT FOR REAL ARRAY IN ONE-DEMENSION                            !!!!
-!!!!               Using input real array to storage the output complex array            !!!!
+!!!!                      fft for real array in one-demension                            !!!!
+!!!!               using input real array to storage the output complex array            !!!!
 !!!!     with even index refer to real parts and odd index refer to imaginary parts      !!!!
-!!!!           and a(0) is 0th while a(1) is n/2th of the FFT of input data              !!!!
+!!!!           and a(0) is 0th while a(1) is n/2th of the fft of input data              !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE FFTREAL1_RP(A,n,SIG)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926D0
-	INTEGER :: i,m,n,SIG
-	REAL(8) :: A(0:n-1)
-	COMPLEX(8) :: B(0:n/2-1),WP,W,HE,HO,TMP
+subroutine fftreal1_rp(a,n,sig)
+	implicit none
+	real(8),parameter :: pi=3.1415926d0
+	integer :: i,m,n,sig
+	real(8) :: a(0:n-1)
+	complex(8) :: b(0:n/2-1),wp,w,he,ho,tmp
 	m=n/2
-	IF(SIG==1) THEN
-		B=CMPLX(A(0:n-2:2),A(1:n-1:2))
-		CALL FFT1(B,m,1)
-		WP=CMPLX(-2D0*SIN(PI/n)**2,SIN(2D0*PI/n))
-		W=CMPLX(1D0,0D0)
-		W=W*WP+W
-		A(0)=REAL(B(0))+AIMAG(B(0))
-		A(1)=REAL(B(0))-AIMAG(B(0))
-		DO i=1,m-1
-			HE=0.5*(B(i)+CONJG(B(m-i)))
-			HO=CMPLX(0,-0.5)*(B(i)-CONJG(B(m-i)))
-			TMP=HE+W*HO
-			A(2*i)=REAL(TMP)
-			A(2*i+1)=AIMAG(TMP)
-			W=W*WP+W
-		ENDDO
-	ELSE
-		B(1:m-1)=CMPLX(A(2:n-2:2),A(3:n-1:2))
-		WP=CMPLX(-2D0*SIN(-1D0*PI/n)**2,SIN(-2D0*PI/n))
-		W=CMPLX(1D0,0D0)
-		W=W*WP+W
-		DO i=1,m/2
-			HE=0.5*(B(i)+CONJG(B(m-i)))
-			HO=CMPLX(0D0,0.5D0)*(B(i)-CONJG(B(m-i)))
-			B(i)=HE+W*HO
-			B(m-i)=CONJG(HE)-CONJG(W*HO)
-			W=W*WP+W
-		ENDDO
-		B(0)=0.5*CMPLX(A(0)+A(1),A(0)-A(1))
-		CALL FFT1(B,m,-1)
-		DO i=0,m-1
-			A(2*i)=REAL(B(i))
-			A(2*i+1)=AIMAG(B(i))
-		ENDDO
-	ENDIF
-END
+	if(sig==1) then
+		b=cmplx(a(0:n-2:2),a(1:n-1:2))
+		call fft1(b,m,1)
+		wp=cmplx(-2d0*sin(pi/n)**2,sin(2d0*pi/n))
+		w=cmplx(1d0,0d0)
+		w=w*wp+w
+		a(0)=real(b(0))+aimag(b(0))
+		a(1)=real(b(0))-aimag(b(0))
+		do i=1,m-1
+			he=0.5*(b(i)+conjg(b(m-i)))
+			ho=cmplx(0,-0.5)*(b(i)-conjg(b(m-i)))
+			tmp=he+w*ho
+			a(2*i)=real(tmp)
+			a(2*i+1)=aimag(tmp)
+			w=w*wp+w
+		enddo
+	else
+		b(1:m-1)=cmplx(a(2:n-2:2),a(3:n-1:2))
+		wp=cmplx(-2d0*sin(-1d0*pi/n)**2,sin(-2d0*pi/n))
+		w=cmplx(1d0,0d0)
+		w=w*wp+w
+		do i=1,m/2
+			he=0.5*(b(i)+conjg(b(m-i)))
+			ho=cmplx(0d0,0.5d0)*(b(i)-conjg(b(m-i)))
+			b(i)=he+w*ho
+			b(m-i)=conjg(he)-conjg(w*ho)
+			w=w*wp+w
+		enddo
+		b(0)=0.5*cmplx(a(0)+a(1),a(0)-a(1))
+		call fft1(b,m,-1)
+		do i=0,m-1
+			a(2*i)=real(b(i))
+			a(2*i+1)=aimag(b(i))
+		enddo
+	endif
+end
 
-SUBROUTINE FFTSIN1(A,n)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926D0
-	INTEGER :: i,n
-	REAL(8) :: A(0:n-1),TMP
-	COMPLEX(8) :: WP,W
-	WP=CMPLX(-2D0*SIN(0.5D0*PI/n)**2,SIN(PI/n))
-	W=CMPLX(1,0)
-	A(0)=0
-	DO i=1,n/2
-		W=W*WP+W
-		TMP=0.5*(A(i)-A(n-i))
-		A(i)=AIMAG(W)*(A(i)+A(n-i))+TMP
-		A(n-i)=A(i)-2*TMP
-	ENDDO
-	CALL FFTREAL1_RP(A,n,1)
-	A(1)=0.5*A(0)
-	A(0)=0
-	DO i=3,N-1,2
-		TMP=A(i)
-		A(i)=A(i-2)+A(i-1)
-		A(i-1)=TMP
-	ENDDO
-END
-SUBROUTINE FFTCOS1(A,n)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926D0
-	INTEGER :: i,n
-	REAL(8) :: A(0:n),SUN,TMP
-	COMPLEX(8) :: WP,W
-	WP=CMPLX(-2D0*SIN(0.5D0*PI/n)**2,SIN(PI/n))
-	W=CMPLX(1,0)
-	SUN=0.5*(A(0)-A(n))
-	A(0)=0.5*(A(0)+A(n))
-	DO i=1,n/2
-		W=W*WP+W
-		TMP=A(n-i)-A(i)
-		A(i)=0.5*(A(i)+A(n-i))+AIMAG(W)*TMP
-		A(n-i)=A(i)-2*AIMAG(W)*TMP
-		SUN=SUN-TMP*REAL(W)
-	ENDDO
-	CALL FFTREAL1_RP(A(0:n-1),n,1)
-	A(N)=A(1)
-	A(1)=SUN
-	DO i=3,N-1,2
-		A(i)=A(i-2)+A(i)
-	ENDDO
-END
-SUBROUTINE FFTCOS1_2(A,n,SIG)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926D0
-	INTEGER :: i,n,m,SIG
-	REAL(8) :: A(0:n-1),TMP,TMP0,TMP1
-	COMPLEX(8) :: WP,W,WI,WPI
+subroutine fftsin1(a,n)
+	implicit none
+	real(8),parameter :: pi=3.1415926d0
+	integer :: i,n
+	real(8) :: a(0:n-1),tmp
+	complex(8) :: wp,w
+	wp=cmplx(-2d0*sin(0.5d0*pi/n)**2,sin(pi/n))
+	w=cmplx(1,0)
+	a(0)=0
+	do i=1,n/2
+		w=w*wp+w
+		tmp=0.5*(a(i)-a(n-i))
+		a(i)=aimag(w)*(a(i)+a(n-i))+tmp
+		a(n-i)=a(i)-2*tmp
+	enddo
+	call fftreal1_rp(a,n,1)
+	a(1)=0.5*a(0)
+	a(0)=0
+	do i=3,n-1,2
+		tmp=a(i)
+		a(i)=a(i-2)+a(i-1)
+		a(i-1)=tmp
+	enddo
+end
+subroutine fftcos1(a,n)
+	implicit none
+	real(8),parameter :: pi=3.1415926d0
+	integer :: i,n
+	real(8) :: a(0:n),sun,tmp
+	complex(8) :: wp,w
+	wp=cmplx(-2d0*sin(0.5d0*pi/n)**2,sin(pi/n))
+	w=cmplx(1,0)
+	sun=0.5*(a(0)-a(n))
+	a(0)=0.5*(a(0)+a(n))
+	do i=1,n/2
+		w=w*wp+w
+		tmp=a(n-i)-a(i)
+		a(i)=0.5*(a(i)+a(n-i))+aimag(w)*tmp
+		a(n-i)=a(i)-2*aimag(w)*tmp
+		sun=sun-tmp*real(w)
+	enddo
+	call fftreal1_rp(a(0:n-1),n,1)
+	a(n)=a(1)
+	a(1)=sun
+	do i=3,n-1,2
+		a(i)=a(i-2)+a(i)
+	enddo
+end
+subroutine fftcos1_2(a,n,sig)
+	implicit none
+	real(8),parameter :: pi=3.1415926d0
+	integer :: i,n,m,sig
+	real(8) :: a(0:n-1),tmp,tmp0,tmp1
+	complex(8) :: wp,w,wi,wpi
 	m=n/2
-	W=CMPLX(COS(0.5D0*PI/n),SIN(0.5D0*PI/n))
-	WI=CMPLX(COS(0.5D0*PI),SIN(0.5D0*PI))
-	WP=CMPLX(-2D0*SIN(0.5D0*PI/n)**2,SIN(PI/n))
-	WPI=CMPLX(-2D0*SIN(-0.5D0*PI/n)**2,SIN(-1D0*PI/n))
-	IF(SIG==1) THEN
-		DO i=0,m-1
-			TMP=AIMAG(W)*(A(n-i-1)-A(i))
-			A(i)=0.5*(A(i)+A(n-i-1))+TMP
-			A(n-i-1)=A(i)-2*TMP
-			W=W*WP+W
-		ENDDO
-		CALL FFTREAL1_RP(A,n,SIG)
-		TMP=A(n-1)
-		A(n-1)=0.5*A(1)
-		DO i=n-1,3,-2
-			WI=WI*WPI+WI
-			TMP0=A(i-1)
-			TMP1=A(i-2)
-			A(i-1)=REAL(WI)*A(i-1)-AIMAG(WI)*TMP
-			A(i-2)=AIMAG(WI)*TMP0+REAL(WI)*TMP+A(i)
-			TMP=TMP1
-		ENDDO
-	ELSE
-		TMP0=A(N-1)
-		DO i=n-1,3,-2
-			WI=WI*WPI+WI
-			A(i)=A(i-2)-A(i)
-			TMP=A(i)*REAL(WI)-A(i-1)*AIMAG(WI)
-			A(i-1)=A(i-1)*REAL(WI)+A(i)*AIMAG(WI)
-			A(i)=TMP
-		ENDDO
-		A(1)=2*TMP0
-		CALL FFTREAL1_RP(A,n,SIG)
-		DO i=0,m-1
-			TMP=A(i)+A(n-i-1)
-			A(i)=(A(n-i-1)-A(i))/(2*AIMAG(W))
-			A(n-i-1)=0.5*(TMP-A(i))
-			A(i)=0.5*(TMP+A(i))
-			W=W*WP+W
-		ENDDO
-	ENDIF
-END
+	w=cmplx(cos(0.5d0*pi/n),sin(0.5d0*pi/n))
+	wi=cmplx(cos(0.5d0*pi),sin(0.5d0*pi))
+	wp=cmplx(-2d0*sin(0.5d0*pi/n)**2,sin(pi/n))
+	wpi=cmplx(-2d0*sin(-0.5d0*pi/n)**2,sin(-1d0*pi/n))
+	if(sig==1) then
+		do i=0,m-1
+			tmp=aimag(w)*(a(n-i-1)-a(i))
+			a(i)=0.5*(a(i)+a(n-i-1))+tmp
+			a(n-i-1)=a(i)-2*tmp
+			w=w*wp+w
+		enddo
+		call fftreal1_rp(a,n,sig)
+		tmp=a(n-1)
+		a(n-1)=0.5*a(1)
+		do i=n-1,3,-2
+			wi=wi*wpi+wi
+			tmp0=a(i-1)
+			tmp1=a(i-2)
+			a(i-1)=real(wi)*a(i-1)-aimag(wi)*tmp
+			a(i-2)=aimag(wi)*tmp0+real(wi)*tmp+a(i)
+			tmp=tmp1
+		enddo
+	else
+		tmp0=a(n-1)
+		do i=n-1,3,-2
+			wi=wi*wpi+wi
+			a(i)=a(i-2)-a(i)
+			tmp=a(i)*real(wi)-a(i-1)*aimag(wi)
+			a(i-1)=a(i-1)*real(wi)+a(i)*aimag(wi)
+			a(i)=tmp
+		enddo
+		a(1)=2*tmp0
+		call fftreal1_rp(a,n,sig)
+		do i=0,m-1
+			tmp=a(i)+a(n-i-1)
+			a(i)=(a(n-i-1)-a(i))/(2*aimag(w))
+			a(n-i-1)=0.5*(tmp-a(i))
+			a(i)=0.5*(tmp+a(i))
+			w=w*wp+w
+		enddo
+	endif
+end

@@ -1,129 +1,129 @@
-MODULE GLOBAL
-	IMPLICIT NONE
-	REAL(8),SAVE :: V(0:37,36)=0D0,T0=1D0,U=6D0
-END MODULE
-PROGRAM MAIN
-	USE GLOBAL
-	IMPLICIT NONE
-	REAL(8) :: NV(36)=0D0,AP(36)=0D0,BT(0:36)=0D0,CACHE,Z(36,36),WORK(70)
-	INTEGER :: TF(36),A(6)=(/ 3,5,6,9,10,12 /),i,j,k,l,INFO,DG=0
-	OPEN(UNIT=10,FILE='../DATA/output.dat')
-	DO j=1,6
-		DO k=1,6
-			TF((j-1)*6+k)=A(j)*16+A(k)
-		ENDDO
-	ENDDO
-	! V(1,2)=1
-	! CALL RN(V(1,:),CACHE)
-	! CALL HEMILTION(1,TF,NV)
-	! WRITE(*,"(F5.1F5.1B10.8)")(V(1,i),NV(i),TF(i),i=1,36)
-	CALL RANDOM_SEED
-	CALL RANDOM_NUMBER(V(1,:))
-	! CALL RN(V(1,:),CACHE)
-	! CALL HEMILTION(1,TF,NV)
-	! WRITE(*,"(F5.1F5.1B10.8)")(V(1,i),NV(i),TF(i),i=1,36)
-	CALL RN(V(1,:),CACHE)
-	! WRITE(10,"(36E9.2)")(V(k,:),k=0,3)
-	! WRITE(*,*)V(1,:)
-	DO i=1,36
-		CALL HEMILTION(i,TF,NV)
-		AP(i)=DOT_PRODUCT(V(i,:),NV)
-		! WRITE(10,"(2E11.4)")(V(i,j),NV(j),j=1,36)
-		! WRITE(10,*)AP(i)
-		V(i+1,:)=NV(:)-AP(i)*V(i,:)-BT(i-1)*V(i-1,:)
-		IF(MOD(i,4)==0) THEN
-			CALL RO(i+1)
-		ENDIF
-		CALL RN(V(i+1,:),BT(i))
-		! WRITE(10,"(E11.3)")BT(i)
-		IF(BT(i)<1E-5) THEN
-			BT(i)=0
-			DG=DG+1
-			! DO WHILE(.TRUE.)
-				CALL RANDOM_NUMBER(V(i+1,:))
-				CALL RO(i+1)
-				CALL RN(V(i+1,:),CACHE)
-				! IF(CACHE>1E-10) THEN
-					! EXIT
-				! ENDIF
-			! ENDDO
-		ENDIF
-		WRITE(10,*)DOT_PRODUCT(V(i+1,:),V(i-1,:)),DOT_PRODUCT(V(i+1,:),V(i-5,:)),BT(i)
-		! WRITE(10,*)DOT_PRODUCT(V(i+1,:),V(i,:)),BT(i),DOT_PRODUCT(NV(:),V(i+1,:))
-		! WRITE(10,"(36E9.2)")V(i+1,:)
-	ENDDO
-	WRITE(10,"(E13.5,E13.5)")(AP(i),BT(i),i=1,36)
-	CALL DSTEQR('I',36,AP,BT(1:35),Z,36,WORK,INFO)
-	IF(INFO==0) THEN
-		WRITE(10,"(E13.5)")AP
-	ENDIF
+module global
+	implicit none
+	real(8),save :: v(0:37,36)=0d0,t0=1d0,u=6d0
+end module
+program main
+	use global
+	implicit none
+	real(8) :: nv(36)=0d0,ap(36)=0d0,bt(0:36)=0d0,cache,z(36,36),work(70)
+	integer :: tf(36),a(6)=(/ 3,5,6,9,10,12 /),i,j,k,l,info,dg=0
+	open(unit=10,file='../data/output.dat')
+	do j=1,6
+		do k=1,6
+			tf((j-1)*6+k)=a(j)*16+a(k)
+		enddo
+	enddo
+	! v(1,2)=1
+	! call rn(v(1,:),cache)
+	! call hemiltion(1,tf,nv)
+	! write(*,"(f5.1f5.1b10.8)")(v(1,i),nv(i),tf(i),i=1,36)
+	call random_seed
+	call random_number(v(1,:))
+	! call rn(v(1,:),cache)
+	! call hemiltion(1,tf,nv)
+	! write(*,"(f5.1f5.1b10.8)")(v(1,i),nv(i),tf(i),i=1,36)
+	call rn(v(1,:),cache)
+	! write(10,"(36e9.2)")(v(k,:),k=0,3)
+	! write(*,*)v(1,:)
+	do i=1,36
+		call hemiltion(i,tf,nv)
+		ap(i)=dot_product(v(i,:),nv)
+		! write(10,"(2e11.4)")(v(i,j),nv(j),j=1,36)
+		! write(10,*)ap(i)
+		v(i+1,:)=nv(:)-ap(i)*v(i,:)-bt(i-1)*v(i-1,:)
+		if(mod(i,4)==0) then
+			call ro(i+1)
+		endif
+		call rn(v(i+1,:),bt(i))
+		! write(10,"(e11.3)")bt(i)
+		if(bt(i)<1e-5) then
+			bt(i)=0
+			dg=dg+1
+			! do while(.true.)
+				call random_number(v(i+1,:))
+				call ro(i+1)
+				call rn(v(i+1,:),cache)
+				! if(cache>1e-10) then
+					! exit
+				! endif
+			! enddo
+		endif
+		write(10,*)dot_product(v(i+1,:),v(i-1,:)),dot_product(v(i+1,:),v(i-5,:)),bt(i)
+		! write(10,*)dot_product(v(i+1,:),v(i,:)),bt(i),dot_product(nv(:),v(i+1,:))
+		! write(10,"(36e9.2)")v(i+1,:)
+	enddo
+	write(10,"(e13.5,e13.5)")(ap(i),bt(i),i=1,36)
+	call dsteqr('i',36,ap,bt(1:35),z,36,work,info)
+	if(info==0) then
+		write(10,"(e13.5)")ap
+	endif
 
-	CLOSE(10)
-END PROGRAM MAIN
+	close(10)
+end program main
 
 
-SUBROUTINE HEMILTION(p,TF,NV)
-	USE GLOBAL
-	IMPLICIT NONE
-	REAL(8) :: NV(36),CACHE
-	INTEGER :: TF(36),i,j,k,l=0,p,CTF,NOS,UOS
-	NV=0
-	DO i=1,36
-		DO j=0,1
-			DO k=0,3
-				CTF=TF(i)
-				IF(IBITS(TF(i),j*4+k,1)/=IBITS(TF(i),MOD((k+1),4)+j*4,1)) THEN
-					IF(BTEST(TF(i),j*4+k)) THEN
-						CTF=IBSET(CTF,MOD((j*4+k+1),4)+j*4)
-						CTF=IBCLR(CTF,j*4+k)
-					ELSE
-						CTF=IBCLR(CTF,MOD((j*4+k+1),4)+j*4)
-						CTF=IBSET(CTF,j*4+k)
-					ENDIF
-					CALL FD(TF,CTF,l)
-					NV(l)=NV(l)+T0*V(p,i)
-				ENDIF
-			ENDDO
-		ENDDO
-		UOS=IAND(IBITS(TF(i),0,4),IBITS(TF(i),4,4))
-		NOS=0
-		DO j=0,3
-			IF(BTEST(UOS,j)) THEN
-				NOS=NOS+1
-			ENDIF
-		ENDDO
-		NV(i)=NV(i)+V(p,i)*U*NOS
-	ENDDO
-END SUBROUTINE HEMILTION
+subroutine hemiltion(p,tf,nv)
+	use global
+	implicit none
+	real(8) :: nv(36),cache
+	integer :: tf(36),i,j,k,l=0,p,ctf,nos,uos
+	nv=0
+	do i=1,36
+		do j=0,1
+			do k=0,3
+				ctf=tf(i)
+				if(ibits(tf(i),j*4+k,1)/=ibits(tf(i),mod((k+1),4)+j*4,1)) then
+					if(btest(tf(i),j*4+k)) then
+						ctf=ibset(ctf,mod((j*4+k+1),4)+j*4)
+						ctf=ibclr(ctf,j*4+k)
+					else
+						ctf=ibclr(ctf,mod((j*4+k+1),4)+j*4)
+						ctf=ibset(ctf,j*4+k)
+					endif
+					call fd(tf,ctf,l)
+					nv(l)=nv(l)+t0*v(p,i)
+				endif
+			enddo
+		enddo
+		uos=iand(ibits(tf(i),0,4),ibits(tf(i),4,4))
+		nos=0
+		do j=0,3
+			if(btest(uos,j)) then
+				nos=nos+1
+			endif
+		enddo
+		nv(i)=nv(i)+v(p,i)*u*nos
+	enddo
+end subroutine hemiltion
 
-SUBROUTINE FD(TF,CTF,l)
-	IMPLICIT NONE
-	INTEGER :: TF(36),i,l,CTF
-	DO i=1,36
-		IF(TF(i)==CTF) THEN
+subroutine fd(tf,ctf,l)
+	implicit none
+	integer :: tf(36),i,l,ctf
+	do i=1,36
+		if(tf(i)==ctf) then
 			l=i
-			EXIT
-		ENDIF
-	ENDDO
-END SUBROUTINE FD
+			exit
+		endif
+	enddo
+end subroutine fd
 
-SUBROUTINE RN(V,X)
-	IMPLICIT NONE
-	REAL(8) :: V(36),SUN=0,X
-	INTEGER :: i
-	SUN=DOT_PRODUCT(V,V)
-	X=SQRT(ABS(SUN))
-	V=V/X
-END SUBROUTINE RN
+subroutine rn(v,x)
+	implicit none
+	real(8) :: v(36),sun=0,x
+	integer :: i
+	sun=dot_product(v,v)
+	x=sqrt(abs(sun))
+	v=v/x
+end subroutine rn
 
-SUBROUTINE RO(i)
-	USE GLOBAL
-	IMPLICIT NONE
-	INTEGER :: i,j
-	DO j=1,i-1
-		V(i,:)=V(i,:)-DOT_PRODUCT(V(j,:),V(i,:))*V(j,:)
-	ENDDO
-END
+subroutine ro(i)
+	use global
+	implicit none
+	integer :: i,j
+	do j=1,i-1
+		v(i,:)=v(i,:)-dot_product(v(j,:),v(i,:))*v(j,:)
+	enddo
+end
 
 
 

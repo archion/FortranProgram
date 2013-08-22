@@ -1,36 +1,36 @@
-PROGRAM FFT
-	USE MKL_DFTI
-	IMPLICIT NONE
-	REAL, PARAMETER :: PI=3.1415927
-	COMPLEX, PARAMETER :: i=(0.0,1.0)
-	INTEGER, PARAMETER :: N=2048
-	COMPLEX :: x(0:N-1)=0
-	INTEGER :: k=0,STATUS
-	REAL :: y(0:N-1)=0,xx(0:N-1)=0
-	TYPE(DFTI_DESCRIPTOR), POINTER :: HANDLE
-	OPEN(UNIT=10,FILE='../DATA/output.dat')
+program fft
+	use mkl_dfti
+	implicit none
+	real, parameter :: pi=3.1415927
+	complex, parameter :: i=(0.0,1.0)
+	integer, parameter :: n=2048
+	complex :: x(0:n-1)=0
+	integer :: k=0,status
+	real :: y(0:n-1)=0,xx(0:n-1)=0
+	type(dfti_descriptor), pointer :: handle
+	open(unit=10,file='../data/output.dat')
 	x(0)=1
-	DO k=2,N/2-1
+	do k=2,n/2-1
 		x(k)=-x(k-2)
-	ENDDO
-	DO k=1,N/2-1
-		x(k)=2*x(k)*EXP(i*PI*k/(2*N))*SINH(4.0*(1.0-REAL(k)/REAL(N)*2.0))/SINH(4.0)
-	ENDDO
-	STATUS=DFTICREATEDESCRIPTOR(HANDLE,DFTI_SINGLE,DFTI_COMPLEX,1,N)
-	STATUS=DFTICOMMITDESCRIPTOR(HANDLE)
-	STATUS=DFTICOMPUTEBACKWARD(HANDLE,x)
-	STATUS=DFTIFREEDESCRIPTOR(HANDLE)
-	DO k=0,N/2-1
-		y(2*k)=REAL(x(k))
-		y(2*k+1)=REAL(x(N-1-k))
-	ENDDO
-	DO k=0,N-1
-		xx(k)=cos(PI*(k+0.5)/N)
-	ENDDO
-	y=y/(PI*SQRT(1-xx*xx))
-	WRITE(10,"(2E15.7)")(xx(k),y(k),k=0,N-1)
-	CLOSE(10)
-END PROGRAM FFT
+	enddo
+	do k=1,n/2-1
+		x(k)=2*x(k)*exp(i*pi*k/(2*n))*sinh(4.0*(1.0-real(k)/real(n)*2.0))/sinh(4.0)
+	enddo
+	status=dfticreatedescriptor(handle,dfti_single,dfti_complex,1,n)
+	status=dfticommitdescriptor(handle)
+	status=dfticomputebackward(handle,x)
+	status=dftifreedescriptor(handle)
+	do k=0,n/2-1
+		y(2*k)=real(x(k))
+		y(2*k+1)=real(x(n-1-k))
+	enddo
+	do k=0,n-1
+		xx(k)=cos(pi*(k+0.5)/n)
+	enddo
+	y=y/(pi*sqrt(1-xx*xx))
+	write(10,"(2e15.7)")(xx(k),y(k),k=0,n-1)
+	close(10)
+end program fft
 
 
 

@@ -1,36 +1,36 @@
-MODULE FINDNEAR
-	IMPLICIT NONE
-	SAVE
-	INTEGER, PARAMETER :: DN=1000
-	INTEGER :: PBC(0:DN+1)
-	CONTAINS
-	SUBROUTINE NNP(ii,near,jj)
-		IMPLICIT NONE
-		INTEGER :: ii,i,j,jj(4)
-		LOGICAL :: near
-		PBC=(/DN,(i,i=1,DN),1/)
-		j=PBC(MOD(ii,DN))
-		i=(ii-j)/DN+1
-		IF(near) THEN
-			jj(1)=(i-1)*DN+PBC(j+1)
-			jj(2)=(PBC(i+1)-1)*DN+j
-			jj(3)=(i-1)*DN+PBC(j-1)
-			jj(4)=(PBC(i-1)-1)*DN+j
-		ELSE
-			jj(1)=DN*(PBC(i+1)-1)+PBC(j+1)
-			jj(2)=DN*(PBC(i+1)-1)+PBC(j-1)
-			jj(3)=DN*(PBC(i-1)-1)+PBC(j+1)
-			jj(4)=DN*(PBC(i-1)-1)+PBC(j-1)
-		ENDIF
-	END SUBROUTINE
-END MODULE
-PROGRAM MAIN
-	USE FINDNEAR
-	IMPLICIT NONE
-	INTEGER :: i,NB(4)
-	OPEN(UNIT=10,FILE="../DATA/OUTPUT.DAT")
-	DO i=1,DN*DN
-		CALL NNP(i,.FALSE.,NB)
-		WRITE(10,*)NB
-	ENDDO
-END
+module findnear
+	implicit none
+	save
+	integer, parameter :: dn=1000
+	integer :: pbc(0:dn+1)
+	contains
+	subroutine nnp(ii,near,jj)
+		implicit none
+		integer :: ii,i,j,jj(4)
+		logical :: near
+		pbc=(/dn,(i,i=1,dn),1/)
+		j=pbc(mod(ii,dn))
+		i=(ii-j)/dn+1
+		if(near) then
+			jj(1)=(i-1)*dn+pbc(j+1)
+			jj(2)=(pbc(i+1)-1)*dn+j
+			jj(3)=(i-1)*dn+pbc(j-1)
+			jj(4)=(pbc(i-1)-1)*dn+j
+		else
+			jj(1)=dn*(pbc(i+1)-1)+pbc(j+1)
+			jj(2)=dn*(pbc(i+1)-1)+pbc(j-1)
+			jj(3)=dn*(pbc(i-1)-1)+pbc(j+1)
+			jj(4)=dn*(pbc(i-1)-1)+pbc(j-1)
+		endif
+	end subroutine
+end module
+program main
+	use findnear
+	implicit none
+	integer :: i,nb(4)
+	open(unit=10,file="../data/output.dat")
+	do i=1,dn*dn
+		call nnp(i,.false.,nb)
+		write(10,*)nb
+	enddo
+end

@@ -1,274 +1,274 @@
-PROGRAM MAIN
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926
-	INTEGER,PARAMETER :: N=8
-	INTEGER :: i,j
-	REAL(8) :: A(0:N-1)
-	REAL(8) :: B(0:N-1)
-	OPEN(UNIT=10,FILE="../DATA/OUTPUT.DAT")
+program main
+	implicit none
+	real(8),parameter :: pi=3.1415926
+	integer,parameter :: n=8
+	integer :: i,j
+	real(8) :: a(0:n-1)
+	real(8) :: b(0:n-1)
+	open(unit=10,file="../data/output.dat")
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!                     CHACK THE BIT-REVERSAL                !!!!
+!!!!                     chack the bit-reversal                !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	! DO i=0,N-1
-		! A(i)=i
-	! ENDDO
-	! CALL FFT(A,1,N)
-	! WRITE(*,"(I6,B19.16,I6,B19.16)")(INT(A(i)),INT(A(i)),i,i,i=0,N-1)
+	! do i=0,n-1
+		! a(i)=i
+	! enddo
+	! call fft(a,1,n)
+	! write(*,"(i6,b19.16,i6,b19.16)")(int(a(i)),int(a(i)),i,i,i=0,n-1)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!                     CHACK THE FFT                         !!!!
+!!!!                     chack the fft                         !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	! A=(/0,25,2,3,0,3,2,1/)
-	! CALL FFTREAL1_RP(A,N,1)
-	! CALL FFTREAL1_RP(A,N,-1)
-	! ! CALL FFT1(A,N)
-	! WRITE(10,"(E11.3)")A
-	B=(/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
-	CALL FFTCOS1_2(B,N,1)
-	WRITE(10,"(E11.3)")B
-	CALL FFTCOS1_2(B,N,-1)
-	! CALL FFTCOS1_2(B,N,-1)
-	! WRITE(10,"(E11.3)")B
+	! a=(/0,25,2,3,0,3,2,1/)
+	! call fftreal1_rp(a,n,1)
+	! call fftreal1_rp(a,n,-1)
+	! ! call fft1(a,n)
+	! write(10,"(e11.3)")a
+	b=(/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
+	call fftcos1_2(b,n,1)
+	write(10,"(e11.3)")b
+	call fftcos1_2(b,n,-1)
+	! call fftcos1_2(b,n,-1)
+	! write(10,"(e11.3)")b
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!      Obtain the whole FFT array in Replaces FFT subroutine        !!!!
+!!!!      obtain the whole fft array in replaces fft subroutine        !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	! WRITE(10,"(2E11.3)")B(0),0D0
-	! WRITE(10,"(2E11.3)")B(2:N-1)
-	! WRITE(10,"(2E11.3)")B(1),0D0
-	! B(2:N-2:2)=B(N-2:2:-2)
-	! B(3:N-1:2)=-1*B(N-1:3:-2)
-	! WRITE(10,"(2E11.3)")B(2:N-1)
+	! write(10,"(2e11.3)")b(0),0d0
+	! write(10,"(2e11.3)")b(2:n-1)
+	! write(10,"(2e11.3)")b(1),0d0
+	! b(2:n-2:2)=b(n-2:2:-2)
+	! b(3:n-1:2)=-1*b(n-1:3:-2)
+	! write(10,"(2e11.3)")b(2:n-1)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!                 CHACK THE FFT of sine                     !!!!
+!!!!                 chack the fft of sine                     !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-END
+end
 
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!       FFT FOR COMPLEX ARRAY IN ONE-DEMENSION              !!!!
+!!!!       fft for complex array in one-demension              !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE FFT1(A,n,SIG)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926
-	INTEGER :: i,j,m,SIG,n
-	COMPLEX(8) :: A(0:n-1),TMP,WP,W
+subroutine fft1(a,n,sig)
+	implicit none
+	real(8),parameter :: pi=3.1415926
+	integer :: i,j,m,sig,n
+	complex(8) :: a(0:n-1),tmp,wp,w
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!          bit-reversal using Gold-Rader algorithm          !!!!
+!!!!          bit-reversal using gold-rader algorithm          !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	j=n/2
-	DO i=1,n-2
-		IF(j>i) THEN
-			TMP=A(i)
-			A(i)=A(j)
-			A(j)=TMP
-		ENDIF
+	do i=1,n-2
+		if(j>i) then
+			tmp=a(i)
+			a(i)=a(j)
+			a(j)=tmp
+		endif
 		m=n/2
-		DO WHILE(j>=m)
+		do while(j>=m)
 			j=j-m
 			m=m/2
-		ENDDO
+		enddo
 		j=j+m
-	ENDDO
+	enddo
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!                     Fast Fourier Transform using Danielson-Lanczos Lemma                          !!!!
-!!!!     trigonometric recurrence relations using 5.5.6 in book "Numerical Recipes in FORTRAN 77"      !!!!
+!!!!                     fast fourier transform using danielson-lanczos lemma                          !!!!
+!!!!     trigonometric recurrence relations using 5.5.6 in book "numerical recipes in fortran 77"      !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m=2
-	DO WHILE(m<=n)
-		WP=CMPLX(-2D0*SIN(SIG*PI/m)**2,SIN(SIG*2D0*PI/m))
-		W=CMPLX(1D0,0D0)
-		DO j=0,m/2-1
-			DO i=j,N-1,m
-				TMP=W*A(i+m/2)
-				A(i+m/2)=A(i)-TMP
-				A(i)=A(i)+TMP
-			ENDDO
-			W=W*WP+W
-		ENDDO
+	do while(m<=n)
+		wp=cmplx(-2d0*sin(sig*pi/m)**2,sin(sig*2d0*pi/m))
+		w=cmplx(1d0,0d0)
+		do j=0,m/2-1
+			do i=j,n-1,m
+				tmp=w*a(i+m/2)
+				a(i+m/2)=a(i)-tmp
+				a(i)=a(i)+tmp
+			enddo
+			w=w*wp+w
+		enddo
 		m=m*2
-	ENDDO
-	IF(SIG==-1) THEN
-		A=A/n
-	ENDIF
-END
+	enddo
+	if(sig==-1) then
+		a=a/n
+	endif
+end
 
 
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!          FFT FOR REAL ARRAY IN ONE-DEMENSION              !!!!
+!!!!          fft for real array in one-demension              !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE FFTREAL1(A,B,n)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926
-	INTEGER :: i,m,n
-	REAL(8) :: A(0:n-1)
-	COMPLEX(8) :: B(0:n-1),H1(0:n/2-1),H2(0:n/2-1),WP,W
-	B=CMPLX(A(0:n-2:2),A(1:n-1:2))
+subroutine fftreal1(a,b,n)
+	implicit none
+	real(8),parameter :: pi=3.1415926
+	integer :: i,m,n
+	real(8) :: a(0:n-1)
+	complex(8) :: b(0:n-1),h1(0:n/2-1),h2(0:n/2-1),wp,w
+	b=cmplx(a(0:n-2:2),a(1:n-1:2))
 	m=n/2
-	CALL FFT1(B(0:m-1),m,1)
-	H1(0)=CMPLX(REAL(B(0)),0)
-	H2(0)=CMPLX(AIMAG(B(0)),0)
-	H1(1:m/2)=0.5*(B(1:m/2)+CONJG(B(m-1:m/2:-1)))
-	H2(1:m/2)=CMPLX(0,-0.5)*(B(1:m/2)-CONJG(B(m-1:m/2:-1)))
-	H1(m-1:m/2:-1)=CONJG(H1(1:m/2))
-	H2(m-1:m/2:-1)=CONJG(H2(1:m/2))
-	WP=CMPLX(-2D0*SIN(PI/n)**2,SIN(2D0*PI/n))
-	W=CMPLX(1D0,0D0)
-	DO i=0,m-1
-		B(i)=H1(i)+W*H2(i)
-		B(i+m)=H1(i)-W*H2(i)
-		W=W*WP+W
-	ENDDO
-END
+	call fft1(b(0:m-1),m,1)
+	h1(0)=cmplx(real(b(0)),0)
+	h2(0)=cmplx(aimag(b(0)),0)
+	h1(1:m/2)=0.5*(b(1:m/2)+conjg(b(m-1:m/2:-1)))
+	h2(1:m/2)=cmplx(0,-0.5)*(b(1:m/2)-conjg(b(m-1:m/2:-1)))
+	h1(m-1:m/2:-1)=conjg(h1(1:m/2))
+	h2(m-1:m/2:-1)=conjg(h2(1:m/2))
+	wp=cmplx(-2d0*sin(pi/n)**2,sin(2d0*pi/n))
+	w=cmplx(1d0,0d0)
+	do i=0,m-1
+		b(i)=h1(i)+w*h2(i)
+		b(i+m)=h1(i)-w*h2(i)
+		w=w*wp+w
+	enddo
+end
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!                      FFT FOR REAL ARRAY IN ONE-DEMENSION                            !!!!
-!!!!               Using input real array to storage the output complex array            !!!!
+!!!!                      fft for real array in one-demension                            !!!!
+!!!!               using input real array to storage the output complex array            !!!!
 !!!!     with even index refer to real parts and odd index refer to imaginary parts      !!!!
-!!!!           and a(0) is 0th while a(1) is n/2th of the FFT of input data              !!!!
+!!!!           and a(0) is 0th while a(1) is n/2th of the fft of input data              !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE FFTREAL1_RP(A,n,SIG)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926D0
-	INTEGER :: i,m,n,SIG
-	REAL(8) :: A(0:n-1)
-	COMPLEX(8) :: B(0:n/2-1),WP,W,HE,HO,TMP
+subroutine fftreal1_rp(a,n,sig)
+	implicit none
+	real(8),parameter :: pi=3.1415926d0
+	integer :: i,m,n,sig
+	real(8) :: a(0:n-1)
+	complex(8) :: b(0:n/2-1),wp,w,he,ho,tmp
 	m=n/2
-	IF(SIG==1) THEN
-		B=CMPLX(A(0:n-2:2),A(1:n-1:2))
-		CALL FFT1(B,m,1)
-		WP=CMPLX(-2D0*SIN(PI/n)**2,SIN(2D0*PI/n))
-		W=CMPLX(1D0,0D0)
-		W=W*WP+W
-		A(0)=REAL(B(0))+AIMAG(B(0))
-		A(1)=REAL(B(0))-AIMAG(B(0))
-		DO i=1,m-1
-			HE=0.5*(B(i)+CONJG(B(m-i)))
-			HO=CMPLX(0,-0.5)*(B(i)-CONJG(B(m-i)))
-			TMP=HE+W*HO
-			A(2*i)=REAL(TMP)
-			A(2*i+1)=AIMAG(TMP)
-			W=W*WP+W
-		ENDDO
-	ELSE
-		B(1:m-1)=CMPLX(A(2:n-2:2),A(3:n-1:2))
-		WP=CMPLX(-2D0*SIN(-1D0*PI/n)**2,SIN(-2D0*PI/n))
-		W=CMPLX(1D0,0D0)
-		W=W*WP+W
-		DO i=1,m/2
-			HE=0.5*(B(i)+CONJG(B(m-i)))
-			HO=CMPLX(0D0,0.5D0)*(B(i)-CONJG(B(m-i)))
-			B(i)=HE+W*HO
-			B(m-i)=CONJG(HE)-CONJG(W*HO)
-			W=W*WP+W
-		ENDDO
-		B(0)=0.5*CMPLX(A(0)+A(1),A(0)-A(1))
-		CALL FFT1(B,m,-1)
-		DO i=0,m-1
-			A(2*i)=REAL(B(i))
-			A(2*i+1)=AIMAG(B(i))
-		ENDDO
-	ENDIF
-END
+	if(sig==1) then
+		b=cmplx(a(0:n-2:2),a(1:n-1:2))
+		call fft1(b,m,1)
+		wp=cmplx(-2d0*sin(pi/n)**2,sin(2d0*pi/n))
+		w=cmplx(1d0,0d0)
+		w=w*wp+w
+		a(0)=real(b(0))+aimag(b(0))
+		a(1)=real(b(0))-aimag(b(0))
+		do i=1,m-1
+			he=0.5*(b(i)+conjg(b(m-i)))
+			ho=cmplx(0,-0.5)*(b(i)-conjg(b(m-i)))
+			tmp=he+w*ho
+			a(2*i)=real(tmp)
+			a(2*i+1)=aimag(tmp)
+			w=w*wp+w
+		enddo
+	else
+		b(1:m-1)=cmplx(a(2:n-2:2),a(3:n-1:2))
+		wp=cmplx(-2d0*sin(-1d0*pi/n)**2,sin(-2d0*pi/n))
+		w=cmplx(1d0,0d0)
+		w=w*wp+w
+		do i=1,m/2
+			he=0.5*(b(i)+conjg(b(m-i)))
+			ho=cmplx(0d0,0.5d0)*(b(i)-conjg(b(m-i)))
+			b(i)=he+w*ho
+			b(m-i)=conjg(he)-conjg(w*ho)
+			w=w*wp+w
+		enddo
+		b(0)=0.5*cmplx(a(0)+a(1),a(0)-a(1))
+		call fft1(b,m,-1)
+		do i=0,m-1
+			a(2*i)=real(b(i))
+			a(2*i+1)=aimag(b(i))
+		enddo
+	endif
+end
 
-SUBROUTINE FFTSIN1(A,n)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926D0
-	INTEGER :: i,n
-	REAL(8) :: A(0:n-1),TMP
-	COMPLEX(8) :: WP,W
-	WP=CMPLX(-2D0*SIN(0.5D0*PI/n)**2,SIN(PI/n))
-	W=CMPLX(1,0)
-	A(0)=0
-	DO i=1,n/2
-		W=W*WP+W
-		TMP=0.5*(A(i)-A(n-i))
-		A(i)=AIMAG(W)*(A(i)+A(n-i))+TMP
-		A(n-i)=A(i)-2*TMP
-	ENDDO
-	CALL FFTREAL1_RP(A,n,1)
-	A(1)=0.5*A(0)
-	A(0)=0
-	DO i=3,N-1,2
-		TMP=A(i)
-		A(i)=A(i-2)+A(i-1)
-		A(i-1)=TMP
-	ENDDO
-END
-SUBROUTINE FFTCOS1(A,n)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926D0
-	INTEGER :: i,n
-	REAL(8) :: A(0:n),SUN,TMP
-	COMPLEX(8) :: WP,W
-	WP=CMPLX(-2D0*SIN(0.5D0*PI/n)**2,SIN(PI/n))
-	W=CMPLX(1,0)
-	SUN=0.5*(A(0)-A(n))
-	A(0)=0.5*(A(0)+A(n))
-	DO i=1,n/2
-		W=W*WP+W
-		TMP=A(n-i)-A(i)
-		A(i)=0.5*(A(i)+A(n-i))+AIMAG(W)*TMP
-		A(n-i)=A(i)-2*AIMAG(W)*TMP
-		SUN=SUN-TMP*REAL(W)
-	ENDDO
-	CALL FFTREAL1_RP(A(0:n-1),n,1)
-	A(N)=A(1)
-	A(1)=SUN
-	DO i=3,N-1,2
-		A(i)=A(i-2)+A(i)
-	ENDDO
-END
-SUBROUTINE FFTCOS1_2(A,n,SIG)
-	IMPLICIT NONE
-	REAL(8),PARAMETER :: PI=3.1415926D0
-	INTEGER :: i,n,m,SIG
-	REAL(8) :: A(0:n-1),TMP,TMP0,TMP1
-	COMPLEX(8) :: WP,W,WI,WPI
+subroutine fftsin1(a,n)
+	implicit none
+	real(8),parameter :: pi=3.1415926d0
+	integer :: i,n
+	real(8) :: a(0:n-1),tmp
+	complex(8) :: wp,w
+	wp=cmplx(-2d0*sin(0.5d0*pi/n)**2,sin(pi/n))
+	w=cmplx(1,0)
+	a(0)=0
+	do i=1,n/2
+		w=w*wp+w
+		tmp=0.5*(a(i)-a(n-i))
+		a(i)=aimag(w)*(a(i)+a(n-i))+tmp
+		a(n-i)=a(i)-2*tmp
+	enddo
+	call fftreal1_rp(a,n,1)
+	a(1)=0.5*a(0)
+	a(0)=0
+	do i=3,n-1,2
+		tmp=a(i)
+		a(i)=a(i-2)+a(i-1)
+		a(i-1)=tmp
+	enddo
+end
+subroutine fftcos1(a,n)
+	implicit none
+	real(8),parameter :: pi=3.1415926d0
+	integer :: i,n
+	real(8) :: a(0:n),sun,tmp
+	complex(8) :: wp,w
+	wp=cmplx(-2d0*sin(0.5d0*pi/n)**2,sin(pi/n))
+	w=cmplx(1,0)
+	sun=0.5*(a(0)-a(n))
+	a(0)=0.5*(a(0)+a(n))
+	do i=1,n/2
+		w=w*wp+w
+		tmp=a(n-i)-a(i)
+		a(i)=0.5*(a(i)+a(n-i))+aimag(w)*tmp
+		a(n-i)=a(i)-2*aimag(w)*tmp
+		sun=sun-tmp*real(w)
+	enddo
+	call fftreal1_rp(a(0:n-1),n,1)
+	a(n)=a(1)
+	a(1)=sun
+	do i=3,n-1,2
+		a(i)=a(i-2)+a(i)
+	enddo
+end
+subroutine fftcos1_2(a,n,sig)
+	implicit none
+	real(8),parameter :: pi=3.1415926d0
+	integer :: i,n,m,sig
+	real(8) :: a(0:n-1),tmp,tmp0,tmp1
+	complex(8) :: wp,w,wi,wpi
 	m=n/2
-	W=CMPLX(COS(0.5D0*PI/n),SIN(0.5D0*PI/n))
-	WI=CMPLX(COS(0.5D0*PI),SIN(0.5D0*PI))
-	WP=CMPLX(-2D0*SIN(0.5D0*PI/n)**2,SIN(PI/n))
-	WPI=CMPLX(-2D0*SIN(-0.5D0*PI/n)**2,SIN(-1D0*PI/n))
-	IF(SIG==1) THEN
-		DO i=0,m-1
-			TMP=AIMAG(W)*(A(n-i-1)-A(i))
-			A(i)=0.5*(A(i)+A(n-i-1))+TMP
-			A(n-i-1)=A(i)-2*TMP
-			W=W*WP+W
-		ENDDO
-		CALL FFTREAL1_RP(A,n,SIG)
-		TMP=A(n-1)
-		A(n-1)=0.5*A(1)
-		DO i=n-1,3,-2
-			WI=WI*WPI+WI
-			TMP0=A(i-1)
-			TMP1=A(i-2)
-			A(i-1)=REAL(WI)*A(i-1)-AIMAG(WI)*TMP
-			A(i-2)=AIMAG(WI)*TMP0+REAL(WI)*TMP+A(i)
-			TMP=TMP1
-		ENDDO
-	ELSE
-		TMP0=A(N-1)
-		DO i=n-1,3,-2
-			WI=WI*WPI+WI
-			A(i)=A(i-2)-A(i)
-			TMP=A(i)*REAL(WI)-A(i-1)*AIMAG(WI)
-			A(i-1)=A(i-1)*REAL(WI)+A(i)*AIMAG(WI)
-			A(i)=TMP
-		ENDDO
-		A(1)=2*TMP0
-		CALL FFTREAL1_RP(A,n,SIG)
-		DO i=0,m-1
-			TMP=A(i)+A(n-i-1)
-			A(i)=(A(n-i-1)-A(i))/(2*AIMAG(W))
-			A(n-i-1)=0.5*(TMP-A(i))
-			A(i)=0.5*(TMP+A(i))
-			W=W*WP+W
-		ENDDO
-	ENDIF
-END
+	w=cmplx(cos(0.5d0*pi/n),sin(0.5d0*pi/n))
+	wi=cmplx(cos(0.5d0*pi),sin(0.5d0*pi))
+	wp=cmplx(-2d0*sin(0.5d0*pi/n)**2,sin(pi/n))
+	wpi=cmplx(-2d0*sin(-0.5d0*pi/n)**2,sin(-1d0*pi/n))
+	if(sig==1) then
+		do i=0,m-1
+			tmp=aimag(w)*(a(n-i-1)-a(i))
+			a(i)=0.5*(a(i)+a(n-i-1))+tmp
+			a(n-i-1)=a(i)-2*tmp
+			w=w*wp+w
+		enddo
+		call fftreal1_rp(a,n,sig)
+		tmp=a(n-1)
+		a(n-1)=0.5*a(1)
+		do i=n-1,3,-2
+			wi=wi*wpi+wi
+			tmp0=a(i-1)
+			tmp1=a(i-2)
+			a(i-1)=real(wi)*a(i-1)-aimag(wi)*tmp
+			a(i-2)=aimag(wi)*tmp0+real(wi)*tmp+a(i)
+			tmp=tmp1
+		enddo
+	else
+		tmp0=a(n-1)
+		do i=n-1,3,-2
+			wi=wi*wpi+wi
+			a(i)=a(i-2)-a(i)
+			tmp=a(i)*real(wi)-a(i-1)*aimag(wi)
+			a(i-1)=a(i-1)*real(wi)+a(i)*aimag(wi)
+			a(i)=tmp
+		enddo
+		a(1)=2*tmp0
+		call fftreal1_rp(a,n,sig)
+		do i=0,m-1
+			tmp=a(i)+a(n-i-1)
+			a(i)=(a(n-i-1)-a(i))/(2*aimag(w))
+			a(n-i-1)=0.5*(tmp-a(i))
+			a(i)=0.5*(tmp+a(i))
+			w=w*wp+w
+		enddo
+	endif
+end
 
 
 

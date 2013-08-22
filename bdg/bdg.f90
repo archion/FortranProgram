@@ -1,270 +1,270 @@
-MODULE GLOBAL
-	IMPLICIT NONE
-	SAVE
-	REAL(8) :: BT=1E5,DV=1,nf0=0.85,DU=2.44,T=1,TP=-0.25,eff=1
-	INTEGER, PARAMETER :: DN=26
-	INTEGER :: nn(DN,DN),PBC(0:DN+1)
-END MODULE
-PROGRAM MAIN
-	USE GLOBAL
-	IMPLICIT NONE
-	CHARACTER(25) :: IT,FT,fmat(2)
-	REAL(8) :: TIME(2)
-	INTEGER :: i,j,k,n,rc,Im(5)=-1,INFO=0,NP(4),ERROR=0
-	REAL(8) :: n1(DN*DN),n2(DN*DN),n1p(DN*DN),n2p(DN*DN),E(2*DN*DN),H(2*DN*DN,2*DN*DN),DT(DN*DN,4),&
-		DT1(DN*DN,4),DTF(DN*DN),WORK(3*2*DN*DN),RDOM(DN*DN),er(3)=1
-	REAL(8) :: f,En,sa,sb,sp,sp0,nf,CVG=1E-4,wide
-	LOGICAL :: FLAGA,FLAGB,FLAG1,FLAG2,FLAG3
-	f(En)=1/(1+EXP(BT*En))
-	OPEN(UNIT=10,FILE='../DATA/output.dat')
-	OPEN(UNIT=20,FILE='../DATA/ERROR.dat')
-	OPEN(UNIT=30,FILE='../DATA/rundata.dat')
-	OPEN(UNIT=40,FILE='../DATA/initial.dat')
-	OPEN(UNIT=50,FILE='../DATA/gap.dat')
-	WRITE(fmat(1),*)"(",DN,"(E15.6))"
-	WRITE(fmat(2),*)"(",DN*DN,"(E15.6))"
-200	FORMAT(24(E15.6))
-300	FORMAT(625(E15.6))
-500	FORMAT(100000E10.3)
-	CALL FDATE(IT)
+module global
+	implicit none
+	save
+	real(8) :: bt=1e5,dv=1,nf0=0.85,du=2.44,t=1,tp=-0.25,eff=1
+	integer, parameter :: dn=26
+	integer :: nn(dn,dn),pbc(0:dn+1)
+end module
+program main
+	use global
+	implicit none
+	character(25) :: it,ft,fmat(2)
+	real(8) :: time(2)
+	integer :: i,j,k,n,rc,im(5)=-1,info=0,np(4),error=0
+	real(8) :: n1(dn*dn),n2(dn*dn),n1p(dn*dn),n2p(dn*dn),e(2*dn*dn),h(2*dn*dn,2*dn*dn),dt(dn*dn,4),&
+		dt1(dn*dn,4),dtf(dn*dn),work(3*2*dn*dn),rdom(dn*dn),er(3)=1
+	real(8) :: f,en,sa,sb,sp,sp0,nf,cvg=1e-4,wide
+	logical :: flaga,flagb,flag1,flag2,flag3
+	f(en)=1/(1+exp(bt*en))
+	open(unit=10,file='../data/output.dat')
+	open(unit=20,file='../data/error.dat')
+	open(unit=30,file='../data/rundata.dat')
+	open(unit=40,file='../data/initial.dat')
+	open(unit=50,file='../data/gap.dat')
+	write(fmat(1),*)"(",dn,"(e15.6))"
+	write(fmat(2),*)"(",dn*dn,"(e15.6))"
+200	format(24(e15.6))
+300	format(625(e15.6))
+500	format(100000e10.3)
+	call fdate(it)
 	rc=0
 	k=1
-	PBC=(/DN,(i,i=1,DN),1/)
-	DO i=1,DN
-		DO j=1,DN
+	pbc=(/dn,(i,i=1,dn),1/)
+	do i=1,dn
+		do j=1,dn
 			nn(i,j)=k
 			k=k+1
-		ENDDO
-	ENDDO
-	DT=0D0
-	DT1=0D0
-	CALL INIT_RANDOM_SEED()
-	CALL RANDOM_NUMBER(RDOM)
-	! RDOM=0.5D0	!Uniform initial value
-	DO i=1,DN*DN
-		DT1(i,:)=(/0.07D0,-0.07D0,0.07D0,-0.07D0/)+((/RDOM(i)-0.5D0,-RDOM(i)+0.5D0,RDOM(i)-0.5D0,-RDOM(i)+0.5D0/))/10D0
-	ENDDO
-	! n1p=RDOM*nf0
+		enddo
+	enddo
+	dt=0d0
+	dt1=0d0
+	call init_random_seed()
+	call random_number(rdom)
+	! rdom=0.5d0	!uniform initial value
+	do i=1,dn*dn
+		dt1(i,:)=(/0.07d0,-0.07d0,0.07d0,-0.07d0/)+((/rdom(i)-0.5d0,-rdom(i)+0.5d0,rdom(i)-0.5d0,-rdom(i)+0.5d0/))/10d0
+	enddo
+	! n1p=rdom*nf0
 	! n2p=nf0-n1p
-	n1p=nf0/2+(RDOM-0.5D0)/20D0
+	n1p=nf0/2+(rdom-0.5d0)/20d0
 	n2p=nf0-n1p
 	! call random_number(n1p)
 	! call random_number(n2p)
-	DO i=1,DN*DN
-		DTF(i)=(DT1(i,1)+DT1(i,3)-DT1(i,2)-DT1(i,4))/4.0
-	ENDDO
-	! WRITE(40,fmat(1))((DTF(DN*i+j),j=1,DN),i=0,DN-1)
-	! WRITE(40,fmat(1))(((-1)**(i+j)*0.5*(n1p(DN*i+j)-n2p(DN*i+j)),j=1,DN),i=0,DN-1)
-	FLAG1=.TRUE.
-	FLAG2=.TRUE.
-	FLAG3=.TRUE.
+	do i=1,dn*dn
+		dtf(i)=(dt1(i,1)+dt1(i,3)-dt1(i,2)-dt1(i,4))/4.0
+	enddo
+	! write(40,fmat(1))((dtf(dn*i+j),j=1,dn),i=0,dn-1)
+	! write(40,fmat(1))(((-1)**(i+j)*0.5*(n1p(dn*i+j)-n2p(dn*i+j)),j=1,dn),i=0,dn-1)
+	flag1=.true.
+	flag2=.true.
+	flag3=.true.
 	n1=0
 	n2=0
 	sp=0.14
 	wide=0.2
 	sp0=sp+wide
-	! Im(1)=121
-	! Im(2)=123
-	Im(1)=(DN/2-1)*DN+DN/2
-	! Im(2)=Im(1)+1
-	! Im(3)=Im(2)+DN
-	! Im(4)=Im(1)+DN
-	! Im(5)=Im(1)-1
-	! DO i=1,DN*DN
-		! IF(ANY(Im==i)) THEN
+	! im(1)=121
+	! im(2)=123
+	im(1)=(dn/2-1)*dn+dn/2
+	! im(2)=im(1)+1
+	! im(3)=im(2)+dn
+	! im(4)=im(1)+dn
+	! im(5)=im(1)-1
+	! do i=1,dn*dn
+		! if(any(im==i)) then
 			! n1(i)=1
-		! ENDIF
-	! ENDDO
-	! WRITE(20,fmat(1))((n1(DN*i+j),j=1,DN),i=0,DN-1)
-EX:	DO WHILE(ANY(er>CVG))
+		! endif
+	! enddo
+	! write(20,fmat(1))((n1(dn*i+j),j=1,dn),i=0,dn-1)
+ex:	do while(any(er>cvg))
 		rc=rc+1
-		! IF(er(1)>CVG) THEN
-			DT=DT1
-		! ENDIF
-		! IF(ANY(er(2:3)>CVG)) THEN
+		! if(er(1)>cvg) then
+			dt=dt1
+		! endif
+		! if(any(er(2:3)>cvg)) then
 			n1=n1p
 			n2=n2p
-		! ENDIF
+		! endif
 		nf=0
 		sa=sp
 		sb=sp
-		FLAGA=.TRUE.
-		FLAGB=.TRUE.
-		! DO WHILE(ABS(nf-nf0)>1E-3)
-		DO WHILE(ABS(nf-nf0)>CVG)
-			CALL CPU_TIME(TIME(1))
+		flaga=.true.
+		flagb=.true.
+		! do while(abs(nf-nf0)>1e-3)
+		do while(abs(nf-nf0)>cvg)
+			call cpu_time(time(1))
 			sp=0.5*(sa+sb)
-			H=0D0
-			DO i=1,DN*DN
+			h=0d0
+			do i=1,dn*dn
 				! nearest neighbor pairs
-				CALL NNP(i,.TRUE.,NP)
-				DO j=1,4
-					H(2*i-1:2*i,2*NP(j)-1:2*NP(j))=H(2*i-1:2*i,2*NP(j)-1:2*NP(j))+RESHAPE((/-T,DT(i,j),DT(i,j),&
-						T/),(/2,2/))
-				ENDDO
+				call nnp(i,.true.,np)
+				do j=1,4
+					h(2*i-1:2*i,2*np(j)-1:2*np(j))=h(2*i-1:2*i,2*np(j)-1:2*np(j))+reshape((/-t,dt(i,j),dt(i,j),&
+						t/),(/2,2/))
+				enddo
 				! next-nearest neighbor pairs
-				CALL NNP(i,.FALSE.,NP)
-				DO j=1,4
-					H(2*i-1:2*i,2*NP(j)-1:2*NP(j))=H(2*i-1:2*i,2*NP(j)-1:2*NP(j))+RESHAPE((/-TP,0.0D0,0.0D0,TP/),(/2,2/))
-				ENDDO
+				call nnp(i,.false.,np)
+				do j=1,4
+					h(2*i-1:2*i,2*np(j)-1:2*np(j))=h(2*i-1:2*i,2*np(j)-1:2*np(j))+reshape((/-tp,0.0d0,0.0d0,tp/),(/2,2/))
+				enddo
 				! on site
-				H(2*i-1:2*i,2*i-1:2*i)=H(2*i-1:2*i,2*i-1:2*i)+RESHAPE((/DU*n2(i)-sp,0.0D0,0.0D0,-DU*n1(i)+sp/),&
+				h(2*i-1:2*i,2*i-1:2*i)=h(2*i-1:2*i,2*i-1:2*i)+reshape((/du*n2(i)-sp,0.0d0,0.0d0,-du*n1(i)+sp/),&
 					(/2,2/))
-				IF(ANY(Im==i)) THEN
-					H(2*i-1:2*i,2*i-1:2*i)=H(2*i-1:2*i,2*i-1:2*i)+RESHAPE((/(-1)**MINLOC(ABS(Im-i))*eff,0.0D0,&
-						0.0D0,(-1)**MINLOC(ABS(Im-i))*eff/),(/2,2/))
-				ENDIF
-			ENDDO
-			CALL DSYEV( "V", "U", 2*DN*DN, H, 2*DN*DN, E, WORK, 3*2*DN*DN, INFO )
-			IF(INFO/=0) THEN
-				EXIT EX
-			ENDIF
+				if(any(im==i)) then
+					h(2*i-1:2*i,2*i-1:2*i)=h(2*i-1:2*i,2*i-1:2*i)+reshape((/(-1)**minloc(abs(im-i))*eff,0.0d0,&
+						0.0d0,(-1)**minloc(abs(im-i))*eff/),(/2,2/))
+				endif
+			enddo
+			call dsyev( "v", "u", 2*dn*dn, h, 2*dn*dn, e, work, 3*2*dn*dn, info )
+			if(info/=0) then
+				exit ex
+			endif
 			nf=0
-			DO i=1,DN*DN
-				DO n=1,2*DN*DN
-					nf=nf+(H(2*i-1,n)**2*f(E(n))+H(2*i,n)**2*(1-f(E(n))))
-				ENDDO
-			ENDDO
-			nf=1.0/(DN*DN)*nf
-			WRITE(*,*)nf
-			IF(ABS(nf-nf0)<=CVG) THEN
-				EXIT
-			ENDIF
-			IF(nf<nf0) THEN
-				FLAGA=.FALSE.
+			do i=1,dn*dn
+				do n=1,2*dn*dn
+					nf=nf+(h(2*i-1,n)**2*f(e(n))+h(2*i,n)**2*(1-f(e(n))))
+				enddo
+			enddo
+			nf=1.0/(dn*dn)*nf
+			write(*,*)nf
+			if(abs(nf-nf0)<=cvg) then
+				exit
+			endif
+			if(nf<nf0) then
+				flaga=.false.
 				sa=sp
-				IF(FLAGA.OR.FLAGB) THEN
+				if(flaga.or.flagb) then
 					sb=sp+wide
 					sp=sb
-				ENDIF
-			ELSE
-				FLAGB=.FALSE.
+				endif
+			else
+				flagb=.false.
 				sb=sp
-				IF(FLAGA.OR.FLAGB) THEN
+				if(flaga.or.flagb) then
 					sa=sp-wide
 					sp=sa
-				ENDIF
-			ENDIF
-			CALL CPU_TIME(TIME(2))
-			WRITE(10,*)"COST CUP TIME:",TIME(2)-TIME(1),"S"
-		ENDDO
-		wide=MAX(ABS(sp0-sp),10*CVG)
+				endif
+			endif
+			call cpu_time(time(2))
+			write(10,*)"cost cup time:",time(2)-time(1),"s"
+		enddo
+		wide=max(abs(sp0-sp),10*cvg)
 		sp0=sp
 		n1p=0
 		n2p=0
-		DO i=1,DN*DN
-			DO n=1,2*DN*DN
-				n1p(i)=n1p(i)+H(2*i-1,n)**2*f(E(n))
-				n2p(i)=n2p(i)+H(2*i,n)**2*(1-f(E(n)))
-			ENDDO
-		ENDDO
-		! REWIND(30)
-		! WRITE(30,fmat(1))((n1p(DN*i+j)+n2p(DN*i+j),j=1,DN),i=0,DN-1)
-		DT1=0
-		DO i=1,DN*DN
-			CALL NNP(i,.TRUE.,NP)
-			DO j=1,4
-				DO n=1,2*DN*DN
-					DT1(i,j)=DT1(i,j)+0.25*DV*(H(2*i-1,n)*H(2*NP(j),n)+H(2*NP(j)-1,n)*H(2*i,n))*TANH(0.5*BT*E(n))
-				ENDDO
-			ENDDO
-			WRITE(30,"(4E10.3,5I4)")DT1(i,:),i,NP
-		ENDDO
-		WRITE(*,*)DT1(1,1)
-		er(1)=SUM(ABS(DT1-DT))/(DN*DN)
-		er(2)=SUM(ABS(n1p-n1))/(DN*DN)
-		er(3)=SUM(ABS(n2p-n2))/(DN*DN)
-		WRITE(*,"(3E15.6,F15.12)")er,sa
-		! IF(MOD(rc,20)==0.AND.rc>=100) THEN
-			! DO i=1,DN*DN
-				! DTF(i)=(DT1(i,1)+DT1(i,3)-DT1(i,2)-DT1(i,4))/4.0
-			! ENDDO
-			! WRITE(50,*)"N=",rc
-			! WRITE(50,fmat(1))((DTF(DN*i+j),j=1,DN),i=0,DN-1)
-		! ENDIF
-		! IF(FLAG1.AND.ALL(er<CVG*100)) THEN
-			! DO i=1,DN*DN
-				! DTF(i)=(DT1(i,1)+DT1(i,3)-DT1(i,2)-DT1(i,4))/4.0
-			! ENDDO
-			! WRITE(10,fmat(1))((DTF(DN*i+j),j=1,DN),i=0,DN-1)
-			! WRITE(10,fmat(1))((n1p(DN*i+j)+n2p(DN*i+j),j=1,DN),i=0,DN-1)
-			! WRITE(10,fmat(1))(((-1)**(i+j)*0.5*(n1p(DN*i+j)-n2p(DN*i+j)),j=1,DN),i=0,DN-1)
-			! WRITE(10,*)"ERROR=",CVG*100
-			! FLAG1=.FALSE.
-		! ENDIF		
-		! IF(FLAG2.AND.ALL(er<CVG*50)) THEN
-			! DO i=1,DN*DN
-				! DTF(i)=(DT1(i,1)+DT1(i,3)-DT1(i,2)-DT1(i,4))/4.0
-			! ENDDO
-			! WRITE(10,fmat(1))((DTF(DN*i+j),j=1,DN),i=0,DN-1)
-			! WRITE(10,fmat(1))((n1p(DN*i+j)+n2p(DN*i+j),j=1,DN),i=0,DN-1)
-			! WRITE(10,fmat(1))(((-1)**(i+j)*0.5*(n1p(DN*i+j)-n2p(DN*i+j)),j=1,DN),i=0,DN-1)
-			! WRITE(10,*)"ERROR=",CVG*50
-			! FLAG2=.FALSE.
-		! ENDIF
-		! IF(FLAG3.AND.ALL(er<CVG*10)) THEN
-			! DO i=1,DN*DN
-				! DTF(i)=(DT1(i,1)+DT1(i,3)-DT1(i,2)-DT1(i,4))/4.0
-			! ENDDO
-			! WRITE(10,fmat(1))((DTF(DN*i+j),j=1,DN),i=0,DN-1)
-			! WRITE(10,fmat(1))((n1p(DN*i+j)+n2p(DN*i+j),j=1,DN),i=0,DN-1)
-			! WRITE(10,fmat(1))(((-1)**(i+j)*0.5*(n1p(DN*i+j)-n2p(DN*i+j)),j=1,DN),i=0,DN-1)
-			! WRITE(10,*)"ERROR=",CVG*10
-			! FLAG3=.FALSE.
-		! ENDIF
-	ENDDO EX
-	DO i=1,DN*DN
-		DTF(i)=(DT(i,1)+DT(i,3)-DT(i,2)-DT(i,4))/4.0
-	ENDDO
-	CALL FDATE(FT)
-	WRITE(10,fmat(1))((DTF(DN*i+j),j=1,DN),i=0,DN-1)
-	WRITE(10,fmat(1))((n1(DN*i+j)+n2(DN*i+j),j=1,DN),i=0,DN-1)
-	WRITE(10,fmat(1))(((-1)**(i+j)*0.5*(n1(DN*i+j)-n2(DN*i+j)),j=1,DN),i=0,DN-1)
-	WRITE(10,*)"The beta is",BT,"V=",DV,"U=",DU,"t'=",TP,"heff=",eff,"nf=",nf0,"N=",DN
-	WRITE(10,*)"ERROR=",ERROR,"INFO=",INFO,"rc=",rc
-	WRITE(10,*)"THE TATAL RUNTIME IS FORM ",IT," TO ",FT,"COST CUP TIME:",TIME(2)-TIME(1),"S"
-	IF(INFO/=0) THEN
-		ERROR=MOD(INFO,2*DN*DN+1)
-		DO j=1,ERROR+1
-			WRITE(20,500)(H(i,j),i=1,ERROR+1)
-		ENDDO
-	ENDIF
-	CLOSE(10)
-	CLOSE(20)
-	CLOSE(30)
-	CLOSE(40)
-	CLOSE(50)
-END PROGRAM MAIN
+		do i=1,dn*dn
+			do n=1,2*dn*dn
+				n1p(i)=n1p(i)+h(2*i-1,n)**2*f(e(n))
+				n2p(i)=n2p(i)+h(2*i,n)**2*(1-f(e(n)))
+			enddo
+		enddo
+		! rewind(30)
+		! write(30,fmat(1))((n1p(dn*i+j)+n2p(dn*i+j),j=1,dn),i=0,dn-1)
+		dt1=0
+		do i=1,dn*dn
+			call nnp(i,.true.,np)
+			do j=1,4
+				do n=1,2*dn*dn
+					dt1(i,j)=dt1(i,j)+0.25*dv*(h(2*i-1,n)*h(2*np(j),n)+h(2*np(j)-1,n)*h(2*i,n))*tanh(0.5*bt*e(n))
+				enddo
+			enddo
+			write(30,"(4e10.3,5i4)")dt1(i,:),i,np
+		enddo
+		write(*,*)dt1(1,1)
+		er(1)=sum(abs(dt1-dt))/(dn*dn)
+		er(2)=sum(abs(n1p-n1))/(dn*dn)
+		er(3)=sum(abs(n2p-n2))/(dn*dn)
+		write(*,"(3e15.6,f15.12)")er,sa
+		! if(mod(rc,20)==0.and.rc>=100) then
+			! do i=1,dn*dn
+				! dtf(i)=(dt1(i,1)+dt1(i,3)-dt1(i,2)-dt1(i,4))/4.0
+			! enddo
+			! write(50,*)"n=",rc
+			! write(50,fmat(1))((dtf(dn*i+j),j=1,dn),i=0,dn-1)
+		! endif
+		! if(flag1.and.all(er<cvg*100)) then
+			! do i=1,dn*dn
+				! dtf(i)=(dt1(i,1)+dt1(i,3)-dt1(i,2)-dt1(i,4))/4.0
+			! enddo
+			! write(10,fmat(1))((dtf(dn*i+j),j=1,dn),i=0,dn-1)
+			! write(10,fmat(1))((n1p(dn*i+j)+n2p(dn*i+j),j=1,dn),i=0,dn-1)
+			! write(10,fmat(1))(((-1)**(i+j)*0.5*(n1p(dn*i+j)-n2p(dn*i+j)),j=1,dn),i=0,dn-1)
+			! write(10,*)"error=",cvg*100
+			! flag1=.false.
+		! endif		
+		! if(flag2.and.all(er<cvg*50)) then
+			! do i=1,dn*dn
+				! dtf(i)=(dt1(i,1)+dt1(i,3)-dt1(i,2)-dt1(i,4))/4.0
+			! enddo
+			! write(10,fmat(1))((dtf(dn*i+j),j=1,dn),i=0,dn-1)
+			! write(10,fmat(1))((n1p(dn*i+j)+n2p(dn*i+j),j=1,dn),i=0,dn-1)
+			! write(10,fmat(1))(((-1)**(i+j)*0.5*(n1p(dn*i+j)-n2p(dn*i+j)),j=1,dn),i=0,dn-1)
+			! write(10,*)"error=",cvg*50
+			! flag2=.false.
+		! endif
+		! if(flag3.and.all(er<cvg*10)) then
+			! do i=1,dn*dn
+				! dtf(i)=(dt1(i,1)+dt1(i,3)-dt1(i,2)-dt1(i,4))/4.0
+			! enddo
+			! write(10,fmat(1))((dtf(dn*i+j),j=1,dn),i=0,dn-1)
+			! write(10,fmat(1))((n1p(dn*i+j)+n2p(dn*i+j),j=1,dn),i=0,dn-1)
+			! write(10,fmat(1))(((-1)**(i+j)*0.5*(n1p(dn*i+j)-n2p(dn*i+j)),j=1,dn),i=0,dn-1)
+			! write(10,*)"error=",cvg*10
+			! flag3=.false.
+		! endif
+	enddo ex
+	do i=1,dn*dn
+		dtf(i)=(dt(i,1)+dt(i,3)-dt(i,2)-dt(i,4))/4.0
+	enddo
+	call fdate(ft)
+	write(10,fmat(1))((dtf(dn*i+j),j=1,dn),i=0,dn-1)
+	write(10,fmat(1))((n1(dn*i+j)+n2(dn*i+j),j=1,dn),i=0,dn-1)
+	write(10,fmat(1))(((-1)**(i+j)*0.5*(n1(dn*i+j)-n2(dn*i+j)),j=1,dn),i=0,dn-1)
+	write(10,*)"the beta is",bt,"v=",dv,"u=",du,"t'=",tp,"heff=",eff,"nf=",nf0,"n=",dn
+	write(10,*)"error=",error,"info=",info,"rc=",rc
+	write(10,*)"the tatal runtime is form ",it," to ",ft,"cost cup time:",time(2)-time(1),"s"
+	if(info/=0) then
+		error=mod(info,2*dn*dn+1)
+		do j=1,error+1
+			write(20,500)(h(i,j),i=1,error+1)
+		enddo
+	endif
+	close(10)
+	close(20)
+	close(30)
+	close(40)
+	close(50)
+end program main
 
-SUBROUTINE NNP(ii,near,jj)
-	USE GLOBAL
-	IMPLICIT NONE
-	INTEGER :: ii,i,j,jj(4)
-	LOGICAL :: near
-	j=PBC(MOD(ii,DN))
-	i=(ii-j)/DN+1
-	IF(near) THEN
-		jj(1)=(i-1)*DN+PBC(j+1)
-		jj(2)=(PBC(i+1)-1)*DN+j
-		jj(3)=(i-1)*DN+PBC(j-1)
-		jj(4)=(PBC(i-1)-1)*DN+j
-	ELSE
-		jj(1)=DN*(PBC(i+1)-1)+PBC(j+1)
-		jj(2)=DN*(PBC(i+1)-1)+PBC(j-1)
-		jj(3)=DN*(PBC(i-1)-1)+PBC(j+1)
-		jj(4)=DN*(PBC(i-1)-1)+PBC(j-1)
-	ENDIF
-END SUBROUTINE NNP
+subroutine nnp(ii,near,jj)
+	use global
+	implicit none
+	integer :: ii,i,j,jj(4)
+	logical :: near
+	j=pbc(mod(ii,dn))
+	i=(ii-j)/dn+1
+	if(near) then
+		jj(1)=(i-1)*dn+pbc(j+1)
+		jj(2)=(pbc(i+1)-1)*dn+j
+		jj(3)=(i-1)*dn+pbc(j-1)
+		jj(4)=(pbc(i-1)-1)*dn+j
+	else
+		jj(1)=dn*(pbc(i+1)-1)+pbc(j+1)
+		jj(2)=dn*(pbc(i+1)-1)+pbc(j-1)
+		jj(3)=dn*(pbc(i-1)-1)+pbc(j+1)
+		jj(4)=dn*(pbc(i-1)-1)+pbc(j-1)
+	endif
+end subroutine nnp
 
-SUBROUTINE INIT_RANDOM_SEED()
-	INTEGER :: i, n, clock
-	INTEGER, DIMENSION(:), ALLOCATABLE :: seed
-	CALL RANDOM_SEED(size = n)
-	ALLOCATE(seed(n))
-	CALL SYSTEM_CLOCK(COUNT=clock)
+subroutine init_random_seed()
+	integer :: i, n, clock
+	integer, dimension(:), allocatable :: seed
+	call random_seed(size = n)
+	allocate(seed(n))
+	call system_clock(count=clock)
 	seed = clock + 37 * (/ (i - 1, i = 1, n) /)
-	CALL RANDOM_SEED(PUT = seed)
-	DEALLOCATE(seed)
-END SUBROUTINE
+	call random_seed(put = seed)
+	deallocate(seed)
+end subroutine
 
 	
