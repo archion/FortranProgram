@@ -20,8 +20,9 @@
 # Datas
 *.dat
 *.qti
-DATA/
-Test/
+tags
+data/
+test/
 
 # Backup
 *.swp
