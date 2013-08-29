@@ -1,7 +1,5 @@
-rpa='e:\projects\fortranprogram\data\rpa.dat'
-check='e:\projects\fortranprogram\data\check.dat'
-rpa='C:\Users\Administrator\Application Data\SSH\temp\rpa.dat'
-check='C:\Users\Administrator\Application Data\SSH\temp\check.dat'
+rpa='../data/rpa.dat'
+check='../data/check.dat'
 
 set term wxt 0
 set multiplot layout 1,2
