@@ -3,7 +3,7 @@ program rpa
 	complex(8),parameter :: img=(0d0,1d0)
 	integer,parameter :: mk=128,mq=32,ms=100
 	real(8),parameter :: t1=0.07415d0,t2=-0.0175d0,t3=0.0116d0,DJ=0.4d0,ph=0.1464d0,al=0.5d0,V=0.25d0,pi=3.1415926d0,n0=0.9,cvg=1e-4
-	complex(8) :: H(4,4),Uk(4,4),Ukq(4,4),UEk(4),WORK(20),Xq(2,2,-mq:mq,-mq:mq),Xq_tmp(2,2),eka
+	complex(8) :: H(4,4),Uk(4,4),Ukq(4,4),UEk(4),WORK(20),Xq(2,2,-mq:mq,-mq:mq),Xq_tmp(2,2),eka,cth,sth,cfy(2),sfy(2)
 	integer :: i,j,k,l,m,n,o,p,INFO
 	real(8) :: kx,ky,qx,qy,kqx,kqy,w,e1(2),e2(2),ek(4),ekq(4),fk(4),fkq(4),RWORK(10),Jq,&
 		eks,bt,sp,sa,sb,wide,n1,Xq_RPA,u2(2),v2(2),cs2(2),th,fy(2),dk
@@ -24,8 +24,8 @@ program rpa
 		sp=(sa+sb)*0.5d0
 		n1=0d0
 		Xq=0d0
-		!$OMP PARALLEL DO REDUCTION(+:n1,Xq) PRIVATE(kx,ky,eka,eks,e1,e2,th,fy,fk,UK,H,ek,ekq,work,rwork,info,qx,qy,kqx,kqy,&
-		!$OMP fkq,Ukq,w,Xq_tmp) SCHEDULE(GUIDED)
+		!$OMP PARALLEL DO REDUCTION(+:n1,Xq) PRIVATE(kx,ky,eka,eks,e1,e2,th,fy,cth,sth,cfy,sfy,fk,UK,H,ek,ekq,work,rwork,info,&
+		!$OMP qx,qy,kqx,kqy,fkq,Ukq,w,Xq_tmp) SCHEDULE(GUIDED)
 		do i=-mk,mk
 			kx=pi/mk*i
 			do j=-mk,mk
@@ -45,10 +45,14 @@ program rpa
 				else
 					fy=(2d0*pi-acos(e1/e2))/2d0
 				endif
-				Uk=reshape((/dcmplx(cos(th)*cos(fy(1))),-img*sin(th)*cos(fy(1)),dcmplx(cos(th)*sin(fy(1))),img*sin(th)*sin(fy(1)),&
-							-img*sin(th)*cos(fy(2)),dcmplx(cos(th)*cos(fy(2))),-img*sin(th)*sin(fy(2)),dcmplx(-cos(th)*sin(fy(2))),&
-							dcmplx(-cos(th)*sin(fy(1))),img*sin(th)*sin(fy(1)),dcmplx(cos(th)*cos(fy(1))),img*sin(th)*cos(fy(1)),&
-							-img*sin(th)*sin(fy(2)),dcmplx(cos(th)*sin(fy(2))),img*sin(th)*cos(fy(2)),dcmplx(cos(th)*cos(fy(2))) /)&
+				cth=dcmplx(cos(th))
+				sth=dcmplx(sin(th))
+				cfy=dcmplx(cos(fy))
+				sfy=dcmplx(sin(fy))
+				Uk=reshape((/cth*cfy(1),-img*sth*cfy(1),cth*sfy(1),img*sth*sfy(1),&
+							-img*sth*cfy(2),cth*cfy(2),-img*sth*sfy(2),cth*sfy(2),&
+							-cth*sfy(1),img*sth*sfy(1),cth*cfy(1),img*sth*cfy(1),&
+							-img*sth*sfy(2),cth*sfy(2),img*sth*cfy(2),cth*cfy(2) /)&
 							,(/4,4/))
 				!H=reshape((/ dcmplx(real(eka)+eks,0d0),    dcmplx(0d0,dimag(eka)),         dk,             (0d0,0d0),     &
 					!dcmplx(0d0,-dimag(eka)),      dcmplx(eks-real(eka),0d0),     (0d0,0d0),          -dk,        &
@@ -90,8 +94,11 @@ program rpa
 							else
 								fy=(2d0*pi-acos(e1/e2))/2d0
 							endif
-							UEk=(/dcmplx(cos(th)*cos(fy(1))), -img*sin(th)*cos(fy(2)),dcmplx(-cos(th)*sin(fy(1))),&
-							   	-img*sin(th)*sin(fy(2))/)
+							cth=dcmplx(cos(th))
+							sth=dcmplx(sin(th))
+							cfy=dcmplx(cos(fy))
+							sfy=dcmplx(sin(fy))
+							UEk=(/cth*cfy(1), -img*sth*cfy(2),-cth*sfy(1),-img*sth*sfy(2)/)
 							! u2=(1d0+e1/e2)*0.5d0
 							! v2=(1d0-e1/e2)*0.5d0
 							! cs2=(1d0+(/1d0,-1d0/)*real(eka)/sqrt(dimag(eka)**2+real(eka)**2))*0.5d0
@@ -128,14 +135,23 @@ program rpa
 							else
 								fy=(2d0*pi-acos(e1/e2))/2d0
 							endif
-							Ukq=reshape((/dcmplx(cos(th)*cos(fy(1))),-img*sin(th)*cos(fy(1)),dcmplx(cos(th)*sin(fy(1))),&
-								img*sin(th)*sin(fy(1)),&
-										-img*sin(th)*cos(fy(2)),dcmplx(cos(th)*cos(fy(2))),-img*sin(th)*sin(fy(2)),&
-								dcmplx(-cos(th)*sin(fy(2))),&
-										dcmplx(-cos(th)*sin(fy(1))),img*sin(th)*sin(fy(1)),dcmplx(cos(th)*cos(fy(1))),&
-								img*sin(th)*cos(fy(1)),&
-										-img*sin(th)*sin(fy(2)),dcmplx(cos(th)*sin(fy(2))),img*sin(th)*cos(fy(2)),&
-								dcmplx(cos(th)*cos(fy(2))) /),(/4,4/))
+							cth=dcmplx(cos(th))
+							sth=dcmplx(sin(th))
+							cfy=dcmplx(cos(fy))
+							sfy=dcmplx(sin(fy))
+							Ukq=reshape((/cth*cfy(1),-img*sth*cfy(1),cth*sfy(1),img*sth*sfy(1),&
+										-img*sth*cfy(2),cth*cfy(2),-img*sth*sfy(2),cth*sfy(2),&
+										-cth*sfy(1),img*sth*sfy(1),cth*cfy(1),img*sth*cfy(1),&
+										-img*sth*sfy(2),cth*sfy(2),img*sth*cfy(2),cth*cfy(2) /)&
+										,(/4,4/))
+						   ! Ukq=reshape((/dcmplx(cos(th)*cos(fy(1))),-img*sin(th)*cos(fy(1)),dcmplx(cos(th)*sin(fy(1))),&
+								!img*sin(th)*sin(fy(1)),&
+										!-img*sin(th)*cos(fy(2)),dcmplx(cos(th)*cos(fy(2))),-img*sin(th)*sin(fy(2)),&
+								!dcmplx(-cos(th)*sin(fy(2))),&
+										!dcmplx(-cos(th)*sin(fy(1))),img*sin(th)*sin(fy(1)),dcmplx(cos(th)*cos(fy(1))),&
+								!img*sin(th)*cos(fy(1)),&
+										!-img*sin(th)*sin(fy(2)),dcmplx(cos(th)*sin(fy(2))),img*sin(th)*cos(fy(2)),&
+								!dcmplx(cos(th)*cos(fy(2))) /),(/4,4/))
 							! e1=eks+(/-1d0,1d0/)*abs(eka)
 							! e2=sqrt(e1**2+dk**2)
 							! ekq=(/e2,-e2/)
