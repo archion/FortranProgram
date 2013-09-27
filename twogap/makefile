@@ -1,10 +1,11 @@
-out=twogap.out
-FCCFLAG= -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-FCC = ifort
+out=twogap_ddw.out
+#FCCFLAG= -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
+OMPFLAG= -fopenmp
+FCC = gfortran
 all:$(out)
 %.out: %.o
-	$(FCC) $< -o $@ -openmp $(FCCFLAG)
+	$(FCC) $< -o $@ $(OMPFLAG) $(FCCFLAG)
 %.o: %.f90
-	$(FCC) -c $< -openmp
+	$(FCC) -c $< $(OMPFLAG)
 clean:
 	rm -f *.out *.mod

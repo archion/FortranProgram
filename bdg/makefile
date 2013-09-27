@@ -6,14 +6,15 @@
 	# $(FCC) FFT.f90 -c -g
 # clean:
 	# rm FFT.o FFT.out
-out=BdG_CRS.out
-#FCCFLAG= -openmp -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-FCCFLAG= -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-FCC = ifort
+out=bdg_flux.out
+#FCCFLAG= -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
+FCCFLAG= -g -llapack 
+FCC = gfortran
+#OMPFLAG = -openmp
 all : $(out)
 %.out : %.o
-	$(FCC) $< -o $@ -openmp $(FCCFLAG)
+	$(FCC) $< -o $@ ${OMPFLAG} $(FCCFLAG)
 %.o : %.f90
-	$(FCC) -c $< -openmp
+	$(FCC) -c $< ${OMPFLAG}
 clean:
 	rm -f *.out *.mod

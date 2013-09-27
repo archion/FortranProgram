@@ -74,7 +74,7 @@ program main
 						   (/v2(1)*cos2,v2(2)*sin2,u2(1)*cos2,u2(2)*sin2/)-(/v2(1)*sin2,v2(2)*cos2,u2(1)*sin2,u2(2)*cos2/)
 						n=n+dot_product(hn,e)
 						hn=(/u2(1),-u2(2),v2(1),-v2(2)/)+(/-v2(1),v2(2),-u2(1),u2(2)/)
-						USp=USp+u*dot_product(hn*sc,e)
+						USp=USp+2d0*u*dot_product(hn*sc,e)
 						hn=(/uv(1)*cos2,uv(2)*sin2,-uv(1)*cos2,-uv(2)*sin2/)-(/-uv(1)*sin2,-uv(2)*cos2,uv(1)*sin2,uv(2)*cos2/)
 						tmp=dot_product(hn,e)
 						dtp(1)=dtp(1)+v*gk(1)*tmp
@@ -83,9 +83,9 @@ program main
 					enddo
 				enddo
 				!$OMP END PARALLEL DO
-				n=n/(mk**2)*2d0
-				USp=USp/(mk**2)*2d0
-				dtp=dtp/(mk**2)*2d0
+				n=n/(mk**2)*2
+				USp=USp/(mk**2)*2
+				dtp=dtp/(mk**2)*2
 				if(abs(n-nf)<=cvg) then
 					exit
 				endif
