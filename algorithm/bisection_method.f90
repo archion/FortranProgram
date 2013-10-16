@@ -12,12 +12,11 @@ program bisection_method
 	real(8) :: sa,sb,sp,sp0,wide,cvg=1e-5,x
 	logical :: flaga,flagb
 	open(unit=10,file="../data/find.dat")
-	open(unit=20,file="../data/input.dat")
 	sp=0 ! 初始值
 	wide=0.1 ! 步长
 	sp0=sp+wide
 	do i=1,13
-		read(20,*)x
+		read(*,*)x
 		write(10,"(2g12.6)")"x=",x
 		sa=sp
 		sb=sp
@@ -37,16 +36,14 @@ program bisection_method
 			if(sp<x) then !待求值在试探值右边
 				flaga=.false.
 				sa=sp ! 正常二分法
-				if(flaga.or.flagb) then ! 查看标记，看是否已经找到待求值范围，否则改变查找范围
+				if(flagb) then ! 查看标记，看是否已经找到待求值范围，否则改变查找范围
 					sb=sp+wide
-					sp=sb
 				endif
 			else !待求值在试探值右边
 				flagb=.false.
 				sb=sp ! 正常二分法
-				if(flaga.or.flagb) then ! 查看标记，看是否已经找到待求值范围，否则改变查找范围
+				if(flaga) then ! 查看标记，看是否已经找到待求值范围，否则改变查找范围
 					sa=sp-wide
-					sp=sa
 				endif
 			endif
 		enddo

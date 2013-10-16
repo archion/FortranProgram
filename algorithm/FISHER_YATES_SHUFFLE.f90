@@ -1,34 +1,34 @@
-PROGRAM MAIN
-	IMPLICIT NONE
-	INTEGER :: A(100),i
-	OPEN(UNIT=10,FILE="../DATA/OUTPUT1.DAT")
-	DO i=1,SIZE(A)
-		A(i)=i
-	ENDDO
-	CALL INIT_RANDOM_SEED()
-	CALL FISHER_YATES_SHUFFLE(A,SIZE(A))
-	WRITE(10,"(I10)")A
-	CLOSE(10)
-END	
-SUBROUTINE FISHER_YATES_SHUFFLE(A,M)
-	IMPLICIT NONE
-	INTEGER :: A(*),i,j,TEM,M
-	REAL(8) :: RAM
-	DO i=M,1,-1
-		CALL RANDOM_NUMBER(RAM)
-		j=CEILING(RAM*i)
-		TEM=A(i)
-		A(i)=A(j)
-		A(j)=TEM
-	ENDDO
-END
-SUBROUTINE INIT_RANDOM_SEED()
-	INTEGER :: i, n, clock
-	INTEGER, DIMENSION(:), ALLOCATABLE :: seed
-	CALL RANDOM_SEED(size = n)
-	ALLOCATE(seed(n))
-	CALL SYSTEM_CLOCK(COUNT=clock)
+program main
+	implicit none
+	integer :: a(100),i
+	open(unit=10,file="../data/output1.dat")
+	do i=1,size(a)
+		a(i)=i
+	enddo
+	call init_random_seed()
+	call fisher_yates_shuffle(a,size(a))
+	write(10,"(i10)")a
+	close(10)
+end	
+subroutine fisher_yates_shuffle(a,m)
+	implicit none
+	integer :: a(*),i,j,tem,m
+	real(8) :: ram
+	do i=m,1,-1
+		call random_number(ram)
+		j=ceiling(ram*i)
+		tem=a(i)
+		a(i)=a(j)
+		a(j)=tem
+	enddo
+end
+subroutine init_random_seed()
+	integer :: i, n, clock
+	integer, dimension(:), allocatable :: seed
+	call random_seed(size = n)
+	allocate(seed(n))
+	call system_clock(count=clock)
 	seed = clock + 37 * (/ (i - 1, i = 1, n) /)
-	CALL RANDOM_SEED(PUT = seed)
-	DEALLOCATE(seed)
-END SUBROUTINE
+	call random_seed(put = seed)
+	deallocate(seed)
+eND SUBROUTINE
