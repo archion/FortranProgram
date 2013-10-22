@@ -1,74 +1,55 @@
 module global
 	implicit none
 	save
-	real(8), parameter ::t(5)=(/0.25d0,-0.025d0,0.012d0,0d0,0d0/),escal=1d0,pi=3.1415926d0,cvg=1e-5
-	integer, parameter :: mk=512,mth=1000,ms=100,mr=128,mo=720
+	real(8), parameter ::t(5)=(/1d0,-0.2d0,0.0d0,0d0,0d0/),escal=0.25d0,pi=3.1415926d0,cvg=1e-5,U=2.4d0,V=-2.4d0
+	integer, parameter :: mk=512,mth=1000,ms=100,mr=512,mo=720
 	complex(8),parameter :: img=(0d0,1d0)
 end module
 program main
-	use global, only : pi,cvg,mo
+	use global, only : pi,cvg,mo,t,U,V
 	implicit none
 	complex(8) :: Uk(4,4)
-	real(8) :: kx,ky,sp,bt,U,V,nf=0.8d0,dt(2),pdt(2),dd,pdd,ek(4),tmp,tmp1,tmpa,z,gap,gm(4,2),rtmp(4,4,4,2),fk(4),R(2),&
-		omg,DOS,d,omgp,Rp(2),DOSp,M_omg,DOS1,A(mo),Tk
-	character(30) :: filename
+	real(8) :: kx,ky,sp,bt,nf=0.8d0,dt(2),pdt(2),dd,pdd,ek(4),gap,Tk
+	character(100) :: pmt
 	integer :: i,j,k,l,p,b,info,m1,m2,Mn
-	logical :: flaga,flagb,flag,Tr(4,4)
+	logical :: flaga,flagb,flag
+	write(pmt,"('_DDW=',f6.2,'_SC=',f6.2,'_t1=',f6.2,'_t2=',f6.2,'_t3=',f6.3)")U,V,t(1),t(2),t(3)
 	open(unit=10,file="../data/energy.dat")
 	open(unit=20,file="../data/fermi.dat")
-	open(unit=30,file="../data/temp.dat")
-	open(unit=40,file="../data/gap.dat")
-	open(unit=50,file="../data/raman.dat")
-	open(unit=60,file="../data/fhase.dat")
+	open(unit=40,file="../data/gaptemp"//trim(adjustl(pmt))//".dat")
+	open(unit=50,file="../data/raman"//trim(adjustl(pmt))//".dat")
+	open(unit=60,file="../data/fhase"//trim(adjustl(pmt))//".dat")
 	!gnuplot command start
-	write(40,*)"reset"
-	write(40,*)"set term wxt 6"
-	write(40,*)"# plot phase diagram"
-	write(40,*)"#set term pngcairo font 'AR PL UKai CN,14'"
-	write(40,*)"#set output 'precipitation.png'"
-	write(40,*)"unset key"
-	write(40,*)"plot '-' using 2:4:($8<1e-4?1/0:$8) with labels, phase using 2:($8<1e-4?$4:1/0) with points pt 4"
-	write(60,*)"reset"
-	write(60,*)"set term wxt 6"
-	write(60,*)"# plot phase diagram"
-	write(60,*)"#set term pngcairo font 'AR PL UKai CN,14'"
-	write(60,*)"#set output 'precipitation.png'"
-	write(60,*)"unset key"
-	write(60,*)"plot '-' using 2:4:($8<1e-4?1/0:$8) with labels, phase using 2:($8<1e-4?$4:1/0) with points pt 4"
+	call gnuplot
 	!gnuplot command end
 	flag=.false.
-	Tr=reshape((/ .true.,.false.,.false.,.false.,&
-				.false.,.true.,.false.,.false.,&
-				.false.,.false.,.true.,.false.,&
-				.false.,.false.,.false.,.true. /),(/4,4/))
-
-	do p=50,100
-		U=0.7d0
-		V=-0.0d0
-		nf=1d0-0.002d0*p
+	call raman(0.09626d0,(/0.003662d0,0d0/),-0.8606d0,170d0,0.5d0,0.002d0)
+	call band(0.09626d0,(/0.003662d0,0d0/),-0.8606d0)
+	!call mingap(0d0,(/0.0d0,0d0/),-0.85d0,0d0,gap)
+	stop
+	do p=77,77
+		nf=1d0-0.0025d0*p
+		nf=0.8075
 		pdt=0d0
 		pdd=0d0
-		do j=0,1000,50
+		do j=0,0,5
 			Tk=0.01+j
-			dt=1
-			dd=1
-			!call selfconsist(U,V,Tk,nf,dt,dd,sp)
-			call selfconsist_tg(U,V,Tk,nf,dt,dd,sp)
-			if(((dt(1)-cvg*10)*(pdt(1)-cvg*10)<0d0).or.((dd-cvg*10)*(pdd-cvg*10)<0d0)) then
-				write(60,"(4(a6,e12.4))")"n=",nf,",Tk=",Tk,",DSC=",dt(1),",DDW=",dd
+			dt=0.001
+			dd=0.001
+			!call selfconsist(Tk,nf,dt,dd,sp)
+			call selfconsist_tg(Tk,nf,dt,dd,sp)
+			if(((dt(1)-cvg*100)*(pdt(1)-cvg*100)<0d0).or.((dd-cvg*100)*(pdd-cvg*100)<0d0).or.dt(1)<cvg*100d0.and.dd<cvg*100d0) then
+				write(60,"(5(a6,e12.4))")"n=",nf,",Tk=",Tk,"sp=",sp,",DSC=",dt(1),",DDW=",dd
 			endif
-			if(dt(1)<cvg*10d0.and.dd<cvg*10d0) then
+			if(dt(1)<cvg*100d0.and.dd<cvg*100d0) then
 				exit
 			endif
 			pdt=dt
 			pdd=dd
-			!call band(dd,dt,sp)
+			call band(dd,dt,sp)
 		enddo
 		!write(30,"(3(a5e12.4))")"T=",Tk(p),"DSC=",dt(1),"DDW=",dd
 
-		!do i=0,6
-			!write(filename,"(A14,I1,A4)")"../data/spect_",i,".dat"
-			!open(unit=100+i,file=filename)
 			!A=0d0
 			!gap=1000d0
 			!th=i*pi/4d0/6d0
@@ -107,65 +88,11 @@ program main
 			!write(100+i,"(1x)")
 		!enddo
 		!write(40,"(1x)")
-!  Raman
-		! d=0.001d0
-		! omgp=0d0
-		! Rp=0d0
-		! DOSp=0d0
-		! M_omg=0.1d0
-		! Mn=1000
-		! do while(omgp<M_omg)
-			! omg=omgp+min(M_omg/Mn,d)
-			! R=0d0
-			! DOS=0d0
-			! DOS1=0d0
-			! !$OMP PARALLEL DO REDUCTION(+:R,DOS,DOS1) PRIVATE(kx,ky,gk,dk,gm,h,work,e,info,f,rtmp) SCHEDULE(GUIDED)
-			! do i=0,mr
-				! kx=pi/mr*i
-				! do j=0,mr-i
-					! ky=pi/mr*j
-					! gk(1)=0.5d0*(cos(kx)-cos(ky))
-					! ! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
-					! dk=dt(1)*gk(1) ! +dt(2)*gk(2)
-					! gm(1:2,1)=(cos(kx)-cos(ky))*(/(t+6d0*tppp+8d0*tpp*cos(ky)+cos(kx)*(8d0*tpp+12d0*tppp*cos(ky))),&
-											     ! -(t+6d0*tppp-8d0*tpp*cos(ky)+cos(kx)*(-8d0*tpp+12d0*tppp*cos(ky)))/)
-					! gm(1:2,2)=sin(kx)*sin(ky)*(/(-4d0*tp-16d0*tppp*cos(kx)-16d0*tppp*cos(ky)),&
-											    ! (-4d0*tp+16d0*tppp*cos(kx)+16d0*tppp*cos(ky))/)
-					! gm(3:4,:)=-gm(1:2,:)
-					! h=reshape((/ eks(kx,ky)+eka(kx,ky),      -US,         dk,          0d0,           &
-									! -US,      eks(kx,ky)-eka(kx,ky),     0d0,          -dk,        &
-									! dk,             0d0,           -eks(kx,ky)-eka(kx,ky),    -US,       &
-									! 0d0,            -dk,         -US,  -eks(kx,ky)+eka(kx,ky) /),(/4,4/))
-					! call dsyev( "v", "u", 4, h, 4, e, work, 12, info )
-					! f=1d0/(1d0+exp(bt*e))
-					! DOS1=DOS1-DIMAG(1d0/(-omg-eks(kx,ky)-eka(kx,ky)+img*0.0004d0))&
-						! -DIMAG(1d0/(-omg-eks(kx,ky)+eka(kx,ky)+img*0.0004d0))
-					! do m1=1,4
-						! do m2=1,4
-							! rtmp(m1,m2,:,1)=h(m1,:)*h(m2,:)
-							! rtmp(m1,m2,:,2)=gm(m1,2)*rtmp(m1,m2,:,1)
-							! rtmp(m1,m2,:,1)=gm(m1,1)*rtmp(m1,m2,:,1)
-						! enddo
-					! enddo
-					! do m1=1,4
-						! DOS=DOS-DIMAG(1d0/(omg-e(m1)+img*0.0004d0))
-						! do m2=1,4
-							! R=R+(/sum(matmul(rtmp(:,:,m1,1),rtmp(:,:,m2,1)),Tr),sum(matmul(rtmp(:,:,m1,2),rtmp(:,:,m2,2)),Tr)/)*&
-								! (-f(m1)+f(m2))*DIMAG(1d0/(omg+e(m1)-e(m2)+img*0.0004d0))
-						! enddo
-					! enddo
-				! enddo
-			! enddo
-			! !$OMP END PARALLEL DO
-			! DOS=2d0*DOS/mr**2
-			! R=2d0*R/mr**2
-			! d=min(abs(omg-omgp)/abs(1-DOSp/DOS)/10d0,1.5d0*d)
-			! DOSp=DOS
-			! omgp=omg
-			! write(50,"(5e16.3)")omg,R,DOS,DOS1
-			! write(*,"(5e16.3)")omg,R,DOS,DOS1
-		! enddo
 	enddo
+	write(10,*)"e"
+	write(40,*)"e"
+	write(50,*)"e"
+	write(60,*)"e"
 	close(10)
 	close(20)
 	close(30)
@@ -173,10 +100,114 @@ program main
 	close(50)
 	close(60)
 end
-subroutine selfconsist(U,V,Tk,nf,dt,dd,rsp)
+subroutine gnuplot()
 	use global
 	implicit none
-	real(8) :: bt,Tk,U,V,nf
+	character(100) :: tl
+	write(tl,"('t_1=',f6.2,',t_2=',f6.2,',t_3=',f6.3,'\nV_{DDW}=',f6.2,'\nV_{SC}=',f6.2)")U,V,t(1),t(2),t(3)
+	write(10,*)"set term pngcairo"
+	write(10,*)"set output 'energy.png'"
+	write(10,*)"unset key"
+	write(10,*)"set size square"
+	write(10,*)"set xlabel 'k'"
+	write(10,*)"set ylabel '能量'"
+	write(10,*)"set label ""n=0.8075\nT=0K"" at 5,0.8"
+	write(10,*)"plot [:][-1:1] for[i=1:4] '-' using 0:(column(2*i-1)):(column(i*2)) \"
+	write(10,*)"with points lt 1 pt 7 ps variable"
+	write(50,*)"set term pngcairo"
+	write(50,*)"set output 'raman.png'"
+	write(50,*)"unset key"
+	write(50,*)"set ytics"
+	write(50,*)"set y2tics"
+	write(50,*)"plot [:][:] '-' using 1:2 with line axis x1y1,\"
+   	write(50,*)"'-' using 1:3 with line axis x1y2"
+	!plot gap_tmp
+	write(40,*)"reset"
+	write(40,*)"set term pngcairo"
+	write(40,*)"set output 'gap.png'"
+	write(40,*)"set termoption enhanced"
+	write(40,*)"unset key"
+	write(40,*)"set xtic 50"
+	write(40,*)"set xlabel 'T(K)'"
+	write(40,*)"set ylabel 'gap/t'"
+	write(40,*)"set title '温度依赖'"
+	write(40,*)"set label ","""",trim(adjustl(tl)),""""," at 150,0.11"
+	write(40,*)"plot '-' using 4:8 with linespoints pt 7 lw 5 ,\"
+	write(40,*)"'-' using 4:10 with linespoints pt 7 lw 5"
+	!plot phase diagram
+	write(60,*)"reset"
+	write(60,*)"set term pngcairo"
+	write(60,*)"set output 'phase.png'"
+	write(60,*)"set termoption enhanced"
+	write(60,*)"unset key"
+	write(60,*)"set xlabel 'n'"
+	write(60,*)"set ylabel 'T(K)'"
+	write(60,*)"set title '相图'"
+	write(60,*)"set label ","""",trim(adjustl(tl)),""""," at 0.61,470"
+	write(60,*)"set label ""DDW"" at 0.85,300"
+	write(60,*)"set label ""SC"" at 0.75,50"
+	write(60,*)"plot '-' using 2:4 with points pt 4 ps 0.6"
+end
+subroutine raman(dd,dt,sp,Tk,Momg,domg)
+	use global
+	implicit none
+	integer :: i,j,k,l,m1,m2
+	complex(8) :: Uk(4,4)
+	real(8) :: kx,ky,sp,bt,dt(2),dd,ek(4),gm(4,2),Tr(2),fk(4),R(2),omg,Momg,domg,Tk
+	omg=0d0
+	bt=escal/Tk*1.16e4
+	do while(omg<Momg)
+		omg=omg+domg
+		R=0d0
+		!$OMP PARALLEL DO REDUCTION(+:R) PRIVATE(kx,ky,gm,ek,Uk,fk,Tr) SCHEDULE(GUIDED)
+		do i=0,mr
+			kx=pi/mr*i
+			do j=0,mr-i
+				ky=pi/mr*j
+				gm(1:2,1)=(cos(kx)-cos(ky))*(/(t(1)+6d0*t(4)+8d0*t(3)*cos(ky)+cos(kx)*(8d0*t(3)+12d0*t(4)*cos(ky))),&
+					-(t(1)+6d0*t(4)-8d0*t(3)*cos(ky)+cos(kx)*(-8d0*t(3)+12d0*t(4)*cos(ky)))/)
+				gm(1:2,2)=sin(kx)*sin(ky)*(/(-4d0*t(2)-16d0*t(4)*cos(kx)-16d0*t(4)*cos(ky)),&
+					(-4d0*t(2)+16d0*t(4)*cos(kx)+16d0*t(4)*cos(ky))/)
+				gm(3:4,:)=-gm(1:2,:)
+				call EU(kx,ky,dd,dt,sp,ek,Uk)
+				fk=1d0/(1d0+exp(bt*ek))
+				do m1=1,4
+					do m2=1,4
+						Tr=(/abs(sum(gm(:,1)*dconjg(Uk(:,m2))*Uk(:,m1)))**2,abs(sum(gm(:,2)*dconjg(Uk(:,m2))*Uk(:,m1)))**2/)
+						R=R+Tr*(-fk(m1)+fk(m2))*DIMAG(1d0/(omg+ek(m1)-ek(m2)+img*domg*5d0))
+					enddo
+				enddo
+			enddo
+		enddo
+		!$OMP END PARALLEL DO
+		R=2d0*R/mr**2
+		write(50,"(5e16.3)")omg,R
+	enddo
+end
+subroutine mingap(dd,dt,sp,th,gap)
+	use global
+	implicit none
+	integer :: i,l
+	complex(8) :: Uk(4,4)
+	real(8) :: kx,ky,th,ek(4),sp,dd,dt(2),gap
+	gap=1000d0
+	! !$OMP PARALLEL DO PRIVATE(kx,ky,gk,dk,u2,v2,cos2,sin2,hn,tmp,tmpa,e1,e2,e) SCHEDULE(GUIDED)
+	do i=0,mth
+		ky=pi-i*pi/mth
+		kx=pi-i*pi/mth*tan(th/180d0*pi)
+		call EU(kx,ky,dd,dt,sp,ek,Uk)
+		do l=1,4
+			if(abs(ek(l))<gap.and.ek(l)<0.and.abs(Uk(1,l))>cvg) then
+				gap=abs(ek(l))
+			endif
+		enddo
+	enddo
+	! !$OMP END PARALLEL DO
+end
+subroutine selfconsist(Tk,nf,dt,dd,rsp)
+	use global
+	implicit none
+	real(8) :: bt,Tk,nf
 	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
 	real(8) :: kx,ky,n1,dd,ddp,ddk,ek(4),rsp,sp=0d0,sa,sb,sp0,dk,dt(2),dtp(2),dta,dtb,gk(2),wide,th,fy(2),fk(4)
 	integer :: i,j,c,info
@@ -273,12 +304,12 @@ subroutine selfconsist(U,V,Tk,nf,dt,dd,rsp)
 	!write(*,*)"!!!!!!!!!!!!end!!!!!!!!!!!!!!!!!"
 	rsp=sp
 end
-subroutine selfconsist_tg(U,V,Tk,nf,dt,dd,rsp)
+subroutine selfconsist_tg(Tk,nf,dt,dd,rsp)
 	use global
 	implicit none
-	real(8) :: bt,Tk,U,V,nf
+	real(8) :: bt,Tk,nf
 	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
-	real(8) :: kx,ky,n1,dd,ddp,ddk,ek(4),rsp,sp=0d0,sa,sb,sp0,dk,dt(2),dtp(2),gk(2),wide,th,fy(2),fk(4)
+	real(8) :: kx,ky,n1,dd,ddp,ddk,ek(4),rsp,sp=0d0,sa,sb,sp0,dk,dt(2),dtp(2),gk(2),wide,th,fy(2),fk(4),cvg1
 	integer :: i,j,c,info
 	logical :: flaga,flagb
 	! dtp(2)=-2d0
@@ -286,6 +317,7 @@ subroutine selfconsist_tg(U,V,Tk,nf,dt,dd,rsp)
 	sp0=sp+wide
 	bt=escal/Tk*1.16e4
 	c=0
+	cvg1=0.01d0
 	do 
 		sa=sp
 		sb=sp
@@ -320,7 +352,7 @@ subroutine selfconsist_tg(U,V,Tk,nf,dt,dd,rsp)
 			!write(*,"(4(a6,e12.4))")"sa=",sa,",sp=",sp,",sb=",sb,"n=",n1
 			!write(*,*)flaga,flagb,nf
 			!if(.not.flaga.and..not.flagb.and.abs(sa-sb)<=1e-4) then
-			if(abs(n1-nf)<=cvg) then
+			if(abs(n1-nf)<=cvg1) then
 				exit
 			endif
 			if(n1<nf) then
@@ -341,6 +373,7 @@ subroutine selfconsist_tg(U,V,Tk,nf,dt,dd,rsp)
 		enddo
 		wide=max(abs(sp0-sp),100*cvg)
 		sp0=sp
+		cvg1=max(cvg,min(cvg1,0.1d0*(abs(dtp(1)-dt(1))+abs(ddp-dd))))
 		if(abs(dtp(1)-dt(1))<cvg.and.abs(ddp-dd)<cvg) then
 			exit
 		endif
@@ -348,8 +381,8 @@ subroutine selfconsist_tg(U,V,Tk,nf,dt,dd,rsp)
 		dd=ddp
 	enddo
 	!write(*,*)"!!!!!!selfconsist return!!!!!!!!"
-	write(*,"(4(a6,e12.4)a6i4)")"n=",n1,",Tk=",Tk,",DSC=",dt(1),",DDW=",dd,"num:",c
-	write(40,"(4(a6,e12.4)a6i4)")"n=",n1,",Tk=",Tk,",DSC=",dt(1),",DDW=",dd,"num:",c
+	write(*,"(5(a6,e12.4)a6i4)")"n=",n1,",Tk=",Tk,",sp=",sp,",DSC=",dt(1),",DDW=",dd,"num:",c
+	write(40,"(5(a6,e12.4)a6i4)")"n=",n1,",Tk=",Tk,",sp=",sp,",DSC=",dt(1),",DDW=",dd,"num:",c
 	!write(*,*)"!!!!!!!!!!!!end!!!!!!!!!!!!!!!!!"
 	rsp=sp
 end
