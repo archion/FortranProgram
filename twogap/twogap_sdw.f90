@@ -1,9 +1,9 @@
 program main
 	implicit none
-	real(8),parameter :: t=0.25d0,tp=-0.025d0,tpp=0.012d0,tppp=0.035d0,tiv=0d0,nf=0.8d0,&
+	real(8),parameter :: t=0.25d0,tp=-0.05d0,tpp=0.0d0,tppp=0.0d0,tiv=0d0,nf=0.8075d0,&
 		pi=3.1415926d0,cvg=1e-4
-	real(8) :: te,bt,u=0.318,v=-0.3
-	integer,parameter :: mk=256,mth=1000,ms=100,mr=128,mo=720
+	real(8) :: te,bt,u=0.0,v=-0.6
+	integer,parameter :: mk=512,mth=1000,ms=100,mr=128,mo=720
 	complex(8),parameter :: img=(0d0,1d0)
 	character(30) :: filename
 	real(8) :: eka,eks,e1(2),e2(2),e(4),kx,ky,n,US,USp,sp=-0.2,sa,sb,sp0,dk,dt(2),dtp(2),gk(2),hn(4),wide,tmp,tmp1,tmpa,z,th,gap,&
@@ -25,12 +25,10 @@ program main
 	wide=1d0
 	US=0.1d0
 	dt=0.07d0
-	do p=90,90
-		te=p
+	do p=0,0
+		te=0.01d0+p
 		bt=1d0/(te*8.6e-5)
 		! u=0.375d0+p/20d0
-		u=0.375d0
-		v=-0.0d0
 		sp0=sp
 		dtp(1)=dt(1)+100*cvg
 		! dtp(2)=-2d0
