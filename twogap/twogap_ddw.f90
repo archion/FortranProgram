@@ -19,8 +19,8 @@ program main
 	open(unit=50,file="../data/raman"//trim(adjustl(pmt))//".dat")
 	open(unit=60,file="../data/fhase"//trim(adjustl(pmt))//".dat")
 	call gnuplot
-	call raman(0.5d0,(/0.00d0,0d0/),0.05d0,170d0,(/0d0,3d0/),0.002d0)
-	call band(0.5d0,(/0.00d0,0d0/),0.05d0)
+	!call raman(0.5d0,(/0.00d0,0d0/),0.05d0,170d0,(/0d0,3d0/),0.002d0)
+	!call band(0.5d0,(/0.00d0,0d0/),0.05d0)
 	!!call mingap(0d0,(/0.0d0,0d0/),-0.85d0,0d0,gap)
 	stop
 	do i=77,77
@@ -398,46 +398,45 @@ subroutine gnuplot()
 	implicit none
 	character(100) :: tl
 	write(tl,"('t_1=',f6.2,',t_2=',f6.2,',t_3=',f6.3,'\nV_{DDW}=',f6.2,'\nV_{SC}=',f6.2)")U,V,t(1),t(2),t(3)
-	write(10,*)"set term pngcairo"
-	write(10,*)"set output 'energy.png'"
-	write(10,*)"unset key"
-	write(10,*)"set size square"
-	write(10,*)"set xlabel 'k'"
-	write(10,*)"set ylabel '能量'"
-	write(10,*)"set label ""n=0.8075\nT=0K"" at 5,0.8"
-	write(10,*)"plot [:][-1:1] for[i=1:4] '-' using 0:(column(2*i-1)):(column(i*2)) \"
-	write(10,*)"with points lt 1 pt 7 ps variable"
-	write(50,*)"set term pngcairo"
-	write(50,*)"set output 'raman.png'"
-	write(50,*)"unset key"
-	write(50,*)"set ytics"
-	write(50,*)"set y2tics"
-	write(50,*)"plot [:][:] '-' using 1:2 with line axis x1y1,\"
-   	write(50,*)"'-' using 1:3 with line axis x1y2"
+	!plot energy band
+	write(10,"(A)")"set term pngcairo"
+	write(10,"(A)")"set output 'energy.png'"
+	write(10,"(A)")"unset key"
+	write(10,"(A)")"set size square"
+	write(10,"(A)")"set xlabel 'k'"
+	write(10,"(A)")"set ylabel '能量'"
+	write(10,"(A)")'set label "n=0.8075\nT=0K" at 5,0.8'
+	write(10,"(A)")"plot [:][-1:1] for[i=1:4] '-' using 0:(column(2*i-1)):(column(i*2)) with points lt 1 pt 7 ps variable"
+	!plot Raman
+	write(50,"(A)")"set term pngcairo"
+	write(50,"(A)")"set output 'raman.png'"
+	write(50,"(A)")"unset key"
+	write(50,"(A)")"set ytics"
+	write(50,"(A)")"set y2tics"
+	write(50,"(A)")"plot [:][:] '-' using 1:2 with line axis x1y1, '' using 1:3 with line axis x1y2"
 	!plot gap_tmp
-	write(40,*)"reset"
-	write(40,*)"set term pngcairo"
-	write(40,*)"set output 'gap.png'"
-	write(40,*)"set termoption enhanced"
-	write(40,*)"unset key"
-	write(40,*)"set xtic 50"
-	write(40,*)"set xlabel 'T(K)'"
-	write(40,*)"set ylabel 'gap/t'"
-	write(40,*)"set title '温度依赖'"
-	write(40,*)"set label ","""",trim(adjustl(tl)),""""," at 150,0.11"
-	write(40,*)"plot '-' using 4:8 with linespoints pt 7 lw 5 ,\"
-	write(40,*)"'-' using 4:10 with linespoints pt 7 lw 5"
+	write(40,"(A)")"reset"
+	write(40,"(A)")"set term pngcairo"
+	write(40,"(A)")"set output 'gap.png'"
+	write(40,"(A)")"set termoption enhanced"
+	write(40,"(A)")"unset key"
+	write(40,"(A)")"set xtic 50"
+	write(40,"(A)")"set xlabel 'T(K)'"
+	write(40,"(A)")"set ylabel 'gap/t'"
+	write(40,"(A)")"set title '温度依赖'"
+	write(40,"(A)")'set label "'//trim(adjustl(tl))//'" at 150,0.11'
+	write(40,"(A)")"plot '-' using 4:8 with linespoints pt 7 lw 5 , '' using 4:10 with linespoints pt 7 lw 5"
 	!plot phase diagram
-	write(60,*)"reset"
-	write(60,*)"set term pngcairo"
-	write(60,*)"set output 'phase.png'"
-	write(60,*)"set termoption enhanced"
-	write(60,*)"unset key"
-	write(60,*)"set xlabel 'n'"
-	write(60,*)"set ylabel 'T(K)'"
-	write(60,*)"set title '相图'"
-	write(60,*)"set label ","""",trim(adjustl(tl)),""""," at 0.61,470"
-	write(60,*)"set label ""DDW"" at 0.85,300"
-	write(60,*)"set label ""SC"" at 0.75,50"
-	write(60,*)"plot '-' using 2:4 with points pt 4 ps 0.6"
+	write(60,"(A)")"reset"
+	write(60,"(A)")"set term pngcairo"
+	write(60,"(A)")"set output 'phase.png'"
+	write(60,"(A)")"set termoption enhanced"
+	write(60,"(A)")"unset key"
+	write(60,"(A)")"set xlabel 'n'"
+	write(60,"(A)")"set ylabel 'T(K)'"
+	write(60,"(A)")"set title '相图'"
+	write(60,"(A)")'set label "'//trim(adjustl(tl))//'" at 0.61,470'
+	write(60,"(A)")"set label ""DDW"" at 0.85,300"
+	write(60,"(A)")"set label ""SC"" at 0.75,50"
+	write(60,"(A)")"plot '-' using 2:4 with points pt 4 ps 0.6"
 end
