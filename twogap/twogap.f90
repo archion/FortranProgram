@@ -2,11 +2,12 @@ module global
 	implicit none
 	save
 	real(8), parameter ::t(5)=(/1d0,-0.2d0,0.0d0,0d0,0d0/),escal=0.25d0,pi=3.1415926d0,cvg=1e-5,U=2.4d0,V=-2.4d0
-	integer, parameter :: mk=512,mth=1000,ms=100,mr=512,mo=720
+	integer, parameter :: mk=512,mth=1000,ms=100,mr=128
 	complex(8),parameter :: img=(0d0,1d0)
+	character :: selt="d"
 end module
 program main
-	use global, only : pi,cvg,mo,t,U,V
+	use global, only : pi,cvg,t,U,V
 	implicit none
 	complex(8) :: Uk(4,4)
 	real(8) :: kx,ky,sp,bt,nf=0.8d0,dt(2),pdt(2),dd,pdd,ek(4),gap,Tk
@@ -19,9 +20,9 @@ program main
 	open(unit=50,file="../data/raman"//trim(adjustl(pmt))//".dat")
 	open(unit=60,file="../data/fhase"//trim(adjustl(pmt))//".dat")
 	call gnuplot
-	!call raman(0.5d0,(/0.00d0,0d0/),0.05d0,170d0,(/0d0,3d0/),0.002d0)
-	!call band(0.5d0,(/0.00d0,0d0/),0.05d0)
-	!!call mingap(0d0,(/0.0d0,0d0/),-0.85d0,0d0,gap)
+	call raman(0.5d0,(/0.00d0,0d0/),0.05d0,170d0,(/0d0,3d0/),0.002d0)
+	call band(0.5d0,(/0.00d0,0d0/),0.05d0)
+	!!call mingap(0d0,(/0.0d0,0d0/),-0.85d0,0d0,gap,selt)
 	stop
 	do i=77,77
 		nf=1d0-0.0025d0*i
@@ -77,7 +78,7 @@ subroutine raman(dd,dt,sp,Tk,omgr,domg)
 				gm(1:2,2)=sin(kx)*sin(ky)*(/(-4d0*t(2)-16d0*t(4)*cos(kx)-16d0*t(4)*cos(ky)),&
 					(-4d0*t(2)+16d0*t(4)*cos(kx)+16d0*t(4)*cos(ky))/)
 				gm(3:4,:)=-gm(1:2,:)
-				call EU_sdw(kx,ky,dd,dt,sp,ek,Uk)
+				call EU(kx,ky,dd,dt,sp,ek,Uk)
 				fk=1d0/(1d0+exp(bt*ek))
 				do m1=1,4
 					do m2=1,4
@@ -103,7 +104,7 @@ subroutine mingap(dd,dt,sp,th,gap)
 	do i=0,mth
 		ky=pi-i*pi/mth
 		kx=pi-i*pi/mth*tan(th/180d0*pi)
-		call EU_ddw(kx,ky,dd,dt,sp,ek,Uk)
+		call EU(kx,ky,dd,dt,sp,ek,Uk)
 		do l=1,4
 			if(abs(ek(l))<gap.and.ek(l)<0.and.abs(Uk(1,l))>cvg) then
 				gap=abs(ek(l))
@@ -242,8 +243,8 @@ subroutine selfconsist_tg(Tk,nf,dt,dd,rsp)
 				do j=0,min(i,mk-i)
 					kx=pi/mk*i
 					ky=pi/mk*j
-					call EU_sdw(kx,ky,dd,dt,sp,ek,Uk)
-					call order_sdw(kx,ky,ek,Uk,Tk,n1,ddp,dtp)
+					call EU(kx,ky,dd,dt,sp,ek,Uk)
+					call order(kx,ky,ek,Uk,Tk,n1,ddp,dtp)
 				enddo
 			enddo
 			!$OMP END PARALLEL DO
@@ -296,11 +297,11 @@ subroutine band(dd,dt,sp)
 	do i=1,3*ms-1
 		kx=pi*(min((i/ms)*ms,ms)+(1-i/ms)*mod(i,ms))/ms
 		ky=pi*min(max((i-ms),0),3*ms-i)/ms
-		call EU_sdw(kx,ky,dd,dt,sp,ek,Uk)
+		call EU(kx,ky,dd,dt,sp,ek,Uk)
 		write(10,"(8e16.3)")(ek(l),abs(Uk(1,l)),l=1,4)
 	enddo
 end
-subroutine EU_ddw(kx,ky,dd,dt,sp,ek,Uk)
+subroutine EU(kx,ky,dd,dt,sp,ek,Uk)
 	use global
 	implicit none
 	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
@@ -309,7 +310,15 @@ subroutine EU_ddw(kx,ky,dd,dt,sp,ek,Uk)
 	eka=-2d0*t(1)*(cos(kx)+cos(ky))-4d0*t(4)*(cos(2d0*kx)*cos(ky)+cos(kx)*cos(2d0*ky))
 	gk(1)=0.5d0*(cos(kx)-cos(ky))
 	! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
-	ddk=dd*gk(1)
+	select case(selt)
+	case("d")
+		ddk=dd*gk(1)
+	case("s")
+		ddk=-dd
+	case default
+		write(*,*)"unknown order"
+		stop
+	end select
 	dk=dt(1)*gk(1)
 	e1=eks+(/1d0,-1d0/)*sqrt(ddk**2+eka**2)
 	e2=sqrt(e1**2+dk**2)
@@ -328,12 +337,23 @@ subroutine EU_ddw(kx,ky,dd,dt,sp,ek,Uk)
 	sth=dcmplx(sin(th))
 	cfy=dcmplx(cos(fy))
 	sfy=dcmplx(sin(fy))
+	select case(selt)
+	case("d")
 	Uk=reshape((/   cth*cfy(1) , -img*sth*cfy(1) ,      cth*sfy(1) ,    img*sth*sfy(1) ,   & 
 	           -img*sth*cfy(2) ,      cth*cfy(2) , -img*sth*sfy(2) ,       -cth*sfy(2) ,   & 
 	               -cth*sfy(1) ,  img*sth*sfy(1) ,      cth*cfy(1) ,    img*sth*cfy(1) ,   & 
 	           -img*sth*sfy(2) ,      cth*sfy(2) ,  img*sth*cfy(2) , cth*cfy(2)     /) , (/4 , 4/))
+	case("s")
+	Uk=reshape((/   cth*cfy(1) ,  sth*cfy(1) ,  cth*sfy(1) ,       -sth*sfy(1) ,   & 
+	               -sth*cfy(2) ,  cth*cfy(2) , -sth*sfy(2) ,       -cth*sfy(2) ,   & 
+	               -cth*sfy(1) , -sth*sfy(1) ,  cth*cfy(1) ,       -sth*cfy(1) ,   & 
+	               -sth*sfy(2) ,  cth*sfy(2) ,  sth*cfy(2) ,        cth*cfy(2)     /) , (/4 , 4/))
+	case default
+		write(*,*)"unknown order"
+		stop
+	end select
 end
-subroutine order_ddw(kx,ky,ek,Uk,Tk,n,dd,dt)
+subroutine order(kx,ky,ek,Uk,Tk,n,dd,dt)
 	use global
 	implicit none
 	complex(8) :: Uk(4,4)
@@ -341,56 +361,19 @@ subroutine order_ddw(kx,ky,ek,Uk,Tk,n,dd,dt)
 	bt=escal/Tk*1.16e4
 	fk=1d0/(1d0+exp(bt*ek))
 	gk(1)=0.5d0*(cos(kx)-cos(ky))
+	select case(selt)
+	case("d")
+		dd=dd+dimag(dot_product(Uk(1,:)*dconjg(Uk(2,:))-Uk(2,:)*dconjg(Uk(1,:))-&
+			Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)*gk(1))
+	case("s")
+		dd=dd+dot_product(Uk(1,:)*dconjg(Uk(2,:))+Uk(2,:)*dconjg(Uk(1,:))+&
+			Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)
+	case default
+		write(*,*)"unknown order"
+		stop
+	end select
 	n=n+2d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))+Uk(2,:)*dconjg(Uk(2,:))-&
 		Uk(3,:)*dconjg(Uk(3,:))-Uk(4,:)*dconjg(Uk(4,:)),fk)
-	dd=dd+dimag(dot_product(Uk(1,:)*dconjg(Uk(2,:))-Uk(2,:)*dconjg(Uk(1,:))-&
-		Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)*gk(1))
-	dt=dt+dot_product(Uk(1,:)*dconjg(Uk(3,:))-Uk(2,:)*dconjg(Uk(4,:)),fk)*gk(1)
-end
-subroutine EU_sdw(kx,ky,sd,dt,sp,ek,Uk)
-	use global
-	implicit none
-	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
-	real(8) :: eka,eks,e1(2),e2(2),ek(4),kx,ky,sd,sp,dk,dt(2),gk(2),th,fy(2)
-	eks=-4d0*t(2)*cos(kx)*cos(ky)-2d0*t(3)*(cos(2d0*kx)+cos(2d0*ky))-4d0*t(5)*cos(2d0*kx)*cos(2d0*ky)-sp
-	eka=-2d0*t(1)*(cos(kx)+cos(ky))-4d0*t(4)*(cos(2d0*kx)*cos(ky)+cos(kx)*cos(2d0*ky))
-	gk(1)=0.5d0*(cos(kx)-cos(ky))
-	! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
-	dk=dt(1)*gk(1)
-	e1=eks+(/1d0,-1d0/)*sqrt(sd**2+eka**2)
-	e2=sqrt(e1**2+dk**2)
-	ek=(/e2,-e2/)
-	if(-sd>0) then
-		th=acos(eka/sqrt(sd**2+eka**2))/2d0
-	else
-		th=(2d0*pi-acos(eka/sqrt(sd**2+eka**2)))/2d0
-	endif
-	if(dk>0) then
-		fy=acos(e1/e2)/2d0
-	else
-		fy=(2d0*pi-acos(e1/e2))/2d0
-	endif
-	cth=dcmplx(cos(th))
-	sth=dcmplx(sin(th))
-	cfy=dcmplx(cos(fy))
-	sfy=dcmplx(sin(fy))
-	Uk=reshape((/   cth*cfy(1) ,  sth*cfy(1) ,  cth*sfy(1) ,       -sth*sfy(1) ,   & 
-	               -sth*cfy(2) ,  cth*cfy(2) , -sth*sfy(2) ,       -cth*sfy(2) ,   & 
-	               -cth*sfy(1) , -sth*sfy(1) ,  cth*cfy(1) ,       -sth*cfy(1) ,   & 
-	               -sth*sfy(2) ,  cth*sfy(2) ,  sth*cfy(2) ,        cth*cfy(2)     /) , (/4 , 4/))
-end
-subroutine order_sdw(kx,ky,ek,Uk,Tk,n,sd,dt)
-	use global
-	implicit none
-	complex(8) :: Uk(4,4)
-	real(8) :: kx,ky,ek(4),sd,dt(2),gk(2),n,Tk,fk(4),bt
-	bt=escal/Tk*1.16e4
-	fk=1d0/(1d0+exp(bt*ek))
-	gk(1)=0.5d0*(cos(kx)-cos(ky))
-	n=n+2d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))+Uk(2,:)*dconjg(Uk(2,:))-&
-		Uk(3,:)*dconjg(Uk(3,:))-Uk(4,:)*dconjg(Uk(4,:)),fk)
-	sd=sd+dot_product(Uk(1,:)*dconjg(Uk(2,:))+Uk(2,:)*dconjg(Uk(1,:))+&
-		Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)
 	dt=dt+dot_product(Uk(1,:)*dconjg(Uk(3,:))-Uk(2,:)*dconjg(Uk(4,:)),fk)*gk(1)
 end
 subroutine gnuplot()
