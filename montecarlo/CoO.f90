@@ -3,7 +3,7 @@ module global
 	integer, parameter :: dn(2)=(/36,36/),dn2=dn(1)*dn(2),ne=dn2/3
 	integer :: latt(dn2,4,3),pbcx(-dn(1)+1:2*dn(1)),pbcy(-dn(2)+1:2*dn(2))
 	real(8), parameter :: V(3)=(/4d0,-2d0,2d0/),pi=3.14159265359d0
-	complex(8), parameter :: img=(0d0,1d0)
+	complex(8), parameter :: img=(0d0,1d0),ipi=2d0*pi*img
 	contains
 		subroutine gen_latt_square()
 !					  j
@@ -42,31 +42,49 @@ module phyval
 	contains
 		subroutine strfact(cfg,S)
 			implicit none
-			integer :: qi,qj,i,j,ip,jp,cfg(dn(1),dn(2)),n(dn(1),dn(2))
-			complex(8) :: S(dn(1),dn(2)),e
+			integer :: qi,qj,i,j,cfg(dn(1),dn(2))
+			complex(8) :: S(dn(1),dn(2))
+			real(8) :: idn(2)
 			S=0d0
-			n=0
-			do i=1,dn(2)
-				do j=1,dn(1)
-					do ip=1,dn(2)
-						do jp=1,dn(1)
-							n(i,j)=n(i,j)+(1-cfg(ip,jp))*(1-cfg(pbcy(i+ip),pbcx(j+jp)))
-						enddo
-					enddo
-				enddo
-			enddo
+			idn=1d0/dn
 			do qi=1,dn(2)
 				do qj=1,dn(1)
 					do i=1,dn(2)
 						do j=1,dn(1)
-							e=exp(2d0*pi*img*(1d0/dn(1)*qj*j+1d0/dn(2)*qi*i))
-							S(qi,qj)=S(qi,qj)+n(i,j)*e
+							S(qi,qj)=S(qi,qj)+(1-cfg(i,j))*exp(ipi*(idn(1)*qj*j+idn(2)*qi*i))
 						enddo
 					enddo
 				enddo
 			enddo
-			S=S/(dn2-ne)
+			S=S*dconjg(S)/(dn2-ne)
 		end subroutine
+		!subroutine strfact(cfg,S)
+			!implicit none
+			!integer :: qi,qj,i,j,ip,jp,cfg(dn(1),dn(2)),n(dn(1),dn(2))
+			!complex(8) :: S(dn(1),dn(2)),e
+			!S=0d0
+			!n=0
+			!do i=1,dn(2)
+				!do j=1,dn(1)
+					!do ip=1,dn(2)
+						!do jp=1,dn(1)
+							!n(i,j)=n(i,j)+(1-cfg(ip,jp))*(1-cfg(pbcy(i+ip),pbcx(j+jp)))
+						!enddo
+					!enddo
+				!enddo
+			!enddo
+			!do qi=1,dn(2)
+				!do qj=1,dn(1)
+					!do i=1,dn(2)
+						!do j=1,dn(1)
+							!e=exp(2d0*pi*img*(1d0/dn(1)*qj*j+1d0/dn(2)*qi*i))
+							!S(qi,qj)=S(qi,qj)+n(i,j)*e
+						!enddo
+					!enddo
+				!enddo
+			!enddo
+			!S=S/(dn2-ne)
+		!end subroutine
 end module
 module MonteCarlo
 	use global
@@ -179,26 +197,22 @@ program main
 	write(10,"(A)")"set pm3d interpolate 0,0"
 	write(10,"(A)")"set size square"
 	write(10,"(A)")"set palette rgbformulae 22,13,-31"
-	write(10,"(A)")"splot '-' u 1"
+	write(10,"(A)")"splot '-' matrix"
 	write(10,"('#beta=',e12.4,'hot step=',I7,'particl number=',I5)")bt,Nhot,ne
 	write(20,"(A)")"set term pngcairo size 300,300"
 	write(20,"(A)")"set output 'pattern.png'"
 	write(20,"(A)")"set pm3d map"
 	write(20,"(A)")"set size square"
-	write(20,"(A)")"set palette rgbformulae 22,13,-31"
-	write(20,"(A)")"splot '-' u 1"
+	write(20,"(A)")"set palette gray"
+	write(20,"(A)")"splot '-' matrix"
+	stop
 	!Initialization
 	Savg=0d0
 	call init_random_seed()
-	call MC_init(cfg,ne,"r")
-	!write(*,"(36I2)")cfg
+	call MC_init(cfg,ne,"s")
 	!call strfact(cfg,S)
-	!do i=1,dn(2)
-		!write(10,"(2e13.4)")S((i-1)*dn(1)+1:i*dn(1))
-		!write(10,"(1X)")
-		!write(20,"(I2)")cfg((i-1)*dn(1)+1:i*dn(1))
-		!write(20,"(1X)")
-	!enddo
+	!write(10,"(36e13.4)")real(S)
+	!write(20,"(36I2)")cfg
 	!stop
 	!Initialization finish
 	do i=1,Nmax
@@ -213,14 +227,10 @@ program main
 		if(any(ret==i)) then
 			write(10,"('#Monte Carlo Step: ',I8)")i
 			write(20,"('#Monte Carlo Step: ',I8)")i
-			do j=1,dn(2)
-				write(10,"(2e13.4)")Savg((j-1)*dn(1)+1:j*dn(1))/(i-Nhot)
-				write(10,"(1X)")
-				write(20,"(I2)")cfg((j-1)*dn(1)+1:j*dn(1))
-				write(20,"(1X)")
-			enddo
-			write(10,"(1X)")
-			write(20,"(1X)")
+			write(10,"(36e13.4)")real(Savg/(i-Nhot))
+			write(20,"(36I2)")cfg
+			write(10,"(1X/)")
+			write(20,"(1X/)")
 		endif
 	enddo
 end
