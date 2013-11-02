@@ -198,22 +198,24 @@ program main
 	write(10,"(A)")"set size square"
 	write(10,"(A)")"set palette rgbformulae 22,13,-31"
 	write(10,"(A)")"splot '-' matrix"
+	write(10,"(A)")"#data"
 	write(10,"('#beta=',e12.4,'hot step=',I7,'particl number=',I5)")bt,Nhot,ne
 	write(20,"(A)")"set term pngcairo size 300,300"
 	write(20,"(A)")"set output 'pattern.png'"
 	write(20,"(A)")"set pm3d map"
+	write(20,"(A)")"set pm3d corners2color c1"
 	write(20,"(A)")"set size square"
 	write(20,"(A)")"set palette gray"
 	write(20,"(A)")"splot '-' matrix"
-	stop
+	write(20,"(A)")"#data"
 	!Initialization
 	Savg=0d0
 	call init_random_seed()
 	call MC_init(cfg,ne,"s")
-	!call strfact(cfg,S)
-	!write(10,"(36e13.4)")real(S)
-	!write(20,"(36I2)")cfg
-	!stop
+	call strfact(cfg,S)
+	write(10,"(36e13.4)")real(S)
+	write(20,"(36I2)")cfg
+	stop
 	!Initialization finish
 	do i=1,Nmax
 		call MC_step(bt,cfg)

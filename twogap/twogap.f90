@@ -1,10 +1,10 @@
 module global
 	implicit none
 	save
-	real(8), parameter ::t(5)=(/1d0,-0.2d0,0.0d0,0d0,0d0/),escal=0.25d0,pi=3.1415926d0,cvg=1e-5,U=2.4d0,V=-2.4d0
+	real(8), parameter ::t(5)=(/1d0,-0.2d0,0.0d0,0d0,0d0/),escal=0.25d0,pi=3.1415926d0,cvg=1e-5,U=1.24d0,V=-2.4d0
 	integer, parameter :: mk=512,mth=1000,ms=100,mr=128
 	complex(8),parameter :: img=(0d0,1d0)
-	character :: selt="d"
+	character :: selt="s"
 end module
 program main
 	use global, only : pi,cvg,t,U,V
@@ -20,23 +20,25 @@ program main
 	open(unit=50,file="../data/raman"//trim(adjustl(pmt))//".dat")
 	open(unit=60,file="../data/fhase"//trim(adjustl(pmt))//".dat")
 	call gnuplot
-	call raman(0.5d0,(/0.00d0,0d0/),0.05d0,170d0,(/0d0,3d0/),0.002d0)
-	call band(0.5d0,(/0.00d0,0d0/),0.05d0)
-	!!call mingap(0d0,(/0.0d0,0d0/),-0.85d0,0d0,gap,selt)
-	stop
-	do i=77,77
+	!call raman(0.5d0,(/0.00d0,0d0/),0.05d0,170d0,(/0d0,3d0/),0.002d0)
+	!call band(0.5d0,(/0.00d0,0d0/),0.05d0)
+	!!!call mingap(0d0,(/0.0d0,0d0/),-0.85d0,0d0,gap,selt)
+	!stop
+	do i=60,90
 		nf=1d0-0.0025d0*i
-		nf=0.8075
 		pdt=0d0
 		pdd=0d0
-		do j=0,0,5
+		do j=0,300,5
 			Tk=0.01+j
-			dt=0.001
-			dd=0.001
+			dt=dt+0.001
+			dd=dd+0.001
 			!call selfconsist(Tk,nf,dt,dd,sp)
 			call selfconsist_tg(Tk,nf,dt,dd,sp)
 			if(((dt(1)-cvg*100)*(pdt(1)-cvg*100)<0d0).or.((dd-cvg*100)*(pdd-cvg*100)<0d0).or.dt(1)<cvg*100d0.and.dd<cvg*100d0) then
 				write(60,"(5(a6,e12.4))")"n=",nf,",Tk=",Tk,"sp=",sp,",DSC=",dt(1),",DDW=",dd
+			endif
+			if((nf-0.8075)<cvg) then
+				call raman(dd,dt,sp,Tk,(/0d0,3d0/),0.002d0)
 			endif
 			if(dt(1)<cvg*100d0.and.dd<cvg*100d0) then
 				exit
@@ -91,6 +93,7 @@ subroutine raman(dd,dt,sp,Tk,omgr,domg)
 		!$OMP END PARALLEL DO
 		R=2d0*R/mr**2
 		write(50,"(5e16.3)")omg,R
+		write(50,"(1X/)")
 	enddo
 end
 subroutine mingap(dd,dt,sp,th,gap)
@@ -225,7 +228,7 @@ subroutine selfconsist_tg(Tk,nf,dt,dd,rsp)
 	wide=0.5d0
 	sp0=sp+wide
 	c=0
-	cvg1=0.01d0
+	cvg1=0.001
 	do 
 		sa=sp
 		sb=sp
@@ -390,6 +393,7 @@ subroutine gnuplot()
 	write(10,"(A)")"set ylabel '能量'"
 	write(10,"(A)")'set label "n=0.8075\nT=0K" at 5,0.8'
 	write(10,"(A)")"plot [:][-1:1] for[i=1:4] '-' using 0:(column(2*i-1)):(column(i*2)) with points lt 1 pt 7 ps variable"
+	write(10,"(A)")"#data"
 	!plot Raman
 	write(50,"(A)")"set term pngcairo"
 	write(50,"(A)")"set output 'raman.png'"
@@ -397,6 +401,7 @@ subroutine gnuplot()
 	write(50,"(A)")"set ytics"
 	write(50,"(A)")"set y2tics"
 	write(50,"(A)")"plot [:][:] '-' using 1:2 with line axis x1y1, '' using 1:3 with line axis x1y2"
+	write(50,"(A)")"#data"
 	!plot gap_tmp
 	write(40,"(A)")"reset"
 	write(40,"(A)")"set term pngcairo"
@@ -409,6 +414,7 @@ subroutine gnuplot()
 	write(40,"(A)")"set title '温度依赖'"
 	write(40,"(A)")'set label "'//trim(adjustl(tl))//'" at 150,0.11'
 	write(40,"(A)")"plot '-' using 4:8 with linespoints pt 7 lw 5 , '' using 4:10 with linespoints pt 7 lw 5"
+	write(40,"(A)")"#data"
 	!plot phase diagram
 	write(60,"(A)")"reset"
 	write(60,"(A)")"set term pngcairo"
@@ -422,4 +428,5 @@ subroutine gnuplot()
 	write(60,"(A)")"set label ""DDW"" at 0.85,300"
 	write(60,"(A)")"set label ""SC"" at 0.75,50"
 	write(60,"(A)")"plot '-' using 2:4 with points pt 4 ps 0.6"
+	write(60,"(A)")"#data"
 end
