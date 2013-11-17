@@ -1,7 +1,7 @@
 module global
 	implicit none
 	save
-	integer,parameter :: dn=26,cof=1000
+	integer,parameter :: dn=24,cof=1000
 	real(8),parameter :: dv=1d0,nf0=0.85d0,du=2.44d0,t=1d0,tp=-0.25d0,eff=1d0,pi=3.141592653589793d0
 	integer :: pbc(0:dn+1)
 end module
@@ -13,11 +13,11 @@ program main
 	logical :: flaga,flagb,flag1,flag2,flag3
 	 !general nd(:,1):spin down,nd(:,0):spin up
 	real(8) :: nd(dn*dn,0:1),ndp(dn*dn,0:1),dt(dn*dn,4),dt1(dn*dn,4),dtf(dn*dn),rdom(dn*dn),er(3)=1,sa,sb,sp,sp0,nf,cvg=1e-4,wide
-	integer :: i,ii,j,k,l,n,rc,im(5)=-1,np(4)
+	integer :: i,ii,j,k,l,n,rc,im(5)=(/300,-1,-1,-1,-1/),np(4)
 	! cpe
 	real(8) :: va(2*dn*dn*13),hhn(0:2,2*dn*dn),a,b,emax,emin,ac_ba,tn(cof),ld=0.01,tmp_sh,gm=0.1d0
 	integer :: ja(2*dn*dn*13),ia(2*dn*dn+1),n_mod(3),info
-	open(unit=10,file='../data/output_crs.dat')
+	open(unit=10,file='../data/order_crs.dat')
 	open(unit=20,file='../data/error.dat')
 	open(unit=30,file='../data/rundata.dat')
 	open(unit=40,file='../data/initial.dat')

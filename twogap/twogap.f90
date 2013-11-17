@@ -31,16 +31,16 @@ program main
 	!write(60,"('n T sp DSC DDW')")
 	!call raman(0.5d0,(/0.00d0,0d0/),0.05d0,170d0,(/0d0,3d0/),0.002d0)
 	!call band(0.5d0,(/0.00d0,0d0/),0.05d0)
-	!call mingap(1d0,(/0.0d0,0d0/),-0.847d0,45d0,gap,mx,my)
-	!call EDC(mx,my,1d0,(/0.0d0,0d0/),-0.847d0,0.01d0,(/-5d0,5d0/),0.002d0)
-	!call fermisurface(1d0,(/0.d0,0d0/),-0.847d0,0d0)
+	!call mingap(0.2d0,(/1d0,0d0/),-0.847d0,0d0,gap,mx,my)
+	!call EDC(mx,my,0.2d0,(/1d0,0d0/),-0.847d0,0.0001d0,(/-5d0,5d0/),0.002d0)
+	!call fermisurface(0.5d0,(/0.d0,0d0/),-0.0d0,0d0)
 	!write(*,*)gap,mx,my
 	!stop
 	do i=79,79,1
 		nf=1d0-0.0025d0*i
 		pdt=0d0
 		pdd=0d0
-		do j=0,300,5
+		do j=0,300,400
 			Tk=0.01+j
 			dt=dt+0.1
 			dd=dd+0.1
@@ -51,15 +51,11 @@ program main
 				write(60,"(5e12.4)")nf,Tk,sp,dt(1),dd
 			endif
 			call raman(dd,dt,sp,Tk,(/0d0,1d0/),0.002d0)
-			!call fermisurface(dd,dt,sp,0.0d0)
-			!call band(dd,dt,sp)
-			!do k=0,45,5
-				!th=real(k)
-				!call mingap(dd,dt,sp,th,gap,mx,my)
-				!write(70,"(2e12.4)")th,gap
-				!write(30,"(i2.1)")k
-				!call EDC(mx,my,dd,dt,sp,Tk,(/-1d0,1d0/),0.002d0)
-			!enddo
+			call band(dd,dt,sp)
+			call mingap(dd,dt,sp,0d0,gap,mx,my)
+			write(*,"(3e12.4)")gap,mx,my
+			call EDC(mx,my,dd,dt,sp,Tk,(/-3d0,0d0/),0.002d0)
+			call fermisurface(dd,dt,sp,0d0)
 			if(dt(1)<cvg*100d0.and.dd<cvg*100d0) then
 				exit
 			endif
@@ -123,9 +119,11 @@ subroutine EDC(kx,ky,dd,dt,sp,Tk,omgr,domg)
 	bt=escal/Tk*1.16e4
 	omg=omgr(1)
 	call EU(kx,ky,dd,dt,sp,ek,Uk)
+	fk=1d0/(1d0+exp(bt*ek))
+	!fk=1d0
 	do while(omg<omgr(2))
 		omg=omg+domg
-		A=dot_product(Uk(1,:)*dconjg(Uk(1,:)),DIMAG(1d0/(omg-ek+img*domg)))
+		A=sum(DIMAG(fk*Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*30d0)))
 		write(30,"(2e16.3)")omg,A
 	enddo
 	write(30,"(1X/)")
@@ -155,7 +153,7 @@ subroutine mingap(dd,dt,sp,th,gap,mx,my)
 		kx=pi-i*pi/mth*tan(th/180d0*pi)
 		call EU(kx,ky,dd,dt,sp,ek,Uk)
 		do l=1,4
-			if(abs(ek(l))<gap.and.ek(l)<0d0.and.abs(Uk(1,l))>cvg) then
+			if(abs(ek(l))<gap.and.ek(l)<0d0.and.abs(Uk(1,l))**2>cvg) then
 				gap=abs(ek(l))
 				mx=kx
 				my=ky
@@ -176,9 +174,7 @@ subroutine fermisurface(dd,dt,sp,omg)
 			call EU(kx,ky,dd,dt,sp,ek,Uk)
 			A=0d0
 			do l=1,4
-				if(ek(l)<omg+5d0/mf.and.ek(l)>omg-5d0/mf) then
-					A=A+abs(Uk(1,l))
-				endif
+				A=A-dimag(abs(Uk(1,l))**2/(omg+img*0.01d0-ek(l)))
 			enddo
 			write(20,"(3e16.3)")kx,ky,A
 		enddo
@@ -186,12 +182,12 @@ subroutine fermisurface(dd,dt,sp,omg)
 	enddo
 	write(20,"(1X/)")
 end
-subroutine selfconsist_tg(Tk,nf,dt,dd,rsp)
+subroutine selfconsist_tg(Tk,nf,dt,dd,sp)
 	use global
 	implicit none
 	real(8) :: Tk,nf
 	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
-	real(8) :: kx,ky,n1,dd,ddp,ddk,ek(4),rsp,sp=0d0,sa,sb,sp0,dk,dt(2),dtp(2),gk(2),wide,th,fy(2),cvg1
+	real(8) :: kx,ky,n1,dd,ddp,ddk,ek(4),sp,sa,sb,sp0,dk,dt(2),dtp(2),gk(2),wide,th,fy(2),cvg1
 	integer :: i,j,c,info
 	logical :: flaga,flagb
 	! dtp(2)=-2d0
@@ -232,16 +228,14 @@ subroutine selfconsist_tg(Tk,nf,dt,dd,rsp)
 			if(n1<nf) then
 				flaga=.false.
 				sa=sp
-				if(flaga.or.flagb) then
+				if(flagb) then
 					sb=sp+wide
-					sp=sb
 				endif
 			else
 				flagb=.false.
 				sb=sp
-				if(flaga.or.flagb) then
+				if(flaga) then
 					sa=sp-wide
-					sp=sa
 				endif
 			endif
 		enddo
@@ -258,7 +252,6 @@ subroutine selfconsist_tg(Tk,nf,dt,dd,rsp)
 	!write(*,*)"!!!!!!selfconsist return!!!!!!!!"
 	write(*,"(5e12.4,i4)")n1,Tk,sp,dt(1),dd,c
 	!write(*,*)"!!!!!!!!!!!!end!!!!!!!!!!!!!!!!!"
-	rsp=sp
 end
 subroutine EU(kx,ky,dd,dt,sp,ek,Uk)
 	use global

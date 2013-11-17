@@ -2,7 +2,7 @@ module global
 	implicit none
 	save
 	real(8), parameter :: t(5)=(/0.07415d0,-0.01750d0,0.0116d0,0.d0,0d0/),escal=1d0,pi=3.1415926d0,cvg=1e-4,&
-		ph=0.1464d0,V=0d0,DJ=0.4d0,al=0.5d0,nf=0.9d0
+		ph=0.1464d0,V=-0.5d0,DJ=0.4d0,al=0.5d0,nf=0.9d0
 	integer, parameter :: mk=512,mq=128,ms=100,momg=8
 	complex(8),parameter :: img=(0d0,1d0)
 end module
@@ -16,8 +16,8 @@ program main
 	open(unit=10,file="../data/rpa.dat")
 	open(unit=20,file="../data/check.dat")
 	call gnuplot()
-	dt=0d0
-	Tk=0.01d0
+	dt=0.01d0
+	Tk=0.05d0
 	call selfconsist_tg(Tk,dt,ph,sp)
 	call band(ph,dt,sp)
 	omg=0.3d0
@@ -111,6 +111,7 @@ subroutine EU(kx,ky,dd,dt,sp,ek,Uk)
 	real(8) :: eks,e1(2),e2(2),ek(4),kx,ky,dd,ddk,sp,dk,dt(2),gk(2),th,fy(2)
 	eka=-2d0*t(1)*(1d0+DJ*30/8)*(cos(kx)*exp(img*ph)+cos(ky)*exp(-img*ph))
 	eks=-4d0*t(2)*cos(kx)*cos(ky)-2d0*t(3)*(cos(2*kx)+cos(2*ky))-sp
+	dk=dt(1)*0.5d0*(cos(kx)-cos(ky))
 	e1=eks+(/1d0,-1d0/)*sqrt(dimag(eka)**2+real(eka)**2)
 	e2=sqrt(e1**2+dk**2)
 	ek=(/e2,-e2/)
@@ -189,7 +190,7 @@ subroutine susp(qx,qy,dt,sp,Tk,omg,Xq)
 					Xq_tmp(2,2)=&
 						(Ukq(4,m)*Uk(1,n)*dconjg(Ukq(4,m)*Uk(1,n))+Uk(1,n)*Ukq(4,m)*dconjg(Uk(2,n)*Ukq(3,m))-&
 						Uk(1,n)*Ukq(4,m)*dconjg(Uk(3,n)*Ukq(2,m))-Uk(1,n)*Ukq(4,m)*dconjg(Uk(4,n)*Ukq(1,m)))
-					Xq(:,:)=Xq(:,:)+(1-fk(n)-fkq(m))/(omg-ek(n)-ekq(m)+img*0.01d0)*Xq_tmp
+					Xq(:,:)=Xq(:,:)+(1-fk(n)-fkq(m))/(omg-ek(n)-ekq(m)+img*0.001d0)*Xq_tmp
 				enddo
 			enddo
 		enddo
