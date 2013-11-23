@@ -1,16 +1,16 @@
 module global
 	implicit none
 	save
-	real(8), parameter ::t(5)=(/1d0,-0.2d0,0.000d0,0.d0,0d0/),escal=0.25d0,pi=3.1415926d0,cvg=1e-5,U=2.4d0,V=-2.4d0
+	real(8), parameter ::t(5)=(/1d0,-0.35d0,0.000d0,0.d0,0d0/),escal=0.25d0,pi=3.1415926d0,cvg=1e-5,DJ=0.3d0,V=-0.48d0
+	real(8) :: nf=0.8d0,ap=0.1d0
 	integer, parameter :: mk=512,mth=1000,ms=100,mf=128,mr=512
 	complex(8),parameter :: img=(0d0,1d0)
-	character :: selt="d"
 end module
 program main
-	use global, only : pi,cvg,t,U,V
+	use global, only : nf,pi,cvg,t,DJ,V
 	implicit none
 	complex(8) :: Uk(4,4)
-	real(8) :: mx,my,sp,bt,nf=0.8d0,dt(2),pdt(2),dd,pdd,th,gap,Tk
+	real(8) :: mx,my,sp=0d0,bt,dt(2),pdt(2),dd,pdd,th,gap,Tk
 	integer :: i,j,k
 	open(unit=10,file="../data/energy.dat")
 	open(unit=20,file="../data/fermi.dat")
@@ -20,12 +20,6 @@ program main
 	open(unit=60,file="../data/phase.dat")
 	open(unit=70,file="../data/gaptheta.dat")
 	call gnuplot
-	write(10,"('#DDW=',f6.2,' SC=',f6.2,' t=',5f6.2)")U,V,t
-	write(20,"('#DDW=',f6.2,' SC=',f6.2,' t=',5f6.2)")U,V,t
-	write(30,"('#DDW=',f6.2,' SC=',f6.2,' t=',5f6.2)")U,V,t
-	write(40,"('#DDW=',f6.2,' SC=',f6.2,' t=',5f6.2)")U,V,t
-	write(50,"('#DDW=',f6.2,' SC=',f6.2,' t=',5f6.2)")U,V,t
-	write(60,"('#DDW=',f6.2,' SC=',f6.2,' t=',5f6.2)")U,V,t
 	!write(40,"('n T sp DSC DDW num')")
 	!write(50,"('omg B1g B2g')")
 	!write(60,"('n T sp DSC DDW')")
@@ -36,21 +30,21 @@ program main
 	!call fermisurface(0.5d0,(/0.d0,0d0/),-0.0d0,0d0)
 	!write(*,*)gap,mx,my
 	!stop
-	do i=100,100,1
+	do i=76,76,1
 		nf=1d0-0.0025d0*i
 		pdt=0d0
 		pdd=0d0
-		do j=0,150,20
+		do j=0,60,5
 			Tk=0.01+j
 			dt=dt+0.1
 			dd=dd+0.1
 			!call selfconsist(Tk,nf,dt,dd,sp)
-			call selfconsist_tg(Tk,nf,dt,dd,sp)
+			call selfconsist_tg(Tk,dt,dd,sp)
 			write(40,"(5e12.4)")nf,Tk,sp,dt(1),dd
 			if(((dt(1)-cvg*100)*(pdt(1)-cvg*100)<0d0).or.((dd-cvg*100)*(pdd-cvg*100)<0d0).or.dt(1)<cvg*100d0.and.dd<cvg*100d0) then
 				write(60,"(5e12.4)")nf,Tk,sp,dt(1),dd
 			endif
-			call raman(dd,dt,sp,Tk,(/0d0,1d0/),0.002d0)
+			call raman(dd,dt,sp,Tk,(/0d0,0.2d0/),0.002d0)
 			!call band(dd,dt,sp)
 			!call mingap(dd,dt,sp,0d0,gap,mx,my)
 			!write(*,"(3e12.4)")gap,mx,my
@@ -89,24 +83,22 @@ subroutine raman(dd,dt,sp,Tk,omgr,domg)
 			kx=pi/mr*i
 			do j=0,mr-i
 				ky=pi/mr*j
-				gm(1:2,1)=(cos(kx)-cos(ky))*(/(t(1)+6d0*t(4)+8d0*t(3)*cos(ky)+cos(kx)*(8d0*t(3)+12d0*t(4)*cos(ky))),&
-					-(t(1)+6d0*t(4)-8d0*t(3)*cos(ky)+cos(kx)*(-8d0*t(3)+12d0*t(4)*cos(ky)))/)
-				gm(1:2,2)=sin(kx)*sin(ky)*(/(-4d0*t(2)-16d0*t(4)*cos(kx)-16d0*t(4)*cos(ky)),&
-					(-4d0*t(2)+16d0*t(4)*cos(kx)+16d0*t(4)*cos(ky))/)
+				gm(1:2,1)=(cos(kx)-cos(ky))*((1d0-nf)*t(1)+ap*DJ)*(/0.5d0,-0.5d0/)
+				gm(1:2,2)=sin(kx)*sin(ky)*(1d0-nf)*t(2)*(/-2d0,-2d0/)
 				gm(3:4,:)=-gm(1:2,:)
 				call EU(kx,ky,dd,dt,sp,ek,Uk)
 				fk=1d0/(1d0+exp(bt*ek))
 				do m1=1,4
 					do m2=1,4
 						Tr=(/abs(sum(gm(:,1)*dconjg(Uk(:,m2))*Uk(:,m1)))**2,abs(sum(gm(:,2)*dconjg(Uk(:,m2))*Uk(:,m1)))**2/)
-						R=R+Tr*(fk(m1)-fk(m2))*1d0/(omg+ek(m1)-ek(m2)+img*domg*30d0)
+						R=R+Tr*(fk(m1)-fk(m2))*1d0/(omg+ek(m1)-ek(m2)+img*domg*5d0)
 					enddo
 				enddo
 			enddo
 		enddo
 		!$OMP END PARALLEL DO
-		R=2d0*R/mr**2
-		write(50,"(4e16.3)")omg,-dimag(R),-dimag(R(1)/(1d0+U*R(1)))
+		R=1d0*R/mr**2
+		write(50,"(4e16.3)")omg,-dimag(R),-dimag(R(1)/(1d0+DJ/((1d0-nf)*t(1)+DJ*ap)**2*R(1)))
 	enddo
 	write(50,"(1X/)")
 end
@@ -182,12 +174,12 @@ subroutine fermisurface(dd,dt,sp,omg)
 	enddo
 	write(20,"(1X/)")
 end
-subroutine selfconsist_tg(Tk,nf,dt,dd,sp)
+subroutine selfconsist_tg(Tk,dt,dd,sp)
 	use global
 	implicit none
-	real(8) :: Tk,nf
-	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
-	real(8) :: kx,ky,n1,dd,ddp,ddk,ek(4),sp,sa,sb,sp0,dk,dt(2),dtp(2),gk(2),wide,th,fy(2),cvg1
+	real(8) :: Tk
+	complex(8) :: Uk(4,4)
+	real(8) :: kx,ky,n1,dd,ddp,ddk,ek(4),sp,sa,sb,sp0,dk,dt(2),dtp(2),wide,cvg1
 	integer :: i,j,c,info
 	logical :: flaga,flagb
 	! dtp(2)=-2d0
@@ -206,8 +198,8 @@ subroutine selfconsist_tg(Tk,nf,dt,dd,sp)
 			dtp=0d0
 			n1=0d0
 			c=c+1
-			!$OMP PARALLEL DO REDUCTION(+:n1,ddp,dtp) PRIVATE(kx,ky,gk,ek,Uk)&
-			!$OMP SCHEDULE(GUIDED)
+			call sfcsap(Tk,sp,ap)
+			!$OMP PARALLEL DO REDUCTION(+:n1,ddp,dtp) PRIVATE(kx,ky,ek,Uk) SCHEDULE(GUIDED)
 			do i=0,mk
 				do j=0,min(i,mk-i)
 					kx=pi/mk*i
@@ -218,7 +210,7 @@ subroutine selfconsist_tg(Tk,nf,dt,dd,sp)
 			enddo
 			!$OMP END PARALLEL DO
 			n1=n1/(mk**2)*2d0
-			ddp=U*ddp/(mk**2)*2d0
+			ddp=DJ*ddp/(mk**2)*2d0
 			dtp=V*dtp/(mk**2)*2d0
 			!write(*,"(4(a6,e12.4))")"sa=",sa,",sp=",sp,",sb=",sb,"n=",n1
 			!write(*,*)flaga,flagb,nf
@@ -258,19 +250,11 @@ subroutine EU(kx,ky,dd,dt,sp,ek,Uk)
 	implicit none
 	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
 	real(8) :: eka,eks,e1(2),e2(2),ek(4),kx,ky,dd,ddk,sp,dk,dt(2),gk(2),th,fy(2)
-	eks=-4d0*t(2)*cos(kx)*cos(ky)-2d0*t(3)*(cos(2d0*kx)+cos(2d0*ky))-4d0*t(5)*cos(2d0*kx)*cos(2d0*ky)-sp
-	eka=-2d0*t(1)*(cos(kx)+cos(ky))-4d0*t(4)*(cos(2d0*kx)*cos(ky)+cos(kx)*cos(2d0*ky))
+	eks=-2d0*(1d0-nf)*t(2)*cos(kx)*cos(ky)-sp
+	eka=-((1d0-nf)*t(1)+ap*DJ)*(cos(kx)+cos(ky))
 	gk(1)=0.5d0*(cos(kx)-cos(ky))
 	! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
-	select case(selt)
-	case("d")
-		ddk=dd*gk(1)
-	case("s")
-		ddk=-dd
-	case default
-		write(*,*)"unknown order"
-		stop
-	end select
+	ddk=dd*gk(1)
 	dk=dt(1)*gk(1)
 	e1=eks+(/1d0,-1d0/)*sqrt(ddk**2+eka**2)
 	e2=sqrt(e1**2+dk**2)
@@ -289,21 +273,35 @@ subroutine EU(kx,ky,dd,dt,sp,ek,Uk)
 	sth=dcmplx(sin(th))
 	cfy=dcmplx(cos(fy))
 	sfy=dcmplx(sin(fy))
-	select case(selt)
-	case("d")
 	Uk=reshape((/   cth*cfy(1) , -img*sth*cfy(1) ,      cth*sfy(1) ,    img*sth*sfy(1) ,   & 
 	           -img*sth*cfy(2) ,      cth*cfy(2) , -img*sth*sfy(2) ,       -cth*sfy(2) ,   & 
 	               -cth*sfy(1) ,  img*sth*sfy(1) ,      cth*cfy(1) ,    img*sth*cfy(1) ,   & 
 	           -img*sth*sfy(2) ,      cth*sfy(2) ,  img*sth*cfy(2) , cth*cfy(2)     /) , (/4 , 4/))
-	case("s")
-	Uk=reshape((/   cth*cfy(1) ,  sth*cfy(1) ,  cth*sfy(1) ,       -sth*sfy(1) ,   & 
-	               -sth*cfy(2) ,  cth*cfy(2) , -sth*sfy(2) ,       -cth*sfy(2) ,   & 
-	               -cth*sfy(1) , -sth*sfy(1) ,  cth*cfy(1) ,       -sth*cfy(1) ,   & 
-	               -sth*sfy(2) ,  cth*sfy(2) ,  sth*cfy(2) ,        cth*cfy(2)     /) , (/4 , 4/))
-	case default
-		write(*,*)"unknown order"
-		stop
-	end select
+end
+subroutine sfcsap(Tk,sp,ap)
+	use global, only : mk,cvg,escal,pi,t,DJ,nf
+	implicit none
+	real(8) :: kx,ky,Tk,bt,sp,ap,app
+	integer :: i,j
+	bt=escal/Tk*1.16e4
+	do
+		app=0d0
+		!$OMP PARALLEL DO REDUCTION(+:app) PRIVATE(kx,ky) SCHEDULE(GUIDED)
+		do i=0,mk
+			do j=0,mk
+				kx=pi/mk*i
+				ky=pi/mk*j
+				app=app+cos(kx)*1d0/(1d0+exp(bt*(-((1d0-nf)*t(1)+ap*DJ)*(cos(kx)+cos(ky))-&
+					2d0*(1d0-nf)*t(2)*cos(kx)*cos(ky)-sp)))
+			enddo
+		enddo
+		!$OMP END PARALLEL DO
+		app=app/mk**2
+		if(abs(app-ap)<cvg) then
+			exit
+		endif
+		ap=app
+	enddo
 end
 subroutine order(kx,ky,ek,Uk,Tk,n,dd,dt)
 	use global
@@ -313,17 +311,8 @@ subroutine order(kx,ky,ek,Uk,Tk,n,dd,dt)
 	bt=escal/Tk*1.16e4
 	fk=1d0/(1d0+exp(bt*ek))
 	gk(1)=0.5d0*(cos(kx)-cos(ky))
-	select case(selt)
-	case("d")
-		dd=dd+dimag(dot_product(Uk(1,:)*dconjg(Uk(2,:))-Uk(2,:)*dconjg(Uk(1,:))-&
-			Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)*gk(1))
-	case("s")
-		dd=dd+dot_product(Uk(1,:)*dconjg(Uk(2,:))+Uk(2,:)*dconjg(Uk(1,:))+&
-			Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)
-	case default
-		write(*,*)"unknown order"
-		stop
-	end select
+	dd=dd+dimag(dot_product(Uk(1,:)*dconjg(Uk(2,:))-Uk(2,:)*dconjg(Uk(1,:))-&
+		Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)*gk(1))
 	n=n+2d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))+Uk(2,:)*dconjg(Uk(2,:))-&
 		Uk(3,:)*dconjg(Uk(3,:))-Uk(4,:)*dconjg(Uk(4,:)),fk)
 	dt=dt+dot_product(Uk(1,:)*dconjg(Uk(3,:))-Uk(2,:)*dconjg(Uk(4,:)),fk)*gk(1)
@@ -359,12 +348,14 @@ subroutine gnuplot()
 	write(30,"(A)")"plot [:][:] for[i=0:9] '-' index i with line lt i+1"
 	write(30,"(A)")"#data"
 	!plot Raman
-	write(50,"(A)")"set term pngcairo"
+	write(50,"(A)")"set term pngcairo size 600,800"
 	write(50,"(A)")"set output 'raman.png'"
+	write(50,"(A)")"set title 'n=0.855'"
+	write(50,"(A)")"set multiplot layout 3,1"
 	write(50,"(A)")"set key autotitle columnhead"
-	write(50,"(A)")"set ytics"
-	write(50,"(A)")"set y2tics"
-	write(50,"(A)")"plot [:][:] '-' index 0:30:1 using 1:4 with line axis x1y1, '' index 0:30:1 using 1:3 with line axis x1y2"
+	write(50,"(A)")"plot [:0.2][:] for[i=0:9] '-' index i using 1:2 with line"
+	write(50,"(A)")"plot [:0.2][:] for[i=0:9] '' index i using 1:4 with line"
+	write(50,"(A)")"plot [:0.2][:] for[i=0:9] '' index i using 1:3 with line"
 	write(50,"(A)")"#data"
 	!plot gap_tmp
 	write(40,"(A)")"reset"

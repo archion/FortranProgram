@@ -1,4 +1,4 @@
-out=twogap.out
+out=ddw_tJ.out
 #FCCFLAG= -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
 OMPFLAG= -fopenmp
 #OMPFLAG= -openmp
