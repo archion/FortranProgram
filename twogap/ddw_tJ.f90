@@ -10,15 +10,17 @@ program main
 	use global, only : nf,pi,cvg,t,DJ,V
 	implicit none
 	complex(8) :: Uk(4,4)
-	real(8) :: mx,my,sp=0d0,bt,dt(2),pdt(2),dd,pdd,th,gap,Tk
+	real(8) :: mx,my,sp=0d0,bt,dt(2),pdt(2),dd,pdd,th,gap,Tk,Tc,pk(3),pk0(3),peak(2),&
+		nd(3)=(/0.141d0,0.12d0,0.13d0/),Td(3)=(/0d0,40d0,70d0/)
 	integer :: i,j,k
 	open(unit=10,file="../data/energy.dat")
 	open(unit=20,file="../data/fermi.dat")
 	open(unit=30,file="../data/EDC.dat")
 	open(unit=40,file="../data/gaptemp.dat")
 	open(unit=50,file="../data/raman.dat")
-	open(unit=60,file="../data/phase.dat")
+	open(unit=60,file="../data/phase_tJ.dat")
 	open(unit=70,file="../data/gaptheta.dat")
+	open(unit=80,file="../data/ramantemp.dat")
 	call gnuplot
 	!write(40,"('n T sp DSC DDW num')")
 	!write(50,"('omg B1g B2g')")
@@ -30,34 +32,68 @@ program main
 	!call fermisurface(0.5d0,(/0.d0,0d0/),-0.0d0,0d0)
 	!write(*,*)gap,mx,my
 	!stop
-	do i=76,76,1
+	!do i=1,1
+	do i=54,58,1
 		nf=1d0-0.0025d0*i
+		!nf=1d0-nd(i)
+		write(*,*)nf
 		pdt=0d0
 		pdd=0d0
-		do j=0,60,5
-			Tk=0.01+j
+		call selfconsist_tg(0.01d0,pdt,pdd,sp)
+		call mingap(pdd,pdt,sp,0d0,gap,mx,my)
+		!call fermisurface(pdd,pdt,sp,0d0)
+		!write(*,*)mx,my,gap
+		!!write(80,"(F5.2)")1d0-nf
+		!do j=0,600,1
+			!Tk=0.001+j
+			!dt=dt+0.1
+			!dd=dd+0.1
+			!call selfconsist_tg(Tk,dt,dd,sp)
+			!if(dt(1)<cvg*100d0) then
+				!Tc=Tk
+				!exit
+			!endif
+		!enddo
+		do j=0,100,2
+		!do j=1,3
+			Tk=0.001+j
+			!Tk=Td(j)+0.001
 			dt=dt+0.1
 			dd=dd+0.1
 			!call selfconsist(Tk,nf,dt,dd,sp)
 			call selfconsist_tg(Tk,dt,dd,sp)
-			write(40,"(5e12.4)")nf,Tk,sp,dt(1),dd
-			if(((dt(1)-cvg*100)*(pdt(1)-cvg*100)<0d0).or.((dd-cvg*100)*(pdd-cvg*100)<0d0).or.dt(1)<cvg*100d0.and.dd<cvg*100d0) then
-				write(60,"(5e12.4)")nf,Tk,sp,dt(1),dd
-			endif
-			call raman(dd,dt,sp,Tk,(/0d0,0.2d0/),0.002d0)
+			!if((dt(1)-cvg*100)*(pdt(1)-cvg*100)<0d0) then
+				!write(60,"('0',2e12.4)")nf,Tk
+			!endif
+			!if((dd-cvg*100)*(pdd-cvg*100)<0d0) then
+				!write(60,"('1',2e12.4)")nf,Tk
+			!endif
+			!write(50,"(F5.0)")Tk
+			!call raman(dd,dt,sp,Tk,(/0d0,0.2d0/),0.0005d0,pk)
+			!if(j==0) then
+				!pk0=pk
+			!endif
+			!write(80,"(4e16.3)")Tk/Tc,pk/pk0
 			!call band(dd,dt,sp)
 			!call mingap(dd,dt,sp,0d0,gap,mx,my)
 			!write(*,"(3e12.4)")gap,mx,my
-			!call EDC(mx,my,dd,dt,sp,Tk,(/-3d0,0d0/),0.002d0)
+			!write(30,"(F5.0)")Tk
+			!call EDC(pi,0d0,dd,dt,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak)
+			call EDC(mx,my,dd,dt,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak)
+			write(40,"(6e12.4)")nf,Tk,sp,dt(1),dd,peak(1)
+			!write(40,"(6e12.4)")nf,Tk,sp,dt(1),dd,gap
 			!call fermisurface(dd,dt,sp,0d0)
-			if(dt(1)<cvg*100d0.and.dd<cvg*100d0) then
+			!if(dt(1)<cvg*100d0.and.dd<cvg*100d0) then
+			if(dt(1)<cvg*100d0) then
 				exit
 			endif
 			pdt=dt
 			pdd=dd
-			!call band(dd,dt,sp)
 		enddo
+		write(10,"(1X)")
+		write(30,"(1X)")
 		write(40,"(1X/)")
+		write(80,"(1X/)")
 	enddo
 	close(10)
 	close(20)
@@ -66,15 +102,15 @@ program main
 	close(50)
 	close(60)
 end
-subroutine raman(dd,dt,sp,Tk,omgr,domg)
+subroutine raman(dd,dt,sp,Tk,omgr,domg,pk)
 	use global
 	implicit none
 	integer :: i,j,k,l,m1,m2
 	complex(8) :: Uk(4,4),R(2)
-	real(8) :: kx,ky,sp,bt,dt(2),dd,ek(4),gm(4,2),Tr(2),fk(4),omg,omgr(2),domg,Tk
+	real(8) :: kx,ky,sp,bt,dt(2),dd,ek(4),gm(4,2),Tr(2),fk(4),omg,omgr(2),domg,Tk,peak(3,2),R_rpa,pk(3)
 	bt=escal/Tk*1.16e4
 	omg=omgr(1)
-	write(50,"(sp,'T=',e11.4)")Tk
+	peak=0d0
 	do while(omg<omgr(2))
 		omg=omg+domg
 		R=0d0
@@ -91,34 +127,73 @@ subroutine raman(dd,dt,sp,Tk,omgr,domg)
 				do m1=1,4
 					do m2=1,4
 						Tr=(/abs(sum(gm(:,1)*dconjg(Uk(:,m2))*Uk(:,m1)))**2,abs(sum(gm(:,2)*dconjg(Uk(:,m2))*Uk(:,m1)))**2/)
-						R=R+Tr*(fk(m1)-fk(m2))*1d0/(omg+ek(m1)-ek(m2)+img*domg*5d0)
+						R=R+Tr*(fk(m1)-fk(m2))*1d0/(omg+ek(m1)-ek(m2)+img*domg*40d0)
 					enddo
 				enddo
 			enddo
 		enddo
 		!$OMP END PARALLEL DO
 		R=1d0*R/mr**2
-		write(50,"(4e16.3)")omg,-dimag(R),-dimag(R(1)/(1d0+DJ/((1d0-nf)*t(1)+DJ*ap)**2*R(1)))
+		R_rpa=-dimag(R(1)/(1d0+DJ/((1d0-nf)*t(1)+DJ*ap)**2*R(1)))
+		write(50,"(4e16.3)")omg,-dimag(R),R_rpa
+		if(peak(1,2)<-dimag(R(1))) then
+			peak(1,:)=(/omg,-dimag(R(1))/)
+		endif
+		if(peak(2,2)<-dimag(R(2))) then
+			peak(2,:)=(/omg,-dimag(R(2))/)
+		endif
+		if(peak(3,2)<R_rpa) then
+			peak(3,:)=(/omg,R_rpa/)
+		endif
 	enddo
+	pk=peak(:,1)
 	write(50,"(1X/)")
 end
-subroutine EDC(kx,ky,dd,dt,sp,Tk,omgr,domg)
+!subroutine susp(qx,qy,omg,X)
+	!implicit none
+	!call sfcsap(Tk,sp,r)
+	!call bubb(qx,qy,omg,B)
+	!X=(1d0-nf)**2/4d0*(8d0/DJ*r**2-B)
+!end
+!subroutine bubb(qx,qy,omg,B)
+	!implicit none
+	!call sfcsap(Tk,sp,r)
+	!do i
+		!kx=
+		!kqx=
+		!do j
+			!ky=
+			!kqy=
+			!ek=
+			!ekq=
+			!fk=
+			!fkq=
+			!g=2d0*r*(sin(kx-qx/2d0)-sin(ky-qy/2d0))
+			!B=B+g*(fk-fkq)/(omg+ek-ekq+img*0.01d0)
+		!enddo
+	!enddo
+!end
+subroutine EDC(kx,ky,dd,dt,sp,Tk,omgr,domg,peak)
 	use global
 	implicit none
 	integer :: i
 	complex(8) :: Uk(4,4)
-	real(8) :: kx,ky,sp,bt,dt(2),dd,ek(4),fk(4),A,omg,omgr(2),domg,Tk
+	real(8) :: kx,ky,sp,bt,dt(2),dd,ek(4),fk(4),A,omg,omgr(2),domg,Tk,peak(2)
 	bt=escal/Tk*1.16e4
 	omg=omgr(1)
 	call EU(kx,ky,dd,dt,sp,ek,Uk)
 	fk=1d0/(1d0+exp(bt*ek))
+	peak=0d0
 	!fk=1d0
 	do while(omg<omgr(2))
 		omg=omg+domg
-		A=sum(DIMAG(fk*Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*30d0)))
-		write(30,"(2e16.3)")omg,A
+		A=-sum(DIMAG(fk*Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*10d0)))
+		if(peak(2)<A) then
+			peak=(/-omg,A/)
+		endif
+		write(30,"(5e16.3)")-omg,A,kx,ky
 	enddo
-	write(30,"(1X/)")
+	write(30,"(1X)")
 end
 subroutine band(dd,dt,sp)
 	use global
@@ -131,6 +206,7 @@ subroutine band(dd,dt,sp)
 		ky=pi*min(max((i-ms),0),3*ms-i)/ms
 		call EU(kx,ky,dd,dt,sp,ek,Uk)
 		write(10,"(8e16.3)")(ek(l),abs(Uk(1,l)),l=1,4)
+		!write(10,"(2e16.3)")(ek(l),abs(Uk(1,l)),l=4,4)
 	enddo
 end
 subroutine mingap(dd,dt,sp,th,gap,mx,my)
@@ -144,6 +220,7 @@ subroutine mingap(dd,dt,sp,th,gap,mx,my)
 		ky=pi-i*pi/mth
 		kx=pi-i*pi/mth*tan(th/180d0*pi)
 		call EU(kx,ky,dd,dt,sp,ek,Uk)
+		!do l=1,4
 		do l=1,4
 			if(abs(ek(l))<gap.and.ek(l)<0d0.and.abs(Uk(1,l))**2>cvg) then
 				gap=abs(ek(l))
@@ -330,59 +407,113 @@ subroutine gnuplot()
 	write(10,"(A)")"plot [:][-1:1] for[i=1:4] '-' using 0:2*i-1:2*i with points lt i pt 7 ps variable"
 	write(10,"(A)")"#data"
 	!plot fermi surface
-	write(20,"(A)")"set term pngcairo"
-	write(20,"(A)")"set output 'fermi.png'"
+	write(20,"(A)")"set term pdf fontscale 0.7 transparent enhanced size 15,5"
+	write(20,"(A)")"set output 'fermi.pdf'"
+	write(20,"(A)")"set tmargin 0"
+	write(20,"(A)")"set bmargin 0"
+	write(20,"(A)")"set lmargin 0"
+	write(20,"(A)")"set rmargin 0"
+	write(20,"(A)")"set multiplot"
 	write(20,"(A)")"unset key"
 	write(20,"(A)")"set palette rgbformulae 22,13,-31"
-	write(20,"(A)")"set size square"
+	write(20,"(A)")"set size 0.28,1"
 	write(20,"(A)")"#set cbrange [0:1]"
 	write(20,"(A)")"set pm3d map"
 	write(20,"(A)")"set pm3d interpolate 0,0"
-	write(20,"(A)")"splot [0:3.14][0:3.14] '-'"
+	write(20,"(A)")"do for[i=0:2]{"
+	write(20,"(A)")"	set origin 0.1+0.28*i,0"
+	write(20,"(A)")"	splot [0:3.14][0:3.14] '-' index i"
+	write(20,"(A)")"}"
 	write(20,"(A)")"#data"
 	!plot EDC
-	write(30,"(A)")"set term pngcairo"
-	write(30,"(A)")"set output 'EDC.png'"
+	write(30,"(A)")"set term pdf fontscale 0.7 transparent enhanced size 5,5"
+	write(30,"(A)")"set output 'EDC.pdf'"
+	write(30,"(A)")"set tmargin 0"
+	write(30,"(A)")"set bmargin 0"
+	write(30,"(A)")"set multiplot"
 	write(30,"(A)")"set key autotitle columnhead"
-	write(30,"(A)")"set ytics"
-	write(30,"(A)")"plot [:][:] for[i=0:9] '-' index i with line lt i+1"
+	write(30,"(A)")"set xtics 0,0.05,1 out nomirror"
+	write(30,"(A)")"set mxtics 5"
+	write(30,"(A)")"set ytics 0,400,1000 out nomirror"
+	write(30,"(A)")"set mytics 5"
+	write(30,"(A)")"set size 1,0.28"
+	write(30,"(A)")"do for[j=0:2] {"
+	write(30,"(A)")"	set origin 0,0.14+0.28*j"
+	write(30,"(A)")"	if (j>0) {"
+	write(30,"(A)")"		set format x ''"
+	write(30,"(A)")"	}"
+	write(30,"(A)")"	plot [:0.09][:] for[i=0:100] '-' index j every ::1:i::i u 1:($2+i*100) with lines"
+	write(30,"(A)")"}"
 	write(30,"(A)")"#data"
 	!plot Raman
-	write(50,"(A)")"set term pngcairo size 600,800"
+	write(50,"(A)")"set term pngcairo size 1200,800"
+	write(50,"(A)")"set termoption enhanced"
 	write(50,"(A)")"set output 'raman.png'"
-	write(50,"(A)")"set title 'n=0.855'"
-	write(50,"(A)")"set multiplot layout 3,1"
+	write(50,"(A)")"set title 'n=0.855 T_c='"
+	write(50,"(A)")"set multiplot layout 3,2"
 	write(50,"(A)")"set key autotitle columnhead"
-	write(50,"(A)")"plot [:0.2][:] for[i=0:9] '-' index i using 1:2 with line"
-	write(50,"(A)")"plot [:0.2][:] for[i=0:9] '' index i using 1:4 with line"
-	write(50,"(A)")"plot [:0.2][:] for[i=0:9] '' index i using 1:3 with line"
+	write(50,"(A)")"plot [:0.2][:] for[i=0:130:5] '-' index i using 1:2 with lp pi 5 ps 0.7"
+	write(50,"(A)")"plot [:0.2][:] for[i=0:130:5] '' index i using 1:($2-$5) with lp pi 5 ps 0.7"
+	write(50,"(A)")"plot [:0.2][:] for[i=0:130:5] '' index i using 1:4 with lp pi 5 ps 0.7"
+	write(50,"(A)")"plot [:0.2][:] for[i=0:130:5] '' index i using 1:($4-$7) with lp pi 5 ps 0.7"
+	write(50,"(A)")"plot [:0.2][:] for[i=0:130:5] '' index i using 1:3 with lp pi 5 ps 0.7"
+	write(50,"(A)")"plot [:0.2][:] for[i=0:130:5] '' index i using 1:($3-$6) with lp pi 5 ps 0.7"
 	write(50,"(A)")"#data"
+	!plot Raman temp
+	write(80,"(A)")"set term pngcairo size 600,800"
+	write(80,"(A)")"set termoption enhanced"
+	write(80,"(A)")"set output 'ramantemp.png'"
+	write(80,"(A)")"set multiplot layout 3,1"
+	write(80,"(A)")"set key autotitle columnhead"
+	write(80,"(A)")"plot [:][:] for[i=0:130:5] '-' index i using 1:2 with lp pi 5 ps 0.7"
+	write(80,"(A)")"plot [:][:] for[i=0:130:5] '-' index i using 1:3 with lp pi 5 ps 0.7"
+	write(80,"(A)")"plot [:][:] for[i=0:130:5] '-' index i using 1:4 with lp pi 5 ps 0.7"
+	write(80,"(A)")"#data"
 	!plot gap_tmp
 	write(40,"(A)")"reset"
-	write(40,"(A)")"set term pngcairo"
-	write(40,"(A)")"set output 'gaptemp.png'"
+	write(40,"(A)")"set term pdf fontscale 0.7 transparent enhanced size 7,5"
+	write(40,"(A)")"set output 'gaptmp.pdf'"
 	write(40,"(A)")"set termoption enhanced"
-	write(40,"(A)")"unset key"
-	write(40,"(A)")"set xtic 50"
-	write(40,"(A)")"set xlabel 'T(K)'"
-	write(40,"(A)")"set ylabel 'gap/t'"
-	write(40,"(A)")"set title '温度依赖'"
-	write(40,"(A)")'set label "label" at 150,0.11'
-	write(40,"(A)")"plot '-' using 2:4 with linespoints pt 7 lw 5 , '' using 2:5 with linespoints pt 7 lw 5"
+	write(40,"(A)")"set lmargin 0"
+	write(40,"(A)")"set rmargin 0"
+	write(40,"(A)")"set bmargin 6"
+	write(40,"(A)")"set tmargin 1"
+	write(40,"(A)")"set multiplot"
+	write(40,"(A)")"set xtics 0,0.1,2 out nomirror"
+	write(40,"(A)")"set mxtics 5"
+	write(40,"(A)")"unset xlabel"
+	write(40,"(A)")"set ytics 0,0.03,1 out nomirror"
+	write(40,"(A)")"set mytics 5"
+	write(40,"(A)")"unset ylabel"
+	write(40,"(A)")"set key at screen 0.95,0.95"
+	write(40,"(A)")"set size 0.28,1"
+	write(40,"(A)")"set label 'gap size' rotate by 90 at screen 0.03,0.5"
+	write(40,"(A)")"set label '$\delta$' at screen 0.5,0.05"
+	write(40,"(A)")"i=0"
+	write(40,"(A)")"do for[name in '(c) (b) (a)'] {"
+	write(40,"(A)")"	if(i>0){"
+	write(40,"(A)")"		set format y ''"
+	write(40,"(A)")"		unset key"
+	write(40,"(A)")"	}"
+	write(40,"(A)")"	set label name at graph 0.05,0.9"
+	write(40,"(A)")"	set origin 0.14+i*0.28,0"
+	write(40,"(A)")"	plot [:][0:0.1] '-' index i using 2:4 with lines lw 5 title 'dSC', '' index i using 2:5 with lines lw 5 title 'dCDW', '' index i using 2:6 with lines lw 5 title 'gap'"
+	write(40,"(A)")"	unset label"
+	write(40,"(A)")"	i=i+1"
+	write(40,"(A)")"}"
 	write(40,"(A)")"#data"
 	!plot phase diagram
 	write(60,"(A)")"reset"
 	write(60,"(A)")"set term pngcairo"
 	write(60,"(A)")"set output 'phase.png'"
 	write(60,"(A)")"set termoption enhanced"
-	write(60,"(A)")"unset key"
-	write(60,"(A)")"set xlabel 'n'"
+	write(60,"(A)")"set xlabel '{/Symbol d}'"
 	write(60,"(A)")"set ylabel 'T(K)'"
-	write(60,"(A)")"set title '相图'"
-	write(60,"(A)")'set label "label" at 0.61,470'
-	write(60,"(A)")"set label ""DDW"" at 0.85,300"
-	write(60,"(A)")"set label ""SC"" at 0.75,50"
-	write(60,"(A)")"plot '-' using 1:2 with points pt 4 ps 0.6"
+	write(60,"(A)")'#set label "label" at graph 0.61,0.61'
+	write(60,"(A)")"#set style rect fc lt -1 fs solid 0.15 noborder"
+	write(60,"(A)")"#set obj rect from 0.13, graph 0 to 0.15, graph 1"
+	write(60,"(A)")"plot [][0:70] '-' using (1-$2):($1==1?$3:1/0) with points pt 7 title 'DDW', '' using (1-$2):($1==0?$3:1/0) &
+		with points pt 7 title 'SC'"
 	write(60,"(A)")"#data"
 	!plot gap_theta
 	write(70,"(A)")"reset"
