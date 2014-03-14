@@ -11,7 +11,7 @@ program main
 	implicit none
 	complex(8) :: Uk(4,4)
 	real(8) :: mx,my,sp=0d0,bt,dt(2),pdt(2),dd,pdd,th,gap,Tk,Tc,pk(3),pk0(3),peak(2),&
-		nd(3)=(/0.141d0,0.12d0,0.13d0/),Td(3)=(/0d0,40d0,70d0/)
+		nd(3)=(/0.11d0,0.14d0,0.17d0/),Td(3)=(/0d0,40d0,70d0/)
 	integer :: i,j,k
 	open(unit=10,file="../data/energy.dat")
 	open(unit=20,file="../data/fermi.dat")
@@ -32,15 +32,16 @@ program main
 	!call fermisurface(0.5d0,(/0.d0,0d0/),-0.0d0,0d0)
 	!write(*,*)gap,mx,my
 	!stop
-	!do i=1,1
-	do i=54,58,1
+	do i=1,3
+	!do i=54,58,1
 		nf=1d0-0.0025d0*i
-		!nf=1d0-nd(i)
+		nf=1d0-nd(i)
 		write(*,*)nf
 		pdt=0d0
 		pdd=0d0
-		call selfconsist_tg(0.01d0,pdt,pdd,sp)
-		call mingap(pdd,pdt,sp,0d0,gap,mx,my)
+		!call selfconsist_tg(0.01d0,pdt,pdd,sp)
+		!call band(pdd,pdt,sp)
+		!call mingap(pdd,pdt,sp,0d0,gap,mx,my)
 		!call fermisurface(pdd,pdt,sp,0d0)
 		!write(*,*)mx,my,gap
 		!!write(80,"(F5.2)")1d0-nf
@@ -75,13 +76,13 @@ program main
 			!endif
 			!write(80,"(4e16.3)")Tk/Tc,pk/pk0
 			!call band(dd,dt,sp)
-			!call mingap(dd,dt,sp,0d0,gap,mx,my)
+			call mingap(dd,dt,sp,0d0,gap,mx,my)
 			!write(*,"(3e12.4)")gap,mx,my
 			!write(30,"(F5.0)")Tk
 			!call EDC(pi,0d0,dd,dt,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak)
-			call EDC(mx,my,dd,dt,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak)
-			write(40,"(6e12.4)")nf,Tk,sp,dt(1),dd,peak(1)
-			!write(40,"(6e12.4)")nf,Tk,sp,dt(1),dd,gap
+			!call EDC(mx,my,dd,dt,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak)
+			!write(40,"(6e12.4)")nf,Tk,sp,dt(1),dd,peak(1)
+			write(40,"(6e12.4)")nf,Tk,sp,dt(1),dd,gap
 			!call fermisurface(dd,dt,sp,0d0)
 			!if(dt(1)<cvg*100d0.and.dd<cvg*100d0) then
 			if(dt(1)<cvg*100d0) then
@@ -221,7 +222,7 @@ subroutine mingap(dd,dt,sp,th,gap,mx,my)
 		kx=pi-i*pi/mth*tan(th/180d0*pi)
 		call EU(kx,ky,dd,dt,sp,ek,Uk)
 		!do l=1,4
-		do l=1,4
+		do l=1,1
 			if(abs(ek(l))<gap.and.ek(l)<0d0.and.abs(Uk(1,l))**2>cvg) then
 				gap=abs(ek(l))
 				mx=kx
@@ -326,30 +327,24 @@ subroutine EU(kx,ky,dd,dt,sp,ek,Uk)
 	use global
 	implicit none
 	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
-	real(8) :: eka,eks,e1(2),e2(2),ek(4),kx,ky,dd,ddk,sp,dk,dt(2),gk(2),th,fy(2)
+	real(8) :: eka,eks,e1(2),e2(2),ek(4),kx,ky,dd,ddk,sp,dk,dt(2),gk(2),th,fy(2),cos2th,sin2th,cos2fy(2),sin2fy(2)
 	eks=-2d0*(1d0-nf)*t(2)*cos(kx)*cos(ky)-sp
 	eka=-((1d0-nf)*t(1)+ap*DJ)*(cos(kx)+cos(ky))
 	gk(1)=0.5d0*(cos(kx)-cos(ky))
 	! gk(2)=0.5d0*(cos(3d0*kx)-cos(3d0*ky))
 	ddk=dd*gk(1)
 	dk=dt(1)*gk(1)
-	e1=eks+(/1d0,-1d0/)*sqrt(ddk**2+eka**2)
-	e2=sqrt(e1**2+dk**2)
+	e1=eks+(/1d0,-1d0/)*sqrt(ddk**2+eka**2)*sign(1d0,eka)
+	e2=sqrt(e1**2+dk**2)*sign(1d0,e1)
 	ek=(/e2,-e2/)
-	if(ddk>0) then
-		th=acos(eka/sqrt(ddk**2+eka**2))/2d0
-	else
-		th=(2d0*pi-acos(eka/sqrt(ddk**2+eka**2)))/2d0
-	endif
-	if(dk>0) then
-		fy=acos(e1/e2)/2d0
-	else
-		fy=(2d0*pi-acos(e1/e2))/2d0
-	endif
-	cth=dcmplx(cos(th))
-	sth=dcmplx(sin(th))
-	cfy=dcmplx(cos(fy))
-	sfy=dcmplx(sin(fy))
+	cos2th=eka/sqrt(ddk**2+eka**2)*sign(1d0,eka)
+	sin2th=ddk/sqrt(ddk**2+eka**2)*sign(1d0,eka)
+	cos2fy=e1/e2*sign(1d0,e1)*sign(1d0,e1)
+	sin2fy=dk/e2*sign(1d0,e1)*sign(1d0,e1)
+	cth=dcmplx(sqrt(0.5d0*(1d0+cos2th)))
+	sth=dcmplx(sqrt(0.5d0*(1d0-cos2th))*sign(1d0,sin2th))
+	cfy=dcmplx(sqrt(0.5d0*(1d0+cos2fy)))
+	sfy=dcmplx(sqrt(0.5d0*(1d0-cos2fy))*sign(1d0,sin2fy))
 	Uk=reshape((/   cth*cfy(1) , -img*sth*cfy(1) ,      cth*sfy(1) ,    img*sth*sfy(1) ,   & 
 	           -img*sth*cfy(2) ,      cth*cfy(2) , -img*sth*sfy(2) ,       -cth*sfy(2) ,   & 
 	               -cth*sfy(1) ,  img*sth*sfy(1) ,      cth*cfy(1) ,    img*sth*cfy(1) ,   & 
