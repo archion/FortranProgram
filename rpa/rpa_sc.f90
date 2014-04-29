@@ -18,7 +18,7 @@ program main
 	!do i=24,96,1
 	!do i=24,72,8
 	!nf=0.94d0
-	nf=0.98d0
+	nf=0.99d0
 	!do i=1,3
 	do
 		!nf=1d0-nd(i)
@@ -29,7 +29,8 @@ program main
 			!Tk=Td(j)+0.001
 			dt=dt+0.1
 			call selfconsist_tg(Tk,dt,ap,sp)
-			call spinrpa(dt,ap,sp,Tk,(/pi,pi/),(/-0.05d0,1d0/),0.001d0)
+			!call spinrpa(dt,ap,sp,Tk,(/pi,pi/),(/-0.05d0,1d0/),0.001d0)
+			call rpainstable(dt,ap,sp,Tk,(/pi,pi/))
 			write(40,"(4e12.4)")nf,Tk,sp,dt(1)
 			!call band(dt,ap,sp,Tk,(/0d0,0d0/),(/pi,pi/))
 			!call band(dt,ap,sp,Tk,(/pi,pi/),(/pi,0d0/))
@@ -45,7 +46,7 @@ program main
 			pdt=dt
 			write(30,"(1X)")
 		enddo
-		nf=nf-0.02d0
+		nf=nf-0.002d0
 		if(nf<0.84d0) then
 			exit
 		endif
@@ -81,7 +82,8 @@ subroutine spinrpa(dt,ap,sp,Tk,q,omgr,domg)
 				do n=1,2
 					do m=1,2
 						Xq=Xq+(Uk(1,n)*Ukq(2,m)*dconjg(Uk(1,n)*Ukq(2,m))-Uk(2,n)*Ukq(1,m)*dconjg(Uk(1,n)*Ukq(2,m)))*&
-							(1-fk(n)-fkq(m))/(omg+ek(n)+ekq(m)+img*0.001d0)
+							!(1-fk(n)-fkq(m))/(omg+ek(n)+ekq(m)+img*0.001d0)
+							(1-fk(n)-fkq(m))/(img*omg+ek(n)+ekq(m))
 					enddo
 				enddo
 			enddo
@@ -92,6 +94,36 @@ subroutine spinrpa(dt,ap,sp,Tk,q,omgr,domg)
 		write(50,"(5e16.3)")omg,dimag(Xq),dreal(Xq),(1d0+DJq*dreal(Xq)),dimag(Xq_rpa)
 	enddo
 	write(50,"(1X)")
+end
+subroutine rpainstable(dt,ap,sp,Tk,q)
+	use global
+	implicit none
+	integer :: i,j,l,m,n
+	complex(8) :: Uk(2,2),Ukq(2,2)
+	real(8) :: k(2),q(2),sp,bt,dt(2),ap,ek(2),ekq(2),fk(2),fkq(2),omg,omgr(2),domg,Tk,DJq,Xq,Xq_rpa
+	bt=escal/Tk*1.16e4
+	DJq=(cos(q(1))+cos(q(2)))*0.34d0
+	Xq=0d0
+	!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(k,ek,Uk,fk,ekq,Ukq,fkq) SCHEDULE(GUIDED)
+	do i=0,mr
+		k(1)=pi/mr*i
+		do j=0,mr
+			k(2)=pi/mr*j
+			call EU(k,dt,ap,sp,ek,Uk)
+			call EU(k+q,dt,ap,sp,ekq,Ukq)
+			fk=1d0/(1d0+exp(bt*ek))
+			fkq=1d0/(1d0+exp(bt*ekq))
+			do n=1,2
+				do m=1,2
+					Xq=Xq+(Uk(1,n)*Ukq(2,m)*dconjg(Uk(1,n)*Ukq(2,m))-Uk(2,n)*Ukq(1,m)*dconjg(Uk(1,n)*Ukq(2,m)))*&
+						(1-fk(n)-fkq(m))/(ek(n)+ekq(m))
+				enddo
+			enddo
+		enddo
+	enddo
+	!$OMP END PARALLEL DO
+	Xq=Xq/mr**2
+	write(*,"(2e16.3)")1d0-nf,1d0+DJq*Xq
 end
 subroutine band(dt,ap,sp,Tk,ki,kf)
 	use global
@@ -182,7 +214,7 @@ subroutine selfconsist_tg(Tk,dt,ap,sp)
 		ap=app
 	enddo
 	!write(*,*)"!!!!!!selfconsist return!!!!!!!!"
-	write(*,"(5e12.4,i4)")n1,Tk,sp,dt(1),ap,c
+	!write(*,"(5e12.4,i4)")n1,Tk,sp,dt(1),ap,c
 	!write(*,*)"!!!!!!!!!!!!end!!!!!!!!!!!!!!!!!"
 end
 subroutine EU(k,dt,ap,sp,ek,Uk)
