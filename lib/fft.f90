@@ -57,22 +57,21 @@ module fft
 	!!!!        one-demension fft for two-demension complex data   !!!!
 	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	subroutine fftrow2(a,sig)
-		integer :: i,j,m,sig,n1,n2
+		integer :: i,j,m,sig,n
 		complex(8) :: a(0:,0:),tmp(size(a,1)),wp,w
-		n1=size(a,1)
-		n2=size(a,2)
-		if(iand(n2,n2-1)/=0) then
+		n=size(a,2)
+		if(iand(n,n-1)/=0) then
 			write(*,*)"the size must be power of 2"
 			stop
 		endif
-		j=n2/2
-		do i=1,n2-2
+		j=n/2
+		do i=1,n-2
 			if(j>i) then
 				tmp=a(:,i)
 				a(:,i)=a(:,j)
 				a(:,j)=tmp
 			endif
-			m=n2/2
+			m=n/2
 			do while(j>=m)
 				j=j-m
 				m=m/2
@@ -80,11 +79,11 @@ module fft
 			j=j+m
 		enddo
 		m=2
-		do while(m<=n2)
+		do while(m<=n)
 			wp=cmplx(-2d0*sin(sig*pi/m)**2,sin(sig*2d0*pi/m))
 			w=cmplx(1d0,0d0)
 			do j=0,m/2-1
-				do i=j,n2-1,m
+				do i=j,n-1,m
 					tmp=w*a(:,i+m/2)
 					a(:,i+m/2)=a(:,i)-tmp
 					a(:,i)=a(:,i)+tmp
@@ -94,7 +93,50 @@ module fft
 			m=m*2
 		enddo
 		if(sig==-1) then
-			a=a/n2
+			a=a/n
+		endif
+	end subroutine
+	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	!!!!        one-demension fft for three-demension complex data   !!!!
+	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	subroutine fftrow3(a,sig)
+		integer :: i,j,m,sig,n
+		complex(8) :: a(0:,0:,0:),tmp(size(a,1),size(a,2)),wp,w
+		n=size(a,3)
+		if(iand(n,n-1)/=0) then
+			write(*,*)"the size must be power of 2"
+			stop
+		endif
+		j=n/2
+		do i=1,n-2
+			if(j>i) then
+				tmp=a(:,:,i)
+				a(:,:,i)=a(:,:,j)
+				a(:,:,j)=tmp
+			endif
+			m=n/2
+			do while(j>=m)
+				j=j-m
+				m=m/2
+			enddo
+			j=j+m
+		enddo
+		m=2
+		do while(m<=n)
+			wp=cmplx(-2d0*sin(sig*pi/m)**2,sin(sig*2d0*pi/m))
+			w=cmplx(1d0,0d0)
+			do j=0,m/2-1
+				do i=j,n-1,m
+					tmp=w*a(:,:,i+m/2)
+					a(:,:,i+m/2)=a(:,:,i)-tmp
+					a(:,:,i)=a(:,:,i)+tmp
+				enddo
+				w=w*wp+w
+			enddo
+			m=m*2
+		enddo
+		if(sig==-1) then
+			a=a/n
 		endif
 	end subroutine
 	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -274,6 +316,19 @@ module fft
 		tmp=transpose(a)
 		call fftrow2(tmp,sig)
 		a=transpose(tmp)
+	end subroutine
+	subroutine fft3d(a,sig)
+		complex(8) :: a(0:,0:,0:),tmp1(size(a,2),size(a,3),size(a,1)),tmp2(size(a,3),size(a,1),size(a,2))
+		integer :: sig,n1,n2,n3
+		n1=size(a,1)
+		n2=size(a,2)
+		n3=size(a,3)
+		call fftrow3(a,sig)
+		tmp1=reshape(a,shape=(/n2,n3,n1/),order=(/3,1,2/))
+		call fftrow3(tmp1,sig)
+		tmp2=reshape(tmp1,shape=(/n3,n1,n2/),order=(/3,1,2/))
+		call fftrow3(tmp2,sig)
+		a=reshape(tmp2,shape=(/n1,n2,n3/),order=(/3,1,2/))
 	end subroutine
 	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	!!!!        one-demension fft that transform the input         !!!!

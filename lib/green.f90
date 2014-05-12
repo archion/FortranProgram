@@ -1,29 +1,34 @@
 module green
 	implicit none
 	contains
-	subroutine pade(u,z,omg,it,c)
+	subroutine pade(z,u,omg,c)
 		complex(8), parameter :: img=(0d0,1d0)
 		real(8), parameter :: pi=3.14159265358979d0
-		real(8) :: Tk,it,rtmp
-		complex(8) :: u(:),c(:),p(size(u),size(u)),a(size(u)),DA(0:1),DB(0:1),z(:),ctmp,ctmp1,omg(:)
-		integer :: n,m,i,j,k
-		k=0
-		n=size(u)
+		real(8) :: rtmp
+		complex(8) :: z(:),u(:),omg(:),c(:),p(size(u),size(u)),a(size(u)),DA(0:1),DB(0:1),ctmp,ctmp1
+		integer :: n,m,i,j,ct
+		open(10,file="../data/debug.dat")
+		n=size(z)
 		m=size(omg)
-		!z=(/(cmplx(0d0,pi*Tk*(2d0*(i-1)+1d0)),i=1,n)/)
+		ct=n
 		p(1,:)=u
 		a(1)=u(1)
 		do i=2,n
+			if(abs(a(i-1))<1d-10) then
+				a(i:n)=0d0
+				ct=i-1
+				exit
+			endif
 			do j=i,n
 				p(i,j)=(p(i-1,i-1)-p(i-1,j))/((z(j)-z(i-1))*p(i-1,j))
 			enddo
 			a(i)=p(i,i)
 		enddo
 		do j=1,m
-			DA(0)=0
+			DA(0)=0d0
 			DA(1)=a(1)
 			DB(0:1)=1d0
-			do i=2,n
+			do i=2,ct
 				ctmp=(omg(j)-z(i-1))*a(i)
 				ctmp1=DA(1)+ctmp*DA(0)
 				DA(0)=DA(1)

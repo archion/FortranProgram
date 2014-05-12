@@ -1,8 +1,9 @@
 module global
 	implicit none
-	integer, parameter :: dn(2)=(/24,24/),dn2=dn(1)*dn(2),imp=dn2/2+dn(1)/2
-	integer :: latt(dn2,4,3)
-	real(8), parameter :: t(3)=(/1d0,-0.25d0,0d0/),nf=0.85d0,U=2.44d0,V=1d0,Vimp=1d0,pi=3.14159265359d0,cvg=1e-5,bt=1e5
+	integer, parameter :: dn(2)=(/16,16/),dn2=dn(1)*dn(2),imp=dn2/2+dn(1)/2
+	integer :: latt(dn2,4,3),fg=1
+	real(8), parameter :: t(3)=(/1d0,-0.3d0,0d0/),nf=0.875d0,V=0d0,Vimp=0d0,pi=3.14159265359d0,cvg=1e-4,bt=1e5
+	real(8) :: U=2.44d0
 	complex(8), parameter :: img=(0d0,1d0),ipi=2d0*pi*img
 	contains
 	subroutine gen_latt_square()
@@ -36,38 +37,40 @@ module global
 		enddo
 	end subroutine gen_latt_square
 end module
-module lapack
-	implicit none
-	contains
-	subroutine czheev(jobz,uplo,a,w,info)
-		implicit none
-		character :: jobz,uplo
-		integer :: n,lda,lwork,info
-		real(8) :: w(:)
-		complex(8) :: a(:,:)
-		real(8), allocatable :: rwork(:)
-		complex(8), allocatable :: work(:)
-		n=size(w)
-		lda=n
-		lwork=3*n
-		allocate(work(lwork),rwork(3*n-2))
-		call zheev (jobz, uplo, n, a, lda, w, work, lwork, rwork, info)
-	end subroutine
-end module
 program main
 	use global
 	implicit none
-	character(25) :: fmat(2)
-	integer :: i,j,sg
-	real(8) :: n(dn2,2)
+	integer :: i,j,k,sg
+	real(8) :: n(dn2,2),te
 	complex(8) :: dt(dn2,4)
 	open(unit=10,file='../data/order.dat')
+	open(unit=20,file='../data/energy.dat')
 	call gnuplot
-	write(fmat(1),*)dn(1)
-200	format(24(e15.6))
-	call inital(dt,n)
-	call bdg(dt,n)
+	!!$OMP PARALLEL DO PRIVATE(U,dt,n,te,fg) SCHEDULE(GUIDED)
+	do i=6,16,2
+		U=i*0.5d0
+		write(*,"(e15.6,$)")U
+		write(20,"(e15.6,$)")U
+		fg=1
+		call inital(dt,n)
+		call bdg(dt,n,te)
+		write(20,"(e15.6,$)")te
+		fg=0
+		call inital(dt,n)
+		call bdg(dt,n,te)
+		write(20,"(e15.6)")te
+		call exportdata(dt,n)
+	enddo
+	!!$OMP END PARALLEL DO
 	!export data
+	close(10)
+end
+subroutine exportdata(dt,n)
+	use global
+	implicit none
+	integer :: i,sg
+	complex(8) :: dt(dn2,4)
+	real(8) :: n(dn2,2)
 	do i=1,dn2
 		write(10,"(e15.6,$)")abs(dt(i,1)+dt(i,3)-dt(i,2)-dt(i,4))/4.0d0
 		if(mod(i,dn(1))==0) then
@@ -91,69 +94,68 @@ program main
 			write(10,"(X)")
 		endif
 	enddo
-	close(10)
 end
 subroutine inital(dt,n)
 	use global
 	implicit none
 	complex(8) :: dt(dn2,4)
 	real(8) :: n(dn2,2)
-	integer :: i
+	integer :: i,sg
+	logical :: lc
 	call init_random_seed()
 	!call random_number(rdom)
 	do i=1,dn2
-		dt(i,:)=(/0.07d0,-0.07d0,0.07d0,-0.07d0/)
+		dt(i,:)=(/0.0d0,-0.0d0,0.0d0,-0.0d0/)
 	enddo
-	n(:,1)=nf/2d0
-	n(:,2)=nf-n(:,1)
+	sg=-1
+	do i=1,dn2
+		sg=-sg
+		n(i,1)=sg*0.1+0.5d0
+		n(i,2)=-sg*0.1+0.5d0
+		if(fg==0) then
+			lc=mod(mod(i-1,dn(2)),8)==0
+		else
+			lc=mod((i-1)/dn(2)-mod(i-1,dn(2)),8)==0
+		endif
+		if(mod(i,dn(1))==0.or.lc) then
+			sg=-sg
+			n(i,:)=0d0
+		endif
+	enddo
 	call gen_latt_square()
 end
-subroutine bdg(dt,n)
+subroutine bdg(dt,n,te)
 	use global
 	implicit none
 	complex(8) :: dt(dn2,4),dtp(dn2,4),H(2*dn2,2*dn2)
-	real(8) :: n(dn2,2),np(dn2,2),n1,wide,sp0,sp,sa,sb,E(2*dn2)
+	real(8) :: n(dn2,2),np(dn2,2),n1,al,sp,pn1,E(2*dn2),te
 	logical :: flaga,flagb
-	wide=0.5d0
-	sp0=sp+wide
 	do 
-		sa=sp
-		sb=sp
-		flaga=.true.
-		flagb=.true.
+		pn1=nf+0.1d0
+		al=1d0
 		do
-			sp=0.5d0*(sa+sb)
 			call EU(dt,n,sp,H,E)
 			call order(H,E,np,dtp)
 			n1=1.0/dn2*sum(np)
+			!write(*,*)n1,sp
+			if((nf-n1)/(nf-pn1)<-0.8d0) then
+				al=al*0.7d0
+			endif
 			if(abs(n1-nf)<cvg) then
 				exit
-			endif
-			if(n1<nf) then
-				flaga=.false.
-				sa=sp
-				if(flagb) then
-					sb=sp+wide
-				endif
 			else
-				flagb=.false.
-				sb=sp
-				if(flaga) then
-					sa=sp-wide
-				endif
+				sp=sp+al*(nf-n1)
 			endif
-			write(*,*)n1,sp
+			pn1=n1
 		enddo
-		wide=max(abs(sp0-sp),100*cvg)
-		sp0=sp
-		if(sum(abs(dt-dtp))/dn2<cvg) then
+		if((sum(abs(dt-dtp))/dn2<cvg.and.sum(abs(np(:,1)-n(:,1)))/dn2<cvg)) then
 			exit
 		endif
-		exit
 		dt=dtp
-		n=np
-		write(*,*)"*",dt(1,1)
+		n=np*0.6d0+n*0.4d0
+		!write(*,*)fg,n(2,1)
 	enddo 
+	call totaleng(dt,n,sp,E,te)
 end
 subroutine EU(dt,n,sp,H,E)
 	use f95_lapack, only: la_heevd
@@ -163,6 +165,7 @@ subroutine EU(dt,n,sp,H,E)
 	complex(8) :: H(2*dn2,2*dn2),dt(dn2,4)
 	real(8) :: E(2*dn2),n(dn2,2),sp
 	integer :: i,j,info
+	logical :: lc
 	H=0d0
 	do i=1,dn2
 		do j=1,4
@@ -176,12 +179,19 @@ subroutine EU(dt,n,sp,H,E)
 			H(i+dn2,latt(i,j,2)+dn2)=t(2)
 		enddo
 		! on site
-		H(i,i)=U*n(i,2)-sp
-		H(i+dn2,i+dn2)=-U*n(i,1)+sp
+		!if(fg==0) then
+			!lc=mod(mod(i-1,dn(2)),8)==0
+		!else
+			!lc=mod((i-1)/dn(2)-mod(i-1,dn(2)),8)==0
+		!endif
+		!if(lc) then
+			!H(i,i)=H(i,i)+100d0
+			!H(i+dn2,i+dn2)=H(i+dn2,i+dn2)-100d0
+		!else
+			H(i,i)=U*n(i,2)-sp
+			H(i+dn2,i+dn2)=-U*n(i,1)+sp
+		!endif
 	enddo
-	! impure
-	H(imp,imp)=H(imp,imp)+Vimp
-	H(imp+dn2,imp+dn2)=H(imp+dn2,imp+dn2)+Vimp
 	call la_heevd(H,E,"V","U",info)
 	!call czheev("V","U",H,E,info)
 end
@@ -205,6 +215,14 @@ subroutine order(H,E,np,dtp)
 		enddo
 	enddo
 end
+subroutine totaleng(dt,n,sp,E,te)
+	use global
+	implicit none
+	real(8) :: n(dn2,2),sp,E(2*dn2),te,f(2*dn2)
+	complex(8) :: dt(dn2,4)
+	f=1d0/(exp(bt*E)+1d0)
+	te=sum(E*f)-U*sum(n(:,1)*n(:,2))+U*sum(n(:,1))-dn2*sp
+end
 subroutine init_random_seed()
 	integer :: i, n, clock
 	integer, dimension(:), allocatable :: seed
@@ -217,16 +235,17 @@ subroutine init_random_seed()
 end subroutine
 subroutine gnuplot()
 	implicit none
-	write(10,"(A)")"set term pngcairo"
-	write(10,"(A)")"set output 'order.png'"
-	write(10,"(A)")"set pm3d map"
-	write(10,"(A)")"set pm3d corners2color c1"
-	write(10,"(A)")"set cbrange [:]"
-	write(10,"(A)")"set pm3d interpolate 0,0"
-	write(10,"(A)")"set size square"
-	write(10,"(A)")"set palette rgbformulae 22,13,-31"
-	write(10,"(A)")"splot '-' matrix index 0"
-	write(10,"(A)")"#data"
+	write(10,"(A)")'set term pngcairo'
+	write(10,"(A)")'set output "order.png"'
+	write(10,"(A)")'set pm3d map'
+	write(10,"(A)")'set pm3d corners2color c1'
+	write(10,"(A)")'set cbrange [:]'
+	write(10,"(A)")'set pm3d interpolate 0,0'
+	write(10,"(A)")'set size square'
+	write(10,"(A)")'set palette rgbformulae 22,13,-31'
+	write(10,"(A)")'splot "-" matrix index 0'
+	write(10,"(A)")'#data'
+	write(20,"(A)")'#data'
 end
 
 	
