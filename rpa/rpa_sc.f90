@@ -3,7 +3,7 @@ module global
 	save
 	real(8), parameter ::t(5)=(/2d0,-0.9d0,0.000d0,0.d0,0d0/),escal=0.25d0,pi=3.1415926d0,cvg=1e-5,DJ=0.75d0,V=-3d0
 	real(8) :: nf=0.8d0,Tk
-	integer, parameter :: mk=128,mq=128,mo=1024,mro=512
+	integer, parameter :: mk=512,mq=512,mo=512,mro=512
 	complex(8),parameter :: img=(0d0,1d0)
 	contains
 	subroutine spinsus(dt,ap,sp,q,omg,Xq)
@@ -78,8 +78,8 @@ module global
 				!q=((/i,j/)*2d0*pi/size(Veff,2)-(/pi,pi/))*0.5+(/pi,pi/)
 				q=(/i,j/)*2d0*pi/n
 				call spinsus(dt,ap,sp,q,omg,Veff(:,i,j))
-				DJq=0.34d0*(cos(q(1))+cos(q(2)))
-				Veff(:,i,j)=Veff(:,i,j)/(1d0+DJq*Veff(:,i,j))
+				DJq=(cos(q(1))+cos(q(2)))
+				Veff(:,i,j)=Veff(:,i,j)/(1d0+0.34d0*DJq*Veff(:,i,j))
 				Veff(:,i,j)=DJq**2*Veff(:,i,j)
 			enddo
 		enddo
@@ -306,7 +306,7 @@ program main
 		rVeff(size(rG0,1),size(rG0,2),size(rG0,3)),rsfeg(size(rG0,1),size(rG0,2),size(rG0,3),2),&
 		rGf(size(rG0,1),size(rG0,2),size(rG0,3),2)
 	real(8) :: k(2),sp=0d0,bt,dt,pdt,ap=0.1d0,th,gap,Tc,pk(3),pk0(3),peak(2),&
-		nd(3)=(/0.0025d0,0.114d0,0.178d0/),Td(3)=(/0d0,40d0,70d0/),it=0.02d0,omgrg(2)=(/-2d0,2d0/),DOS(mro),DJq,ek
+		nd(3)=(/0.0025d0,0.114d0,0.178d0/),Td(3)=(/0d0,40d0,70d0/),it=0.002d0,omgrg(2)=(/-2d0,2d0/),DOS(mro),DJq,ek
 	integer :: i,j,l,ntmp
 	call fileopen
 	call gnuplot
@@ -323,7 +323,7 @@ program main
 	iomgb=(/(cmplx(0d0,pi*Tk*(2*(i-i/(ntmp/2)*ntmp))),i=0,ntmp-1)/)
 	ntmp=size(romg)
 	romg=(/(cmplx(omgrg(1)+real(i)/ntmp*(omgrg(2)-omgrg(1)),it),i=1,ntmp)/)
-	!romg=(/cmplx(0.1d0,it),cmplx(0.3d0,it),cmplx(0.51d0,it)/)
+	!romg=(/cmplx(0.1d0,it),cmplx(0.3d0,it),cmplx(0.51d0,it),cmplx(0.7d0,it)/)
 	nf=0.88d0
 	!do i=1,3
 	do
@@ -350,9 +350,9 @@ program main
 			!write(50,"(1X)")
 			!stop
 			write(*,"('calculate effint')")
-			!call effint(dt,ap,sp,romg,Veff)
+			!call effint(dt,ap,sp,romg,rVeff)
 			call effint(dt,ap,sp,iomgb,Veff)
-			!call spinsus(dt,ap,sp,(/pi,pi/),romg,Xq)
+			!call spinsus(dt,ap,sp,(/pi,pi/),romg,Veff(:,mq/2,mq/2))
 			!DJq=-0.68d0
 			!write(50,"(5e16.3)")(dimag(iomgb(i)),dimag(Xq(i)),dimag(Xq(i)/(1d0+DJq*Xq(i))Xq_rpa(i)),i=1,size(iomgb))
 			!write(50,"(3e16.3)")(dimag(iomgb(i)),dreal(Xq(i)),dreal(Veff(i,mr/2,mr/2)),i=1,size(iomgb))
@@ -360,7 +360,36 @@ program main
 			!call pade(iomgb,Veff(:,mr/2,mr/2),romg,Veff(:,mr/2,mr/2))
 			!call pade(iomgb,Xq,romg,Xq)
 			!call spinsus(dt,ap,sp,(/pi,pi/),romg,Xq)
-			!write(30,"(3e16.3)")(dreal(romg(i)),dimag(Xq(i)),dimag(Veff(i,mr/2,mr/2)),i=1,size(romg))
+			!write(30,"(3e16.3)")(dreal(romg(i)),rVeff(i,mq/2,mq/2),i=1,size(romg))
+			!do i=1,mq
+				!do j=1,mq
+					!write(50,"(e16.4,$)")dimag(rVeff(1,i,j))
+				!enddo
+				!write(50,"(1X)")
+			!enddo
+			!write(50,"(1X/)")
+			!do i=1,mq
+				!do j=1,mq
+					!write(50,"(e16.4,$)")dimag(rVeff(2,i,j))
+				!enddo
+				!write(50,"(1X)")
+			!enddo
+			!write(50,"(1X/)")
+			!do i=1,mq
+				!do j=1,mq
+					!write(50,"(e16.4,$)")dimag(rVeff(3,i,j))
+				!enddo
+				!write(50,"(1X)")
+			!enddo
+			!write(50,"(1X/)")
+			!do i=1,mq
+				!do j=1,mq
+					!write(50,"(e16.4,$)")dimag(rVeff(4,i,j))
+				!enddo
+				!write(50,"(1X)")
+			!enddo
+			!write(50,"(1X/)")
+			!stop
 			!write(30,"(1X)")
 			!write(*,"('pade')")
 			!ntmp=size(Veff,1)/2
@@ -415,11 +444,18 @@ program main
 			!enddo
 			write(*,"('calculate self energy')")
 			call selfe(G0,Veff,sfeg)
+			ntmp=size(sfeg,1)/2
+			!call pade(iomgf(ntmp+1:ntmp*2),sfeg(ntmp+1:ntmp*2,mq/2,int(0.075*mq),1),romg,rsfeg(:,mq/2,int(0.075*mq),1))
+			call pade(iomgf(1:ntmp),sfeg(1:ntmp,mq/2,int(0.075*mq),1),romg,rsfeg(:,mq/2,int(0.075*mq),1))
+			write(30,"(3e16.4)")(real(romg(i)),rsfeg(i,mq/2,int(0.075*mq),1),i=1,size(romg))
+			stop
 			call greenfunc(0d0,ap,sp,iomgf,sfeg,Gf)
+			!call greenfunc(dt,ap,sp,iomgf,sfeg,Gf)
 			do i=1,mq
 				do j=1,mq
 					k=(/i,j/)*2d0*pi/mq
 					sfeg(:,i,j,2)=dt*0.5d0*(cos(k(1))-cos(k(2)))+sfeg(:,i,j,2)
+					!sfeg(:,i,j,2)=dt*0.5d0*(cos(k(1))-cos(k(2)))
 				enddo
 			enddo
 			do i=1,mo
@@ -427,22 +463,15 @@ program main
 			enddo
 			write(*,"('calculate pade')")
 			!ntmp=size(sfeg,1)/2
-			!call pade(iomgf(ntmp+1:ntmp*2),sfeg(ntmp+1:ntmp*2,mq/2,int(0.75*mq)),romg,rsfeg(:,mq/2,int(0.75*mq)))
+			!call pade(iomgf(ntmp+1:ntmp*2),sfeg(ntmp+1:ntmp*2,mq/2,int(0.075*mq),1),romg,rsfeg(:,mq/2,int(0.075*mq),1))
+			!call pade(iomgf(ntmp+1:ntmp*2),sfeg(ntmp+1:ntmp*2,mq/2,int(0.075*mq),2),romg,rsfeg(:,mq/2,int(0.075*mq),2))
 			ntmp=size(Gf,1)/2
-			!call pade(iomgf(ntmp+1:ntmp*2),Gf(ntmp+1:ntmp*2,mq/2,int(0.75*mq),1),romg,Gf(:,mq/2,int(0.75*mq),1))
-			call pade(iomgf(1:ntmp),Gf(1:ntmp,mq/2,int(0.75*mq),1),romg,rGf(:,mq/2,int(0.75*mq),1))
+			call pade(iomgf(1:ntmp),Gf(1:ntmp,mq/2,int(0.075*mq),1),romg,rGf(:,mq/2,int(0.075*mq),1))
 			write(*,"('export data')")
-			!write(30,"(3e16.4)")(real(romg(i)),rsfeg(i,mq/2,int(0.75*mq)),i=1,size(romg))
-			write(30,"(3e16.4)")(real(romg(i)),rGf(i,mq/2,int(0.75*mq),1),i=1,size(romg))
 			!write(30,"(3e16.4)")(dimag(iomgf(i)),sfeg(i,mq/2,int(0.75*mq)),i=1,size(iomgf))
+			write(30,"(3e16.4)")(real(romg(i)),rGf(i,mq/2,int(0.075*mq),1),i=1,size(romg))
+			!write(30,"(3e16.4)")(dimag(iomgf(i)),Gf(i,mq/2,int(0.075*mq),1),i=1,size(iomgf))
 			stop
-			!do i=1,mk
-				!do j=1,mk
-					!write(50,"(e16.4,$)")dimag(rVeff(38,i,j))
-				!enddo
-				!write(50,"(1X)")
-			!enddo
-			!write(50,"(1X/)")
 			!do i=1,mk
 				!do j=1,mk
 					!write(50,"(e16.4,$)")dimag(rVeff(12,i,j))
@@ -492,7 +521,7 @@ subroutine fileopen()
 	implicit none
 	open(unit=10,file="../data/energy.dat")
 	open(unit=20,file="../data/fermi.dat")
-	open(unit=30,file="../data/EDC.dat")
+	open(unit=30,file="../data/EDC2.dat")
 	open(unit=40,file="../data/gaptemp.dat")
 	open(unit=50,file="../data/rpa.dat")
 	open(unit=60,file="../data/gaptheta.dat")

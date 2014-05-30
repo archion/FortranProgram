@@ -1,7 +1,7 @@
 module global
 	implicit none
 	integer, parameter :: dn(2)=(/16,16/),dn2=dn(1)*dn(2),imp=dn2/2+dn(1)/2
-	integer :: latt(dn2,4,3),fg=1
+	integer :: latt(dn2,4,3),fg=1,ns=4
 	real(8), parameter :: t(3)=(/1d0,-0.3d0,0d0/),nf=0.875d0,V=0d0,Vimp=0d0,pi=3.14159265359d0,cvg=5e-4,bt=1e5
 	real(8) :: U=2.44d0
 	complex(8), parameter :: img=(0d0,1d0),ipi=2d0*pi*img
@@ -42,10 +42,28 @@ program main
 	implicit none
 	integer :: i,j,k,sg
 	real(8) :: n(dn2,2),te
-	complex(8) :: dt(dn2,4)
+	complex(8) :: dt(dn2,4),S(dn2)
 	open(unit=10,file='../data/order.dat')
 	open(unit=20,file='../data/energy.dat')
 	call gnuplot
+	fg=0
+	call inital(dt,n)
+	do i=1,dn2
+		write(10,"(e15.6,$)")n(i,1)-n(i,2)
+		if(mod(i,dn(1))==0) then
+			write(10,"(X)")
+		endif
+	enddo
+	write(10,"(X)")
+	call strfact(n(:,1)-n(:,2),S)
+	do i=1,dn2
+		write(10,"(e15.6,$)")real(S(i))
+		if(mod(i,dn(1))==0) then
+			write(10,"(X)")
+		endif
+	enddo
+	write(10,"(X)")
+	stop
 	do i=1,1
 		U=i*0.5d0
 		write(*,"(e15.6,$)")U
@@ -109,10 +127,10 @@ subroutine inital(dt,n)
 	enddo
 	sg=-1
 	do i=1,dn2
-		if(i==fg*dn2/2) then
+		if(mod(i,dn(1)*ns)==0.and.fg/=0) then
 			sg=-sg
 		endif
-		if(mod(-fg*(i-1)/dn(2)+mod(i-1,dn(2)),8)==0) then
+		if(mod(-fg*(i-1)/dn(2)+mod(i-1,dn(2)),ns)==0) then
 			sg=-sg
 			n(i,:)=0d0
 		elseif(mod(-(i-1)/dn(2)+mod(i-1,dn(2)),2)==0) then
@@ -125,6 +143,17 @@ subroutine inital(dt,n)
 	enddo
 	call gen_latt_square()
 end
+subroutine strfact(cfg,S)
+	use global
+	use fft, only : fft2d
+	implicit none
+	integer :: i,j
+	real(8) :: cfg(dn(1),dn(2))
+	complex(8) :: tmp(dn(1),dn(2)),S(dn(1),dn(2))
+	tmp=dcmplx(cfg)
+	call fft2d(tmp,1)
+	S=tmp**2
+end subroutine
 subroutine bdg(dt,n,te)
 	use global
 	implicit none

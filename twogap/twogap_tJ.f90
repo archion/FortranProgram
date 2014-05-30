@@ -1,7 +1,7 @@
 module global
 	implicit none
 	save
-	real(8), parameter ::t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),escal=0.125d0,pi=3.1415926d0,cvg=1e-5,DJ=0.3d0,V=-0.45d0
+	real(8), parameter ::t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),escal=0.125d0,pi=3.1415926d0,cvg=1e-5,V=-0.45d0,DJ=0.3d0
 	real(8) :: nf=0.8d0,ap=0.1d0
 	character(3) :: pgflag="ddw"
 	!character(3) :: pgflag="sdw"
@@ -26,7 +26,7 @@ program main
 	!do i=24,96,1
 	!do i=24,72,8
 	!nf=0.94d0
-	nf=0.9d0
+	nf=0.93d0
 	!do i=1,3
 	do
 		!nf=1d0-nd(i)
@@ -54,40 +54,32 @@ program main
 				!exit
 			!endif
 		!enddo
-		Tk=0.06d0
-		dTk=-0.0002d0
+		!Tk=0.001d0
+		!dTk=0.001d0
+		Tk=0.11d0
+		dTk=-0.0005d0
 		do
 		!do j=1,3
 			!Tk=Td(j)+0.001
 			!sc=sc+0.1d0
 			!pg=pg+0.1d0
 			call selfconsist_tg(Tk,sc,pg,sp)
+			!write(*,"(5e12.4)")nf,Tk,sp,sc,pg
+			!!!!!!!!!!!!!!!!!!!!!!!!meanfield begin!!!!!!!!!!!!!!!!!!!!!!!!
+			!if((sc-cvg*100)*psc<0d0) then
+				!psc=-psc
+				!write(80,"(e12.4\)")Tk
+			!endif
+			!if((pg-cvg*100)*ppg<0d0) then
+				!ppg=-ppg
+				!write(80,"(e12.4\)")Tk
+			!endif
+			!write(50,"(F5.0)")Tk
+			!!!!!!!!!!!!!!!!!!!!!!!!!meanfield end!!!!!!!!!!!!!!!!!!!!!!!!
+			!!!!!!!!!!!!!!!!!!!!!!!!!instable begin!!!!!!!!!!!!!!!!!!!!!!!!
 			call rpainstable(pg,sc,sp,Tk,"pg",(/pi,pi/),denpg)
 			call rpainstable(pg,sc,sp,Tk,"sc",(/0d0,0d0/),densc)
 			write(*,"(6e12.4)")nf,Tk,denpg,densc,pg,sc
-			!ddwinv=0d0
-			!scinv=0d0
-			!if(pg<cvg) then
-				!call ddw_instable(pg,sc,sp,Tk,ddwinv)
-				!if(ddwinv<0d0) then
-					!pg=1d0
-				!else
-					!pg=0d0
-				!endif
-			!endif
-			!if(sc<cvg) then
-				!call sc_instable(pg,sc,sp,Tk,scinv)
-				!if(scinv<0d0) then
-					!sc=1d0
-				!else
-					!sc=0d0
-				!endif
-			!endif
-			!if(sc>0d0.and.pg>0d0) then
-				!Tk=0.001d0
-				!dltT=1d0
-				!pg=0d0
-			!endif
 			if(denpg*pdenpg<0d0.and.pg<cvg) then
 				pdenpg=-pdenpg
 				write(80,"(e12.4\)")Tk
@@ -111,15 +103,7 @@ program main
 			if(dTk>0d0.and.sc<cvg*100) then
 				exit
 			endif
-			!if((sc-cvg*100)*psc<0d0) then
-				!psc=-psc
-				!write(80,"(e12.4\)")Tk
-			!endif
-			!if((pg-cvg*100)*ppg<0d0) then
-				!ppg=-ppg
-				!write(80,"(e12.4\)")Tk
-			!endif
-			!write(50,"(F5.0)")Tk
+			!!!!!!!!!!!!!!!!!!!!!!!!!instable end!!!!!!!!!!!!!!!!!!!!!!!!!
 			!call raman(pg,sc,sp,Tk,(/0d0,0.2d0/),0.0002d0,pk)
 			!if(Tk<0.01d0) then
 				!pk0=pk
@@ -135,22 +119,19 @@ program main
 			!call EDC(mx,my,pg,sc,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak)
 			!write(40,"(6e12.4)")nf,Tk,sp,sc,pg,peak(1)
 			!write(40,"(7e12.4)")nf,Tk,sp,sc,pg,gap,kf(2)
-			write(40,"(5e12.4)")nf,Tk,sp,sc,pg
+			!write(40,"(5e12.4)")nf,Tk,sp,sc,pg
 			!call fermisurface(pg,sc,sp,0d0)
 			!if(sc<cvg*100d0.and.pg<cvg*100d0) then
 			!if(sc<cvg*100d0) then
-				!exit
-			!endif
-			!if(Tk>0.04d0) then
+			!if(Tk<abs(dTk)) then
+			!if(Tk>0.06) then
 				!exit
 			!endif
 			Tk=Tk+dTk
-			!psc=sc
-			!ppg=pg
 			write(30,"(1X)")
 		enddo
-		nf=nf-0.01d0
-		if(nf<0.74d0) then
+		nf=nf-0.002d0
+		if(nf<0.75d0) then
 			exit
 		endif
 		write(10,"(1X)")
@@ -190,15 +171,16 @@ subroutine rpainstable(pg,sc,sp,Tk,odflag,q,den)
 				do m=1,4
 					select case(odflag)
 					case("pg")
-						tran(1)=Uk(1,n)*dconjg(Uk(1,n))*Ukq(1,m)*dconjg(Ukq(1,m))+Uk(3,n)*dconjg(Uk(1,n))*Ukq(1,m)*dconjg(Ukq(3,m))
-						!tran(2)=Uk(1,n)*dconjg(Uk(1,n))*Ukq(1,m)*dconjg(Ukq(1,m))
+						tran(1)=(Uk(1,n)*dconjg(Uk(1,n))*Ukq(1,m)*dconjg(Ukq(1,m))+&
+							Uk(3,n)*dconjg(Uk(1,n))*Ukq(1,m)*dconjg(Ukq(3,m)))*(cos(k(1))-cos(k(2)))**2
+						!tran(1)=(Uk(1,n)*dconjg(Uk(1,n))*Ukq(1,m)*dconjg(Ukq(1,m))+&
+							!Uk(3,n)*dconjg(Uk(1,n))*Ukq(1,m)*dconjg(Ukq(3,m)))*2d0
 					case("sc")
-						tran(1)=Uk(1,n)*dconjg(Uk(1,n))*Ukq(3,m)*dconjg(Ukq(3,m))-Uk(2,n)*dconjg(Uk(1,n))*Ukq(3,m)*dconjg(Ukq(4,m))
-						!tran(2)=Uk(1,n)*dconjg(Uk(1,n))*Ukq(3,m)*dconjg(Ukq(3,m))
+						tran(1)=(Uk(1,n)*dconjg(Uk(1,n))*Ukq(3,m)*dconjg(Ukq(3,m))-&
+							Uk(2,n)*dconjg(Uk(1,n))*Ukq(3,m)*dconjg(Ukq(4,m)))*(cos(k(1))-cos(k(2)))**2
 					end select
 					if(abs(ek(n)-ekq(m))>cvg/1000d0) then
-						Xq(1)=Xq(1)+tran(1)*(fk(n)-fkq(m))/(ek(n)-ekq(m))*(cos(k(1))-cos(k(2)))**2
-						!Xq(2)=Xq(2)+tran(2)*(fk(n)-fkq(m))/(ek(n)-ekq(m))*(cos(k(1))-cos(k(2)))**2
+						Xq(1)=Xq(1)+tran(1)*(fk(n)-fkq(m))/(ek(n)-ekq(m))
 					endif
 				enddo
 			enddo

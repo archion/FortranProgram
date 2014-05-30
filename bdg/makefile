@@ -8,8 +8,8 @@
 	# rm FFT.o FFT.out
 out=bdg_no.out
 #FCCFLAG= -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-FCCFLAG = -llapack95 -llapack 
-FFCMOD = -I /usr/lib/lapack95_modules
+FCCFLAG = -L ../lib -llapack95 -llapack -lmy
+FFCMOD = -I /usr/lib/lapack95_modules -I ../lib
 FFCOPT = 
 FCC = gfortran
 OMPFLAG = -fopenmp
