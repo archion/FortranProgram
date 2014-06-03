@@ -3,7 +3,7 @@ module global
 	save
 	real(8), parameter ::t(5)=(/2d0,-0.9d0,0.000d0,0.d0,0d0/),escal=0.25d0,pi=3.1415926d0,cvg=1e-5,DJ=0.75d0,V=-3d0
 	real(8) :: nf=0.8d0,Tk
-	integer, parameter :: mk=512,mq=512,mo=512,mro=512
+	integer, parameter :: mk=128,mq=128,mo=512,mro=512
 	complex(8),parameter :: img=(0d0,1d0)
 	contains
 	subroutine spinsus(dt,ap,sp,q,omg,Xq)
@@ -33,29 +33,38 @@ module global
 		!$OMP END PARALLEL DO
 		Xq=Xq/mq**2
 	end subroutine
-	subroutine greenfunc(dt,ap,sp,omg,sfeg,G0)
+	subroutine greenfunc(dt,ap,sp,omg,G0,G0_inv)
 		implicit none
-		integer :: i,j,l,m,n,o,ii,jj,sig
-		complex(8) :: Uk(2,2),omg(:),G0(:,0:,0:,:),sfeg(:,0:,0:,:)
+		integer :: i,j,l,m,n,o,p,ii,jj,sig
+		complex(8) :: Uk(2,2),omg(:),G0(:,0:,0:,:,:),G0_inv(:,0:,0:,:,:)
 		real(8) :: dt,ap,sp,ek(2),k(2)
 		G0=0d0
+		G0_inv=0d0
 		l=size(G0,4)
 		o=size(G0,2)
-		!$OMP PARALLEL DO PRIVATE(ii,jj,sig,k,ek,Uk) SCHEDULE(GUIDED)
+		!$OMP PARALLEL DO PRIVATE(k,ek,Uk) SCHEDULE(GUIDED)
 		do i=0,o/2
 			do j=0,i
 				k=(/i,j/)*2d0*pi/o
 				call EU(k,dt,ap,sp,ek,Uk)
 				do m=1,l
 					do n=1,l
-						G0(:,i,j,m)=G0(:,i,j,m)+Uk(1,n)*dconjg(Uk(m,n))/(omg-ek(n)-sfeg(:,i,j,m))
+						do p=1,l
+							G0(:,i,j,m,n)=G0(:,i,j,m,n)-(-1)**(m+n)*Uk(mod(n*2,3),p)*dconjg(Uk(mod(m*2,3),p))/(-omg-ek(p))
+							!G0(:,i,j,m,n)=G0(:,i,j,m,n)+Uk(m,p)*dconjg(Uk(n,p))/(omg-ek(p))
+							G0_inv(:,i,j,m,n)=G0_inv(:,i,j,m,n)+Uk(m,p)*dconjg(Uk(n,p))*(omg-ek(p))
+						enddo
 					enddo
 				enddo
 			enddo
 		enddo
 		!$OMP END PARALLEL DO
-		call symfill(G0(:,:,:,1),1)
-		call symfill(G0(:,:,:,2),-1)
+		do i=1,l
+			do j=1,l
+				call symfill(G0(:,:,:,i,j),(-1)**(i+j))
+				call symfill(G0_inv(:,:,:,i,j),(-1)**(i+j))
+			enddo
+		enddo
 	end subroutine
 	subroutine effint(dt,ap,sp,omg,Veff)
 		use fft, only : fft3d
@@ -107,49 +116,24 @@ module global
 		enddo
 		!$OMP END PARALLEL DO
 	end subroutine
-	subroutine effintfft(omg,G0,Veff)
-		use fft, only : fft3d
-		implicit none
-		integer :: i,j,n,ii,jj
-		real(8) :: dt,ap,sp,DJq,q(2)
-		complex(8) :: Veff(:,0:,0:),omg(:),G0(:,:,:,:),&
-			Gtmp(size(G0,1),size(G0,2),size(G0,3),size(G0,4))
-		n=size(Veff,2)
-		Gtmp=G0
-		call fft3d(Gtmp(:,:,:,1),-1)
-		call fft3d(Gtmp(:,:,:,2),-1)
-		call fermimats(Gtmp(:,:,:,1),-1)
-		call fermimats(Gtmp(:,:,:,2),-1)
-		Veff=Gtmp(:,:,:,1)*Gtmp(:,:,:,1)-Gtmp(:,:,:,2)*Gtmp(:,:,:,2)
-		call fft3d(Veff,1)
-	end subroutine
 	subroutine selfe(G0,Veff,sfeg)
 		use fft
 		implicit none
-		complex(8) :: sfeg(:,:,:,:),Veff(:,:,:),G0(:,:,:,:),&
-			Gtmp(size(G0,1),size(G0,2),size(G0,3),size(G0,4))
+		integer :: i,j,n
+		complex(8) :: sfeg(:,:,:,:,:),Veff(:,:,:),G0(:,:,:,:,:),&
+			Gtmp(size(G0,1),size(G0,2),size(G0,3),size(G0,4),size(G0,5))
 		real(8) :: k(2),q(2),sp,bt,dt,ap,ek(2),ekq(2),fk(2),fkq(2),DJq
+		n=size(G0,4)
 		Gtmp=G0
-		call fft3d(Gtmp(:,:,:,1),-1)
-		call fft3d(Gtmp(:,:,:,2),-1)
 		call fft3d(Veff,-1)
-		sfeg(:,:,:,1)=Gtmp(:,:,:,1)*Veff
-		sfeg(:,:,:,2)=Gtmp(:,:,:,2)*Veff
-		call fft3d(sfeg(:,:,:,1),1)
-		call fft3d(sfeg(:,:,:,2),1)
-		sfeg=sfeg*Tk*size(Gtmp,1)
-	end subroutine
-	subroutine fermimats(G,sig)
-		implicit none
-		integer :: i,sig,m
-		complex(8) :: w,wp,G(:,:,:)
-		m=size(G,1)
-		wp=cmplx(-2d0*sin(sig*pi/(2*m))**2,sin(sig*pi/m))
-		w=cmplx(1d0,0d0)
-		do i=1,m
-			G(i,:,:)=G(i,:,:)*w
-			w=w*wp+w
+		do i=1,n
+			do j=1,n
+				call fft3d(Gtmp(:,:,:,i,j),-1)
+				sfeg(:,:,:,i,j)=Gtmp(:,:,:,i,j)*Veff
+				call fft3d(sfeg(:,:,:,i,j),1)
+			enddo
 		enddo
+		sfeg=sfeg*Tk*size(Gtmp,1)
 	end subroutine
 	subroutine rpainstable(dt,ap,sp,q)
 		implicit none
@@ -178,27 +162,6 @@ module global
 		!$OMP END PARALLEL DO
 		Xq=Xq/mq**2
 		write(*,"(2e16.3)")1d0-nf,1d0+DJq*Xq
-	end subroutine
-	subroutine band(dt,ap,sp,ki,kf)
-		implicit none
-		integer :: i,l
-		complex(8) :: Uk(2,2),Ukq(2,2)
-		real(8) :: ki(2),kf(2),kn(2),ek(2),ekq(2),sp,dt,ap
-		kn=ki
-		i=0
-		do
-			kn=kn+(kf-ki)/sqrt(sum((kf-ki)**2))*pi/mq
-			call EU(kn,dt,ap,sp,ek,Uk)
-			call EU(kn+(/pi,pi/),dt,ap,sp,ekq,Ukq)
-			!export band
-			!write(10,"(10e16.3)")(ek(l),abs(Uk(1,l)),l=1,4)
-			write(10,"(12e16.3)")(ek(l),abs(Uk(1,l)),l=1,2),(ekq(l),abs(Ukq(1,l)),l=1,2),(ek(l)+ekq(l),1.0,l=1,2)
-			if(all((kn-kf)*(kf-ki)>=0d0)) then
-				exit
-			endif
-			i=i+1
-		enddo
-		write(*,*)i
 	end subroutine
 	subroutine selfconsist_tg(dt,ap,sp)
 		implicit none
@@ -301,10 +264,10 @@ program main
 	use green
 	use fft, only: fft1d, fft3d
 	implicit none
-	complex(8) :: iomgf(mo),iomgb(mo),romg(mro),G0(size(iomgb),mq,mq,2),rG0(size(romg),mq,mq,2),&
-		Veff(size(G0,1),size(G0,2),size(G0,3)),sfeg(size(G0,1),size(G0,2),size(G0,3),2),Gf(size(G0,1),size(G0,2),size(G0,3),2),&
-		rVeff(size(rG0,1),size(rG0,2),size(rG0,3)),rsfeg(size(rG0,1),size(rG0,2),size(rG0,3),2),&
-		rGf(size(rG0,1),size(rG0,2),size(rG0,3),2)
+	complex(8) :: iomgf(mo),iomgb(mo),romg(mro),G0(size(iomgb),mq,mq,2,2),G0_inv(size(iomgb),mq,mq,2,2),rG0(size(romg),mq,mq,2,2),&
+		Veff(size(G0,1),size(G0,2),size(G0,3)),sfeg(size(G0,1),size(G0,2),size(G0,3),2,2),Gf(size(G0,1),size(G0,2),size(G0,3),2,2),&
+		rVeff(size(rG0,1),size(rG0,2),size(rG0,3)),rsfeg(size(rG0,1),size(rG0,2),size(rG0,3),2,2),&
+		rGf(size(rG0,1),size(rG0,2),size(rG0,3),2,2)
 	real(8) :: k(2),sp=0d0,bt,dt,pdt,ap=0.1d0,th,gap,Tc,pk(3),pk0(3),peak(2),&
 		nd(3)=(/0.0025d0,0.114d0,0.178d0/),Td(3)=(/0d0,40d0,70d0/),it=0.002d0,omgrg(2)=(/-2d0,2d0/),DOS(mro),DJq,ek
 	integer :: i,j,l,ntmp
@@ -314,7 +277,7 @@ program main
 	!do i=24,72,8
 	!nf=0.94d0
 	!Tk=0.02d0
-	Tk=0.005d0
+	Tk=0.01d0
 	!iomgf=(/(cmplx(0d0,pi*Tk*(2d0*(i-1)+1)),i=-size(iomgf)/2+1,size(iomgf)/2)/)
 	ntmp=size(iomgf)
 	iomgf=(/(cmplx(0d0,pi*Tk*(2*(i-i/(ntmp/2)*ntmp)+1)),i=0,ntmp-1)/)
@@ -337,7 +300,7 @@ program main
 			call selfconsist_tg(dt,ap,sp)
 			write(*,"('calculate greenfunction')")
 			sfeg=0d0
-			call greenfunc(dt,ap,sp,iomgf,sfeg,G0)
+			call greenfunc(dt,ap,sp,iomgf,G0,G0_inv)
 			write(*,"('finish')")
 			!ntmp=size(G0,1)/2
 			!do i=1,mq
@@ -444,32 +407,36 @@ program main
 			!enddo
 			write(*,"('calculate self energy')")
 			call selfe(G0,Veff,sfeg)
-			ntmp=size(sfeg,1)/2
-			!call pade(iomgf(ntmp+1:ntmp*2),sfeg(ntmp+1:ntmp*2,mq/2,int(0.075*mq),1),romg,rsfeg(:,mq/2,int(0.075*mq),1))
-			call pade(iomgf(1:ntmp),sfeg(1:ntmp,mq/2,int(0.075*mq),1),romg,rsfeg(:,mq/2,int(0.075*mq),1))
-			write(30,"(3e16.4)")(real(romg(i)),rsfeg(i,mq/2,int(0.075*mq),1),i=1,size(romg))
-			stop
-			call greenfunc(0d0,ap,sp,iomgf,sfeg,Gf)
+			!ntmp=size(sfeg,1)/2
+			!!call pade(iomgf(ntmp+1:ntmp*2),sfeg(ntmp+1:ntmp*2,mq/2,int(0.075*mq),1),romg,rsfeg(:,mq/2,int(0.075*mq),1))
+			!call pade(iomgf(1:ntmp),sfeg(1:ntmp,mq/2,int(0.075*mq),1,2),romg,rsfeg(:,mq/2,int(0.075*mq),1,2))
+			!call pade(iomgf(1:ntmp),sfeg(1:ntmp,mq/2,int(0.075*mq),1,1),romg,rsfeg(:,mq/2,int(0.075*mq),1,1))
+			!write(30,"(5e16.4)")(real(romg(i)),rsfeg(i,mq/2,int(0.075*mq),1,1),rsfeg(i,mq/2,int(0.075*mq),1,2),i=1,size(romg))
+			!stop
+			!call greenfunc(0d0,ap,sp,iomgf,sfeg,Gf)
 			!call greenfunc(dt,ap,sp,iomgf,sfeg,Gf)
-			do i=1,mq
-				do j=1,mq
-					k=(/i,j/)*2d0*pi/mq
-					sfeg(:,i,j,2)=dt*0.5d0*(cos(k(1))-cos(k(2)))+sfeg(:,i,j,2)
-					!sfeg(:,i,j,2)=dt*0.5d0*(cos(k(1))-cos(k(2)))
-				enddo
-			enddo
-			do i=1,mo
-				Gf(i,:,:,1)=(1d0-nf)*Gf(i,:,:,1)/(1d0+sfeg(i,:,:,2)*dconjg(sfeg(i,:,:,2))*Gf(mo-i+1,:,:,1)*Gf(i,:,:,1))
-			enddo
+			Gf=G0_inv-sfeg
+			Gf(:,:,:,1,1)=(1d0-nf)*Gf(:,:,:,2,2)/(Gf(:,:,:,1,1)*Gf(:,:,:,2,2)-Gf(:,:,:,1,2)*Gf(:,:,:,2,1))
+			!do i=1,mq
+				!do j=1,mq
+					!k=(/i,j/)*2d0*pi/mq
+					!sfeg(:,i,j,2)=dt*0.5d0*(cos(k(1))-cos(k(2)))+sfeg(:,i,j,2)
+					!!sfeg(:,i,j,2)=dt*0.5d0*(cos(k(1))-cos(k(2)))
+				!enddo
+			!enddo
+			!do i=1,mo
+				!Gf(i,:,:,1)=(1d0-nf)*Gf(i,:,:,1)/(1d0+sfeg(i,:,:,2)*dconjg(sfeg(mo-i+1,:,:,2))*Gf(mo-i+1,:,:,1)*Gf(i,:,:,1))
+			!enddo
 			write(*,"('calculate pade')")
 			!ntmp=size(sfeg,1)/2
 			!call pade(iomgf(ntmp+1:ntmp*2),sfeg(ntmp+1:ntmp*2,mq/2,int(0.075*mq),1),romg,rsfeg(:,mq/2,int(0.075*mq),1))
 			!call pade(iomgf(ntmp+1:ntmp*2),sfeg(ntmp+1:ntmp*2,mq/2,int(0.075*mq),2),romg,rsfeg(:,mq/2,int(0.075*mq),2))
 			ntmp=size(Gf,1)/2
-			call pade(iomgf(1:ntmp),Gf(1:ntmp,mq/2,int(0.075*mq),1),romg,rGf(:,mq/2,int(0.075*mq),1))
+			call pade(iomgf(1:ntmp),Gf(1:ntmp,mq/2,int(0.075*mq),1,1),romg,rGf(:,mq/2,int(0.075*mq),1,1))
+			!call pade(iomgf(ntmp+1:ntmp*2),Gf(ntmp+1:ntmp*2,mq/2,int(0.075*mq),1,1),romg,rGf(:,mq/2,int(0.075*mq),1,1))
 			write(*,"('export data')")
 			!write(30,"(3e16.4)")(dimag(iomgf(i)),sfeg(i,mq/2,int(0.75*mq)),i=1,size(iomgf))
-			write(30,"(3e16.4)")(real(romg(i)),rGf(i,mq/2,int(0.075*mq),1),i=1,size(romg))
+			write(30,"(3e16.4)")(real(romg(i)),rGf(i,mq/2,int(0.075*mq),1,1),i=1,size(romg))
 			!write(30,"(3e16.4)")(dimag(iomgf(i)),Gf(i,mq/2,int(0.075*mq),1),i=1,size(iomgf))
 			stop
 			!do i=1,mk
@@ -521,7 +488,7 @@ subroutine fileopen()
 	implicit none
 	open(unit=10,file="../data/energy.dat")
 	open(unit=20,file="../data/fermi.dat")
-	open(unit=30,file="../data/EDC2.dat")
+	open(unit=30,file="../data/EDC.dat")
 	open(unit=40,file="../data/gaptemp.dat")
 	open(unit=50,file="../data/rpa.dat")
 	open(unit=60,file="../data/gaptheta.dat")
