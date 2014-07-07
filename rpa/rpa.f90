@@ -27,7 +27,7 @@ program main
 			qy=pi*(1d0+0.5d0*j/mq)
 			call susp(qx,qy,dt,sp,Tk,omg,Xq)
 			Jq=al*DJ*(cos(qx)+cos(qy))
-			Xq_RPA=dimag((Xq(1,1)-Jq*(Xq(1,1)*Xq(2,2)+Xq(1,2)*Xq(2,1)))/&
+			Xq_RPA=dimag((Xq(1,1)-Jq*(Xq(1,1)*Xq(2,2)-Xq(1,2)*Xq(2,1)))/&
 				(1d0+Jq*(Xq(1,1)-Xq(2,2))-Jq**2*(Xq(1,1)*Xq(2,2)-Xq(1,2)*Xq(2,1))))
 			write(10,"(4e16.3)")qx-pi,qy-pi,dimag(Xq(1,1)),Xq_RPA
 		enddo
