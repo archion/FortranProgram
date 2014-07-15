@@ -41,7 +41,7 @@ module vmc
 	use rn
 	implicit none
 	contains
-		subroutine v(pg,sc)
+		subroutine ini(pg,sc,wf)
 			use fft
 			do i=1,Ns
 				do j=1,Ns
@@ -49,7 +49,6 @@ module vmc
 				enddo
 			enddo
 			call fft2d(alp)
-			call fisher_yates_shuffle(tmp,Ns)
 			ep(:,1)=tmp(1:n/2)
 			ep(:,2)=tmp(n/2+1:n)
 			hp(:)=tmp(n+1:Ns)
@@ -58,35 +57,62 @@ module vmc
 					psi(i,j)=alp(ep(i,1)-ep(j,2))
 				enddo
 			enddo
-			call mc(psi,E)
 		end subroutine
-		subroutine mc(pg,sc)
-			psinv=psi
-			call matrix_inv(psinv)
+		subroutine mc(wf)
+			call fisher_yates_shuffle(cfg,Ns)
+			icfg=0
+			do i=1,ne2
+				icfg(cfg(i),1)=1
+				icfg(cfg(i),2)=i
+				icfg(cfg(i+ne2),1)=-1
+				icfg(cfg(i+ne2),2)=i+ne2
+			enddo
+			do i=1,ne2
+				do j=1,ne2
+					iA(i,j)=wf(cfg(i)-cfg(ne2+j))
+				enddo
+			enddo
+			call matrix_inv(iA)
 			call phy(psinv,E)
 			do
-				call irandom(ri,ne)
-				call irandom(ni,Ns-ne)
-				npsi=psi
-				if(ri/ne2==0) then
-					ep(mod(ri,ne2),1)=hp(ni)
-					do i=1,ne2
-						npsi(mod(ri,ne2),i)=alp(ep(mod(ri,ne2),1)-ep(i,2))
+				U=0d0
+				V=0d0
+				call random_number(i,ne)
+				call random_number(j,Ns-ne2)
+				cfgp=cfg
+				if(j>ne2) then
+					sg=i/(ne2+1)+1
+					cr=(/(2-sg),sg-1/)*i
+					j=ne+j
+					cfgp(i)=cfg(j)
+					cfgp(j)=cfg(i)
+					do k=1,ne/2
+						uv(k,sg)=wf(cfg(i)-cfg(ne2*(2-sg)+k))-wf(cfgp(i)-cfg(ne2*(2-sg)+k))
 					enddo
 				else
-					ep(mod(ri,ne2),2)=hp(ni)
-					do i=1,ne2
-						npsi(i,mod(ri,ne2))=alp(ep(mod(ri,ne2),1)-ep(i,2))
+					sg=3
+					cr=(/i,j/)
+					cfgp(i)=cfg(j)
+					cfgp(j)=cfg(i)
+					j=j+i/(ne2+1)*ne2
+					do k=1,ne/2
 					enddo
 				endif
-				call det(npsi,psinv,pb)
+				call det(uv,cr,iA,dv,pb,sg)
 				call random_number(tmp)
-				if(tmp<pb) then
-					call update_inv(psinv,pb)
-					if(Nck>100) then
-						Nck=0
-						psinv=psi
-						call matrix_inv(psinv)
+				if(tmp<pb*dconjg(pb)) then
+					icfg(cfg(i),1)=1
+					icfg(cfg(i),2)=i
+					icfg(cfg(i+ne2),1)=-1
+					icfg(cfg(i+ne2),2)=i+ne2
+					call invupdate(U,V,cr,iA,dv,sg)
+					if(mod(Nmc,100)==0) then
+						do i=1,ne2
+							do j=1,ne2
+								iA(i,j)=wf(cfg(i)-cfg(ne2+j))
+							enddo
+						enddo
+						call matrix_inv(iA)
 					endif
 					call phy(psi,psinv,E)
 				endif
@@ -95,22 +121,90 @@ module vmc
 					exit
 				endif
 				Nmc=Nmc+1
-				Nck=Nck+1
 			enddo
 		end subroutine
-		subroutine det(npsi,psinv,pb)
-			pb=0d0
-			do i=1,ne2
-				pb=pb+npsi(i,l)*psinv(i,l)
+		subroutine det(uv,cr,iA,dv,pb,sg)
+			complex(8) :: uv(:,:),iA(:,:),dv(:,:),pb
+			integer :: cr(:),sg,i
+			dv=0d0
+			if(sg==3) then
+				dv(1,1)=dot_product(iA(cr(1),:),uv(:,1))+1d0
+				dv(2,2)=dot_product(iA(:,cr(2)),uv(:,2))+1d0
+				dv(1,2)=A(cr(1),cr(2))
+				do i=1,ne2
+					dv(2,1)=dv(2,1)+dot_product(iA(:,i),uv(:,1))*uv(i,2)
+				enddo
+			else
+				if(sg==1) then
+					dv(1,1)=dot_product(iA(cr(1),:),uv(:,1))+1d0
+					dv(2,2)=1d0
+				else
+					dv(1,1)=1d0
+					dv(2,2)=dot_product(iA(:,cr(2)),uv(:,2))+1d0
+				endif
+			endif
+			pb=dv(1,1)*dv(2,2)-dv(1,2)*dv(2,1)
+		end subroutine
+		subroutine invupdate(uv,cr,,dv,sg)
+			complex(8) :: uv(:,:),iA(:,:),dv(:,:),pb
+			integer :: cr(:),n,s,i,j
+			n=size(iA,1)
+			if(sg==3) then
+				do i=1,n
+					uv(i,1)=dot_product(iA(i,:),uv(:,1))
+					uv(i,2)=dot_product(iA(:,i),uv(:,2))
+				enddo
+				do i=1,n
+					do j=1,n
+						iA(i,j)=iA(i,j)-1d0/pb*((U(i,1)*dv(2,2)-iA(i,cr(1))*dv(2,1))*iA(cr(2),j)+(-uv(i,1)*dv(1,2)+iA(i,cr(1))*dv(1,1))*uv(j,2))
+					enddo
+				enddo
+			else
+				do i=1,n
+					do j=1,n
+						if(sg==1) then
+							iA(i,j)=iA(i,j)-1d0/pb*dot_product(iA(i,:),uv(:,1))*iA(cr(1),j)
+						else
+							iA(i,j)=iA(i,j)-1d0/pb*dot_product(iA(:,j),uv(:,2))*iA(i,cr(2))
+						endif
+					enddo
+				enddo
+			endif
+		end subroutine
+		subroutine jastrow()
+		end subroutine
+		subroutine energy(cfg)
+			E=0d0
+			do i=1,ne
+				do j=1,4
+					do k=1,size(t)
+						!hopping
+						if(icfg(latt(cfg(i),j,k))==0) then
+							sg=i/(ne2+1)+1
+							cr=(/(2-sg),sg-1/)*i
+							do k=1,ne/2
+								uv(k,sg)=wf(cfg(i)-cfg(ne2*(2-sg)+k))-wf(latt(cfg(i),j,1)-cfg(ne2*(2-sg)+k))
+							enddo
+							call det(uv,cr,iA,dv,pb,sg)
+							E=E+t(k)*pb
+						endif
+					enddo
+					!spin flip
+					if(icfg(latt(cfg(i),j,1))*icfg(cfg(i))==-1) then
+						cr=(/i,j/)
+						cfgp(i)=cfg(j)
+						cfgp(j)=cfg(i)
+						j=j+i/(ne2+1)*ne2
+						do k=1,ne/2
+						enddo
+						call det(uv,cr,iA,dv,sg)
+						E=E-DJ*pb
+					else
+						!diagnal
+						E=E+DJ*icfg(latt(cfg(i),j,1))*icfg(cfg(i))
+					endif
+				enddo
 			enddo
-		end subroutine
-		subroutine update_inv(psinv,pb)
-
-			psinv=psinv-1d0/pb*tmp
-		end subroutine
-		subroutine energy(wf,j)
-			call det
-
 		end subroutine
 		subroutine matrix_inv(A)
 			use lapack95
