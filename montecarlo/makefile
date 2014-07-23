@@ -1,9 +1,7 @@
-out=CoO.out
-#FCCFLAG= -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-OMPFLAG= -fopenmp
-#OMPFLAG= -openmp
-FCC = gfortran
-#FCC = ifort
+out=vmc_tJ.out
+FCC = ifort
+OMPFLAG= -openmp
+FCCFLAG= -lmkl_intel -lmkl_sequential -lmkl_core -lpthread -lmkl_lapack95
 all:$(out)
 %.out: %.o
 	$(FCC) $< -o $@ $(OMPFLAG) $(FCCFLAG)

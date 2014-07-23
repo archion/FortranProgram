@@ -5,7 +5,7 @@ module global
 	real(8) :: nf=0.8d0,Tk,it=0.005d0,omgrg(2)=(/-2d0,2d0/),qrg(2)=(/0d0,2d0/)*pi
 	character(3) :: pgflag="ddw"
 	!character(3) :: pgflag="sdw"
-	integer, parameter :: mk=64,mq=64,mo=512,mro=512
+	integer, parameter :: mk=16,mq=16,mo=16,mro=16
 	complex(8),parameter :: img=(0d0,1d0)
 	contains
 	subroutine spinsus(pg,sc,ap,sp,q,omg,Xq)
