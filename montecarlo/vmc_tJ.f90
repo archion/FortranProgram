@@ -1,16 +1,25 @@
 module global
 	implicit none
-	integer, parameter :: Ns(2)=(/8,8/),Ns2=Ns(1)*Ns(2),ne=Ns2,ne2=ne/2
+	integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)*Ns(2),ne=Ns2,ne2=ne/2
 	integer :: latt(Ns2,4,3),pbcx(-Ns(1)+1:2*Ns(1)),pbcy(-Ns(2)+1:2*Ns(2))
-	real(8), parameter :: t(3)=(/1d0,0d0,0d0/),DJ=0.5d0,pi=3.14159265359d0,cvg=1d-5
+	real(8), parameter :: t(3)=(/1d0,0d0,0d0/),DJ=0.5d0,pi=atan(1d0)*4d0,cvg=1d-5
 	complex(8), parameter :: img=(0d0,1d0)
 	contains
+		subroutine one2two(n,i,j)
+			integer :: n,i,j
+			i=(n-1)/Ns(1)
+			j=mod(n-1,Ns(1))
+		end subroutine
+		subroutine two2one(i,j,n)
+			integer :: n,i,j
+			n=i*Ns(1)+j+1
+		end subroutine
 		subroutine gen_latt_square()
-!					  j
+!					j=0...n-1
 !			 1 --  2 --  3 --  4
 !			 |     |     |     |           4      3   4
 !			 5 --  6 --  7 --  8           |       \ /
-!		i	 |     |     |     |        3--0--1     0
+!i=0...n-1	 |     |     |     |        3--0--1     0
 !			 9 -- 10 -- 11 -- 12           |       / \
 !			 |     |     |     |           2      2   1
 !			13 -- 14 -- 15 -- 16
@@ -19,21 +28,26 @@ module global
 			pbcx=(/(i,i=1,Ns(1)),(i,i=1,Ns(1)),(i,i=1,Ns(1))/)
 			pbcy=(/(i,i=1,Ns(2)),(i,i=1,Ns(2)),(i,i=1,Ns(2))/)
 			do ii=1,Ns2
-				j=mod(ii-1,Ns(1))+1
-				i=(ii-1)/Ns(1)+1
-				latt(ii,1,1)=Ns(1)*(i-1)+pbcx(j+1)
-				latt(ii,2,1)=Ns(1)*(pbcy(i+1)-1)+j
-				latt(ii,3,1)=Ns(1)*(i-1)+pbcx(j-1)
-				latt(ii,4,1)=Ns(1)*(pbcy(i-1)-1)+j
-				latt(ii,1,2)=Ns(1)*(pbcy(i+1)-1)+pbcx(j+1)
-				latt(ii,2,2)=Ns(1)*(pbcy(i+1)-1)+pbcx(j-1)
-				latt(ii,3,2)=Ns(1)*(pbcy(i-1)-1)+pbcx(j-1)
-				latt(ii,4,2)=Ns(1)*(pbcy(i-1)-1)+pbcx(j+1)
-				latt(ii,1,3)=Ns(1)*(i-1)+pbcx(j+2)
-				latt(ii,2,3)=Ns(1)*(pbcy(i+2)-1)+j
-				latt(ii,3,3)=Ns(1)*(i-1)+pbcx(j-2)
-				latt(ii,4,3)=Ns(1)*(pbcy(i-2)-1)+j
+				call one2two(ii,i,j)
+				call two2one(i,mod(j+1,Ns(1)),latt(ii,1,1))
+				call two2one(mod(i+1,Ns(2)),j,latt(ii,2,1))
+				call two2one(i,mod(j-1+Ns(1),Ns(1)),latt(ii,3,1))
+				call two2one(mod(i-1+Ns(2),Ns(2)),j,latt(ii,4,1))
+				!latt(ii,1,1)=Ns(1)*(i-1)+pbcx(j+1)
+				!latt(ii,2,1)=Ns(1)*(pbcy(i+1)-1)+j
+				!latt(ii,3,1)=Ns(1)*(i-1)+pbcx(j-1)
+				!latt(ii,4,1)=Ns(1)*(pbcy(i-1)-1)+j
+				!latt(ii,1,2)=Ns(1)*(pbcy(i+1)-1)+pbcx(j+1)
+				!latt(ii,2,2)=Ns(1)*(pbcy(i+1)-1)+pbcx(j-1)
+				!latt(ii,3,2)=Ns(1)*(pbcy(i-1)-1)+pbcx(j-1)
+				!latt(ii,4,2)=Ns(1)*(pbcy(i-1)-1)+pbcx(j+1)
+				!latt(ii,1,3)=Ns(1)*(i-1)+pbcx(j+2)
+				!latt(ii,2,3)=Ns(1)*(pbcy(i+2)-1)+j
+				!latt(ii,3,3)=Ns(1)*(i-1)+pbcx(j-2)
+				!latt(ii,4,3)=Ns(1)*(pbcy(i-2)-1)+j
 			enddo
+			!write(*,*)latt(13,:,1)
+			!stop
 		end subroutine gen_latt_square
 		subroutine cmwrite(f,A)
 			complex(8) :: A(:,:)
@@ -102,31 +116,35 @@ module vmc
 	implicit none
 	contains
 		subroutine ini(var,wf)
-			complex(8) :: wf(:,:)
-			real(8) :: k(2),var(:),Ek,sck
+			complex(8) :: wf(0:,0:)
+			real(8) :: k(2),var(:),Ek,sck,tmp
 			integer :: i,j,ix,jx,ik,jk
-			call gen_latt_square()
 			wf=0d0
-			do i=1,Ns2
-				jx=mod(i-1,Ns(1))+1
-				ix=(i-1)/Ns(1)+1
-				do j=1,Ns2
-					jk=mod(j-1,Ns(1))+1
-					ik=(j-1)/Ns(1)+1
-					k=(/2d0*pi/Ns(1)*jk,2d0*pi/Ns(2)*ik-pi/Ns(2)/)-pi
-					!k=(/2d0*pi/Ns(1)*jk,2d0*pi/Ns(2)*ik/)-pi
-					Ek=-4d0*t(2)*cos(k(1))*cos(k(2))-2d0*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))-2d0*t(1)*(cos(k(1))+cos(k(2)))-var(2)
-					sck=(cos(k(1))-cos(k(2)))*var(1)
-					!sck=var(1)
-					!write(*,"('*'6I3)")i,ix,jx,j,jk,ik
-					!write(*,"(2e20.10)")real(wf(ix,jx)),real(sck/(Ek+sqrt(Ek**2+sck**2))*exp(img*(k(1)*jx+k(2)*ix)))
-					wf(ix,jx)=wf(ix,jx)+sck/(Ek+sqrt(Ek**2+sck**2))*exp(img*(k(1)*jx+k(2)*ix))
-					!write(*,"(2e20.10)")real(wf(ix,jx)),real(sck/(Ek+sqrt(Ek**2+sck**2))*exp(img*(k(1)*jx+k(2)*ix)))
+			do j=1,Ns2
+				call one2two(j,ik,jk)
+				k=(/2d0*pi/Ns(1)*jk,2d0*pi/Ns(2)*ik-pi/Ns(2)/)-pi
+				!k=(/2d0*pi/Ns(1)*jk,2d0*pi/Ns(2)*ik/)-pi
+				Ek=-2d0*t(1)*(cos(k(1))+cos(k(2)))-var(2)
+				sck=(cos(k(1))-cos(k(2)))*var(1)
+				!sck=var(1)
+				tmp=sck/(Ek+sqrt(Ek**2+sck**2))
+				!tmp=sck
+				!wf(ik,jk)=tmp
+				do i=1,Ns2
+					!exit
+					call one2two(i,ix,jx)
+					wf(ix,jx)=wf(ix,jx)+tmp*exp(img*(k(1)*jx+k(2)*ix))
+					!wf(ix,jx)=wf(ix,jx)+tmp*cos(k(1)*jx+k(2)*ix)
 					if(isnan(real(wf(ix,jx)))) then
+						write(*,"(A)")"NAN in wf, quit!!"
 						stop
 					endif
 				enddo
 			enddo
+			wf=wf/maxval(abs(wf))
+			!call rmwrite(10,imag(wf))
+			!call rmwrite(10,real(wf))
+			!stop
 		end subroutine
 		subroutine mc(wf,Nmc,E)
 			complex(8) :: pb,A(ne2,ne2),iA(ne2,ne2),vu(ne2,2),wf(:,:),Y(2,2),jw,E,El
@@ -164,11 +182,12 @@ module vmc
 				icfg(cfg(i))=i
 			enddo
 			do i=1,ne2
-				call pair(vu(:,2),cfg(i),wf,cfg,0)
-				A(i,:)=vu(:,2)
+				call pair(vu(:,1),cfg(i),wf,cfg,0)
+				A(i,:)=vu(:,1)
 			enddo
 			iA=A
 			call matrix_inv(iA)
+			call energy(cfg,icfg,wf,A,iA,El)
 			!iA=matmul(iA,A)
 			!call cmwrite(10,iA)
 			!stop
@@ -179,6 +198,7 @@ module vmc
 				call irandom(i,ne)
 				call irandom(j,Ns2-ne2)
 				vu=0d0
+				cr=0
 				if(j>ne2) then
 					j=ne2+j
 					sg=(i-1)/ne2+1
@@ -193,7 +213,6 @@ module vmc
 					endif
 					cr=(/i,j-ne2/)
 					call pair(vu(:,1),cfg(j),wf,cfg,0)
-					vu(cr(2),1)=0d0
 					call pair(vu(:,2),cfg(i),wf,cfg,1)
 					!write(*,*)vu(cr(2),1)-vu(cr(1),2)
 				endif
@@ -238,13 +257,17 @@ module vmc
 				!call jast(cfg,cr,sg,v,jw)
 				call random_number(rpb)
 				!write(*,*)real(pb*jw*dconjg(pb*jw))
-				if(rpb<real(pb*jw*dconjg(pb*jw))) then
+				if(rpb<abs(pb*jw)**2) then
 					acp=acp+1
-					call swap(cfg(i),cfg(j))
 					call swap(icfg(cfg(i)),icfg(cfg(j)))
+					call swap(cfg(i),cfg(j))
 					call update(vu,cr,A,iA,Y,pb,sg)
 					!call checkinv(A,iA,rpb)
-					!if(rpb>1d-10) then
+					!if(rpb>1d-6) then
+						!write(*,*)n,rpb
+						!iA=A
+						!call matrix_inv(iA)
+						!call checkinv(A,iA,rpb)
 						!write(*,*)n,rpb
 					!endif
 					!call checkcfg(icfg,80)
@@ -253,28 +276,33 @@ module vmc
 						call matrix_inv(iA)
 					endif
 					call energy(cfg,icfg,wf,A,iA,El)
+					!write(*,*)El
+					!exit
 				endif
 				E=E+El
 				if(n>=Nmc) then
-					E=E/Nmc
+					E=E/(Nmc*Ns2)
 					exit
 				endif
 			enddo
-			write(*,"('accept/total number is ',I5,'/',I5)")acp,n
+			!write(*,"('accept/total number is ',I5,'/',I5)")acp,n
 		end subroutine
 		subroutine pair(vu,r,wf,cfg,sg)
-			complex(8) :: vu(:),wf(:,:)
-			integer :: sg,s1,s2,i,ix,iy,r,cfg(:),n
+			complex(8) :: vu(:),wf(0:,0:)
+			integer :: sg,s1,i,ir,jr,ii,jj,r,cfg(:),n
+			real(8) :: s2
 			s1=(-1)**sg
-			n=sg*size(vu,1)
+			s2=1d0
+			n=abs(sg-1)*size(vu,1)
+			call one2two(r,ir,jr)
 			do i=1,size(vu,1)
-				ix=s1*(mod(r-1,Ns(1))-mod(cfg(n+i)-1,Ns(1)))
-				iy=s1*((r-1)/Ns(1)-(cfg(n+i)-1)/Ns(1))
-				s2=sign(1,iy)
-				ix=mod(ix+Ns(1),Ns(1))+1
-				iy=mod(iy+Ns(2),Ns(2))+1
-				vu(i)=wf(ix,iy)*s2
-				!vu(i)=wf(ix,iy)
+				call one2two(cfg(n+i),ii,jj)
+				ii=s1*(ir-ii)
+				jj=s1*(jr-jj)
+				s2=sign(1d0,jj+0.1d0)
+				ii=mod(ii+Ns(2),Ns(2))
+				jj=mod(jj+Ns(1),Ns(1))
+				vu(i)=wf(ii,jj)*s2
 			enddo
 		end subroutine
 		subroutine det(vu,cr,A,iA,Y,pb,sg)
@@ -393,29 +421,28 @@ module vmc
 						jw=1d0
 						!call jast(cfg,cr,sg,v,jw)
 						if(abs(k-cfg(i))>2*Ns(1)) then
-							El=El+t(1)*pb*jw
+							El=El+t(1)*dconjg(pb)*jw
 						else
-							El=El-t(1)*pb*jw
+							El=El-t(1)*dconjg(pb)*jw
 						endif
 						cycle
 					endif
+					!diagnal
+					!El=El-0.125d0*DJ*sign(1d0,j-ne2-0.5d0)
 					if(i>ne2) then
 						cycle
 					endif
-					!!diagnal
-					!El=El-0.5d0*DJ*sign(1d0,j-ne2-0.5d0)
 					if(j>ne2) then
 						!diagnal
-						El=El-0.5d0*DJ*sign(1d0,j-ne2-0.5d0)
+						El=El-0.5d0*DJ
 						!spin flip
 						cr=(/i,j-ne2/)
 						call pair(vu(:,1),cfg(j),wf,cfg,0)
-						vu(i,1)=0d0
 						call pair(vu(:,2),cfg(i),wf,cfg,1)
 						call det(vu,cr,A,iA,Y,pb,3)
 						jw=1d0
 						!call jast(cfg,cr,sg,v,jw)
-						El=El+0.5d0*DJ*pb*jw
+						El=El+0.5d0*DJ*dconjg(pb)*jw
 					endif
 				enddo
 			enddo
@@ -475,17 +502,35 @@ end module
 program main
 	use vmc
 	complex(8) :: wf(Ns(2),Ns(1)),E
-	real(8) :: var(2)=(/0.1d0,0d0/),dvar(2)
+	real(8) :: var(2)=(/0.01d0,0d0/),dvar(2),Eb,E2,l
+	integer :: n,i,j
 	open(10,file="../data/test.dat")
+	write(10,"(A)")"#data"
 	call init_random_seed()
-	!do
+	call gen_latt_square()
+	n=48
+	l=-2d0
+	do
+		Eb=0d0
+		E2=0d0
+		var(1)=10d0**l
 		call ini(var,wf)
-		call mc(wf,50000,E)
-		write(*,*)E
-		!if(all(abs(dvar)<cvg)) then
+		!$OMP PARALLEL DO REDUCTION(+:Eb,E2) PRIVATE(E) SCHEDULE(STATIC)
+		do j=1,n
+			call mc(wf,50000,E)
+			Eb=Eb+real(E)
+			E2=E2+real(E)**2
+			!if(all(abs(dvar)<cvg)) then
 			!exit
-		!else
+			!else
 			!var=var+dvar
-		!endif
-	!enddo
+			!endif
+			!exit
+		enddo
+		!$OMP END PARALLEL DO
+		write(*,*)var(1),Eb/n,sqrt(abs((Eb/n)**2-E2/n))
+		write(10,*)var(1),Eb/n,sqrt(abs((Eb/n)**2-E2/n))
+		!exit
+		l=l+0.2d0
+	enddo
 end
