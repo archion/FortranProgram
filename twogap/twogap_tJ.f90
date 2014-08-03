@@ -1,7 +1,9 @@
 module global
 	implicit none
 	save
-	real(8), parameter ::t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),escal=0.125d0,pi=3.1415926d0,cvg=1e-6,V=0.d0,DJ=0.25d0,&
+	real(8), parameter ::t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),escal=0.125d0,pi=3.1415926d0,cvg=1e-6,&
+		!V=0.12d0,DJ=0.35d0,&
+		V=0.d0,DJ=0.25d0,&
 		Vs=DJ-V,Vd=0.5d0*DJ+V
 	real(8) :: nf=0.8d0
 	!character(3) :: pgflag="ddw"
@@ -26,7 +28,7 @@ program main
 	call gnuplot
 	!do i=24,96,1
 	!do i=24,72,8
-	nf=0.9d0
+	nf=1d0
 	sp=0d0
 	!do i=1,3
 	do
@@ -56,7 +58,7 @@ program main
 			!endif
 		!enddo
 		Tk=0.0001d0
-		dTk=0.001d0
+		dTk=0.002d0
 		!Tk=0.12d0
 		!dTk=-0.002d0
 		i=1
@@ -71,9 +73,11 @@ program main
 			!call freeenergy(pg,sc,ap,sp,Tk,feg,ddf)
 			write(*,"(e12.4$)")nf,Tk,sp,sc,pg,ap,feg,ddf
 			write(*,"(1X)")
-			write(40,"(e12.4$)")Tk,sc*Vs,pg*DJ*0.5d0
+			write(40,"(e12.4$)")nf,Tk,sc*Vs,pg*DJ*0.5d0,ap*Vd
 			!write(40,"(e12.4$)")Tk,sc*Vs,pg*Vd
 			!write(90,"(e12.4$)")Tk,feg
+			!sc=0.01d0
+			!pg=0.d0
 			!sc=sc+0.1d0
 			!pg=0d0
 			!call selforder(pg,sc,ap,sp,Tk,1)
@@ -101,17 +105,17 @@ program main
 			!write(90,"(1X)")
 			!write(40,"(e12.4$)")sc,pg
 			write(40,"(1X)")
-			!!!!!!!!!!!!!!!!!!!!!!!meanfield begin!!!!!!!!!!!!!!!!!!!!!!!!
-			!if((sc-cvg*100)*psc<0d0) then
-				!psc=-psc
-				!write(80,"(e12.4$)")Tk
-			!endif
-			!if((pg-cvg*100)*ppg<0d0) then
-				!ppg=-ppg
-				!write(80,"(e12.4$)")Tk
-			!endif
-			!write(50,"(F5.0)")Tk
-			!!!!!!!!!!!!!!!!!!!!!!!!meanfield end!!!!!!!!!!!!!!!!!!!!!!!!
+			!!!!!!!!!!!!!!!!!!!!!!meanfield begin!!!!!!!!!!!!!!!!!!!!!!!!
+			if((sc-cvg*100)*psc<0d0) then
+				psc=-psc
+				write(80,"(e12.4$)")Tk
+			endif
+			if((pg-cvg*100)*ppg<0d0) then
+				ppg=-ppg
+				write(80,"(e12.4$)")Tk
+			endif
+			write(50,"(F5.0)")Tk
+			!!!!!!!!!!!!!!!!!!!!!!!meanfield end!!!!!!!!!!!!!!!!!!!!!!!!
 			!!!!!!!!!!!!!!!!!!!!!!!!!!instable begin!!!!!!!!!!!!!!!!!!!!!!!!
 			!call rpainstable(pg,sc,ap,sp,Tk,den)
 			!write(*,"(e10.3$)")nf,Tk,sp,den,pg,sc,ap
@@ -141,8 +145,8 @@ program main
 				!exit
 			!endif
 			!!!!!!!!!!!!!!!!!!!!!!!!!!instable end!!!!!!!!!!!!!!!!!!!!!!!!!
-			Tp(i)=Tk
-			call raman(pg,sc,ap,sp,Tp(i),(/0d0,0.4d0/),0.0004d0,pk(:,i))
+			!Tp(i)=Tk
+			!call raman(pg,sc,ap,sp,Tp(i),(/0d0,0.4d0/),0.0004d0,pk(:,i))
 			!if(Tk<0.01d0) then
 				!pk0=pk
 			!endif
@@ -162,22 +166,30 @@ program main
 			if(sc<cvg*100d0) then
 			!if(Tk<abs(dTk)*1.5d0) then
 			!if(Tk>0.1) then
-				write(70,"(4e16.3)")(Tp(j)/Tp(i),pk(:,j)/pk(:,1),j=1,i)
+				!write(70,"(4e16.3)")(Tp(j)/Tp(i),pk(:,j)/pk(:,1),j=1,i)
+				!call DOS(0d0,sc,ap,sp,Tk,(/-0.5d0,0.7d0/),0.0001d0)
+				!write(30,"(1X)")
+				!call DOS(pg,sc,ap,sp,Tk,(/-0.5d0,0.7d0/),0.0001d0)
+				!call fermisurface(pg,sc,ap,sp,0d0)
+				!call fermisurface(0.1d0,0d0,ap,sp,0d0)
+				!stop
 				exit
 			endif
+			exit
 			i=i+1
 			Tk=Tk+dTk
 			write(30,"(1X)")
 		enddo
 		!stop
-		nf=nf-0.005d0
+		nf=nf-0.05d0
 		!if(pg<cvg*100d0) then
-		if(nf<0.8d0) then
+		if(nf<0.2d0) then
 			exit
 		endif
 		write(10,"(1X)")
+		write(30,"(1X/)")
 		write(50,"(1X)")
-		write(40,"(1X/)")
+		!write(40,"(1X/)")
 		write(70,"(1X/)")
 		write(80,"(1X)")
 	enddo
@@ -202,8 +214,8 @@ subroutine rpainstable(pg,sc,ap,sp,Tk,den)
 		k(1)=pi/mr*i
 		do j=0,mr
 			k(2)=pi/mr*j
-			call EU(k,pg,sc,ap,sp,ek,Uk)
-			call EU(k+(/pi,pi/),pg,sc,ap,sp,ekq,Ukq)
+			call EU1(k,pg,sc,ap,sp,ek,Uk)
+			call EU1(k+(/pi,pi/),pg,sc,ap,sp,ekq,Ukq)
 			fk=1d0/(1d0+exp(bt*ek))
 			fkq=1d0/(1d0+exp(bt*ekq))
 			do n=1,4
@@ -255,7 +267,7 @@ subroutine raman(pg,sc,ap,sp,Tk,omgr,domg,pk)
 					4d0*t(3)*dp*(cos(2d0*k(1))-cos(2d0*k(2)))
 				gm(1:2,2)=sin(k(1))*sin(k(2))*dp*t(2)*(/-4d0,-4d0/)
 				gm(3:4,:)=-gm(1:2,:)
-				call EU(k,pg,sc,ap,sp,ek,Uk)
+				call EU1(k,pg,sc,ap,sp,ek,Uk)
 				fk=1d0/(1d0+exp(bt*ek))
 				do m1=1,4
 					do m2=1,4
@@ -319,7 +331,7 @@ subroutine EDC(k,pg,sc,ap,sp,Tk,omgr,domg,peak,fw)
 	!bt=escal/Tk*1.16e4
 	bt=1d0/Tk
 	omg=omgr(1)
-	call EU(k,pg,sc,ap,sp,ek,Uk)
+	call EU1(k,pg,sc,ap,sp,ek,Uk)
 	fk=1d0/(1d0+exp(bt*ek))
 	peak=0d0
 	!fk=1d0
@@ -337,6 +349,33 @@ subroutine EDC(k,pg,sc,ap,sp,Tk,omgr,domg,peak,fw)
 		write(30,"(1X)")
 	endif
 end
+subroutine DOS(pg,sc,ap,sp,Tk,omgr,domg)
+	use global
+	integer :: i,j
+	complex(8) :: Uk(4,4)
+	real(8) :: k(2),sp,bt,sc,pg,ek(4),fk(4),A,omg,omgr(2),domg,Tk,ap
+	bt=1d0/Tk
+	omg=omgr(1)
+	do while(omg<omgr(2))
+		A=0d0
+		omg=omg+domg
+		!$OMP PARALLEL DO REDUCTION(+:A) PRIVATE(k,ek,Uk,fk) SCHEDULE(STATIC)
+		do i=1,mk
+			do j=1,mk
+				k=(/pi/mk*i,pi/mk*j/)
+				call EU1(k,pg,sc,ap,sp,ek,Uk)
+				!fk=1d0/(1d0+exp(bt*ek))
+				A=A-sum(DIMAG(Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*20d0)))
+			enddo
+		enddo
+		!$OMP END PARALLEL DO
+		A=A/(mk**2)
+		write(30,"(e16.3$)")omg,A
+		write(30,"(1X)")
+		!write(*,"(e16.3$)")omg,A
+		!write(*,"(1X)")
+	enddo
+end
 !subroutine band(pg,sc,sp,ki,kf)
 	!use global
 	!implicit none
@@ -349,7 +388,7 @@ end
 		!kn=kn+(kf-ki)/sum((kf-ki)**2)*pi/mk
 		!!k(1)=pi*(min((i/ms)*ms,ms)+(1-i/ms)*mod(i,ms))/ms
 		!!k(2)=pi*min(max((i-ms),0),3*ms-i)/ms
-		!call EU(kn,pg,sc,ap,sp,ek,Uk)
+		!call EU1(kn,pg,sc,ap,sp,ek,Uk)
 		!eks=-2d0*(1d0-nf)*t(2)*cos(kn(1))*cos(kn(2))-sp
 		!eka=-((1d0-nf)*t(1)+ap)*(cos(kn(1))+cos(kn(2)))
 		!write(10,"(10e16.3)")(ek(l),abs(Uk(1,l)),l=1,4),&
@@ -372,7 +411,7 @@ subroutine mingap(pg,sc,ap,sp,Tk,ki,kf,gap,km)
 	do
 		kn=kn+(kf-ki)/sum((kf-ki)**2)*pi/mk
 		!!do l=1,4
-		call EU(kn,pg,sc,ap,sp,ek,Uk)
+		call EU1(kn,pg,sc,ap,sp,ek,Uk)
 		!if(abs(Uk(1,2))>5e-2) then
 			!if(abs(ek(2))<gap.and.ek(2)<0d0) then
 				!gap=abs(ek(2))
@@ -415,12 +454,12 @@ subroutine fermisurface(pg,sc,ap,sp,omg)
 	do i=0,mf
 		do j=0,mf
 			k=(/pi/mf*i,pi/mf*j/)
-			call EU(k,pg,sc,ap,sp,ek,Uk)
+			call EU1(k,pg,sc,ap,sp,ek,Uk)
 			A=0d0
 			do l=1,4
 				A=A-dimag(abs(Uk(1,l))**2/(omg+img*0.01d0-ek(l)))
 			enddo
-			write(20,"(3e16.3)")k,A
+			write(20,"(e16.3$)")A
 		enddo
 		write(20,"(1X)")
 	enddo
@@ -458,7 +497,7 @@ subroutine selfconsist_tg(Tk,sc,pg,ap,sp)
 			do i=0,mk
 				do j=0,min(i,mk-i)
 					k=(/pi/mk*i,pi/mk*j/)
-					call EU(k,pg,sc,ap,sp,ek,Uk)
+					call EU1(k,pg,sc,ap,sp,ek,Uk)
 					call order(k,ek,Uk,Tk,np,pgp,scp,app)
 				enddo
 			enddo
@@ -653,7 +692,7 @@ subroutine selforder(pg,sc,ap,sp,Tk,sig)
 	!write(*,"(e12.4$)")np,Tk,sp,sc,pg,ap
 	!write(*,"(1X)")
 end
-subroutine EU(k,pg,sc,ap,sp,ek,Uk)
+subroutine EU1(k,pg,sc,ap,sp,ek,Uk)
 	use global
 	implicit none
 	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
@@ -677,6 +716,44 @@ subroutine EU(k,pg,sc,ap,sp,ek,Uk)
 	sin2th=pgk/sqrt(pgk**2+eka**2)*sign(1d0,eka)
 	cos2fy=e1/e2*sign(1d0,e1)
 	sin2fy=sck/e2*sign(1d0,e1)
+	cth=dcmplx(sqrt(0.5d0*(1d0+cos2th)))
+	select case(pgflag)
+	case("ddw")
+		sth=img*dcmplx(sqrt(0.5d0*(1d0-cos2th))*sign(1d0,sin2th))
+	case("sdw")
+		sth=dcmplx(sqrt(0.5d0*(1d0-cos2th))*sign(1d0,sin2th))
+	end select
+	cfy=dcmplx(sqrt(0.5d0*(1d0+cos2fy)))
+	sfy=dcmplx(sqrt(0.5d0*(1d0-cos2fy))*sign(1d0,sin2fy))
+	Uk=reshape((/   cth*cfy(1) ,  dconjg(sth)*cfy(1) ,  cth*sfy(1) , -dconjg(sth)*sfy(1) ,   & 
+	               -sth*cfy(2) ,          cth*cfy(2) , -sth*sfy(2) ,         -cth*sfy(2) ,   & 
+	               -cth*sfy(1) , -dconjg(sth)*sfy(1) ,  cth*cfy(1) , -dconjg(sth)*cfy(1) ,   & 
+	               -sth*sfy(2) ,          cth*sfy(2) ,  sth*cfy(2) ,   cth*cfy(2)     /) , (/4 , 4/))
+end
+subroutine EU2(k,pg,sc,ap,sp,ek,Uk)
+	use global
+	implicit none
+	complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
+	real(8) :: eka,eks,e1(2),e2(2),ek(4),k(2),pg,pgk,sp,sck,sc,gk,th,fy(2),cos2th,sin2th,cos2fy(2),sin2fy(2),ap,dp
+	dp=abs(1d0-nf)
+	!dp=abs(1d0)
+	eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-sp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
+	eka=-2d0*(dp*t(1)+ap*Vd)*(cos(k(1))+cos(k(2)))
+	gk=0.5d0*(cos(k(1))-cos(k(2)))
+	select case(pgflag)
+	case("ddw")
+		pgk=pg*gk*4d0*Vd
+	case("sdw")
+		pgk=-pg*DJ*2d0
+	end select
+	sck=sc*gk*Vs*4d0
+	e1=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)
+	e2=sqrt(e1**2+sck**2)
+	ek=(/e2,-e2/)
+	cos2th=eka/sqrt(pgk**2+eka**2)
+	sin2th=pgk/sqrt(pgk**2+eka**2)
+	cos2fy=e1/e2
+	sin2fy=sck/e2
 	cth=dcmplx(sqrt(0.5d0*(1d0+cos2th)))
 	select case(pgflag)
 	case("ddw")
