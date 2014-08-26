@@ -395,11 +395,14 @@ module vmc
 		!subroutine jast(cfg,cr,sg,v,jw)
 			!if(sg==3) then
 				!do i=1,ne
-					!jw=jw+2*(v(cfg(i)-cfg(cr(1)))*(-1)*(mod(i,ne2))-v(cfg(i)-cfg(cr(2)))*(-1)*(mod(i,ne2)))
+					!s=(-1)*(mod(i,ne2))
+					!jw=jw+2d0*(v(abs(cfg(i)-cfg(cr(1))))-v(abs(cfg(i)-cfg(cr(2)))))*s
 				!enddo
-			!elseif(cr(1)\=0) then
+				!jw=jw-2d0*v(abs(cfg(cr(1))-cfg(cr(2))))
+			!else
 				!do i=1,ne
-					!jw=jw+(v(cfg(i)-cfg(cr(1)))*(-1)*(mod(i,ne2))-v(cfg(i)-cfg(cr(2)))*(-1)*(mod(i,ne2)))
+					!s=(-1)*(mod(i,ne2))
+					!jw=jw+(v(abs(cfg(i)-cfg(cr(1))))-v(abs(cfg(i)-cfg(cr(2)))))*s
 				!enddo
 			!endif
 		!end subroutine
@@ -508,7 +511,7 @@ program main
 	write(10,"(A)")"#data"
 	call init_random_seed()
 	call gen_latt_square()
-	n=48
+	n=2
 	l=-2d0
 	do
 		Eb=0d0
@@ -530,7 +533,7 @@ program main
 		!$OMP END PARALLEL DO
 		write(*,*)var(1),Eb/n,sqrt(abs((Eb/n)**2-E2/n))
 		write(10,*)var(1),Eb/n,sqrt(abs((Eb/n)**2-E2/n))
-		!exit
+		exit
 		l=l+0.2d0
 	enddo
 end

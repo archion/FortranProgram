@@ -14,9 +14,12 @@ end module
 program main
 	use global
 	implicit none
-	complex(8) :: Uk(4,4)
-	real(8) :: kf(2,2),sp=0d0,bt,sc,psc,pg,ppg,ap,th,gap,Tk,Tp(100),pk(3,100),peak(2),&
-		nd(3)=(/0.1d0,0.135d0,0.2d0/),Td(3)=(/0d0,40d0,70d0/),dltn=0.0025d0,dltT=-1d0,den(2),pden(2),dTk,feg,ddf(2)
+	real(8) :: kf(2,2),sp=0d0,bt,sc,psc,pg,ppg,ap,th,gap,Tk,pk(3),pk0(3),peak(2),&
+		nd(10)=(/0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.14d0,0.145d0,0.15d0,0.16d0,0.2d0/),&
+		Tc(10)=(/0.1050E-01,0.1650E-01,0.1770E-01,0.1950E-01,0.2150E-01,0.2350E-01,0.2550E-01,0.2750E-01,0.3200E-01,0.3000E-01/),&
+		!Tc(10)=(/0.1950E-01,0.2500E-01,0.2750E-01,0.3100E-01,0.3600E-01,0.4300E-01,0.4250E-01,0.3900E-01,0.3750E-01/),&
+		Td(10)=(/1d-6,0.5d0,0.55d0,0.6d0,0.65d0,0.7d0,0.75d0,0.8d0,0.9d0,1d0/),&
+		dltn=0.0025d0,dltT=-1d0,den(2),pden(2),dTk,feg,ddf(2)
 	integer :: i,j,l
 	if(pgflag=="ddw".or.pgflag=="sdw") then
 		write(*,*)"calculate for: ",pgflag
@@ -28,11 +31,16 @@ program main
 	call gnuplot
 	!do i=24,96,1
 	!do i=24,72,8
-	nf=1d0
+	!nf=0.9d0
+	!nf=0.865d0
+	!nf=0.87d0
+	!nf=0.82d0
 	sp=0d0
+	j=1
+	!j=6
 	!do i=1,3
 	do
-		!nf=1d0-nd(i)
+		nf=1d0-nd(j)
 		write(80,"(e12.4$)")nf
 		psc=1d0
 		ppg=-1d0
@@ -46,35 +54,42 @@ program main
 		!call fermisurface(ppg,psc,sp,0d0)
 		!write(*,*)mx,my,gap
 		!!write(70,"(F5.2)")1d0-nf
-		!Tk=0.001
+		!Tk=0.0001
+		!dTk=0.001d0
 		!do
-			!Tk=Tk+1d0
-			!sc=sc+0.1
-			!pg=pg+0.1
-			!call selfconsist_tg(Tk,sc,pg,sp)
+			!Tk=Tk+dTk
+			!sc=sc+0.1d0
+			!pg=pg+0.1d0
+			!ap=ap+0.1d0
+			!call selforder(pg,sc,ap,sp,Tk,1)
 			!if(sc<cvg*100d0) then
 				!Tc=Tk
 				!exit
 			!endif
 		!enddo
 		Tk=0.0001d0
-		dTk=0.002d0
+		!dTk=0.008d0
 		!Tk=0.12d0
 		!dTk=-0.002d0
+		!Tk=0.015d0
 		i=1
 		do
 		!do j=1,3
 			!Tk=Td(j)+0.001
+			Tk=Td(i)*Tc(j)
 			sc=sc+0.1d0
 			pg=pg+0.1d0
 			ap=ap+0.1d0
 			!call selfconsist_tg(Tk,sc,pg,ap,sp)
 			call selforder(pg,sc,ap,sp,Tk,1)
 			!call freeenergy(pg,sc,ap,sp,Tk,feg,ddf)
-			write(*,"(e12.4$)")nf,Tk,sp,sc,pg,ap,feg,ddf
-			write(*,"(1X)")
-			write(40,"(e12.4$)")nf,Tk,sc*Vs,pg*DJ*0.5d0,ap*Vd
-			!write(40,"(e12.4$)")Tk,sc*Vs,pg*Vd
+			!write(*,"(e12.4$)")nf,Tk,sp,sc,pg,ap,feg,ddf
+			!write(*,"(1X)")
+			!write(40,"(e12.4$)")nf,Tk,sc*Vs,pg*DJ*0.5d0,ap*Vd
+			!write(*,"(e12.4$)")nf,Tk,sc*Vs*4d0,pg*Vd*4d0
+			!write(40,"(e12.4$)")Tk,sc*Vs*4d0,pg*Vd*4d0
+			write(*,"(e12.4$)")Tk,sc*Vs*4d0,pg*DJ*2d0
+			!write(40,"(e12.4$)")Tk,sc*Vs*4d0,pg*DJ*2d0
 			!write(90,"(e12.4$)")Tk,feg
 			!sc=0.01d0
 			!pg=0.d0
@@ -104,7 +119,6 @@ program main
 			!write(90,"(e12.4$)")feg
 			!write(90,"(1X)")
 			!write(40,"(e12.4$)")sc,pg
-			write(40,"(1X)")
 			!!!!!!!!!!!!!!!!!!!!!!meanfield begin!!!!!!!!!!!!!!!!!!!!!!!!
 			if((sc-cvg*100)*psc<0d0) then
 				psc=-psc
@@ -114,7 +128,7 @@ program main
 				ppg=-ppg
 				write(80,"(e12.4$)")Tk
 			endif
-			write(50,"(F5.0)")Tk
+			!write(50,"(F5.0)")Tk
 			!!!!!!!!!!!!!!!!!!!!!!!meanfield end!!!!!!!!!!!!!!!!!!!!!!!!
 			!!!!!!!!!!!!!!!!!!!!!!!!!!instable begin!!!!!!!!!!!!!!!!!!!!!!!!
 			!call rpainstable(pg,sc,ap,sp,Tk,den)
@@ -146,27 +160,33 @@ program main
 			!endif
 			!!!!!!!!!!!!!!!!!!!!!!!!!!instable end!!!!!!!!!!!!!!!!!!!!!!!!!
 			!Tp(i)=Tk
-			!call raman(pg,sc,ap,sp,Tp(i),(/0d0,0.4d0/),0.0004d0,pk(:,i))
-			!if(Tk<0.01d0) then
-				!pk0=pk
-			!endif
-			!call mingap(pg,sc,sp,Tk,(/pi,0d0/),(/pi,pi/2d0/),gap,kf)
+			call raman(pg,sc,ap,sp,Tk,(/0d0,0.5d0/),0.001d0,pk)
+			if(i==1) then
+				pk0=pk
+			endif
+			!call mingap(pg,sc,ap,sp,Tk,(/pi,0d0/),(/pi,pi/2d0/),gap,kf)
 			!do l=0,10
-				!call EDC((/pi,pi/30d0*l/),pg,sc,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak,.true.)
+				!call  EDC((/pi,pi/20d0*l/),pg,sc,ap,sp,Tk,(/-0.5d0,0.7d0/),0.0001d0,peak,.true.)
 			!enddo
 			!write(*,"(3e12.4)")gap,mx,my
 			!write(30,"(F5.0)")Tk
 			!call EDC(pi,0d0,pg,sc,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak)
 			!call EDC(mx,my,pg,sc,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak)
-			!write(40,"(6e12.4)")nf,Tk,sp,sc,pg,peak(1)
+			!write(40,"(e12.4$)")peak(1)
+			!write(*,"(e12.4$)")gap
+			!write(40,"(e12.4$)")gap
 			!write(40,"(7e12.4)")nf,Tk,sp,sc,pg,gap,kf(2)
 			!write(40,"(5e12.4)")nf,Tk,sp,sc,pg
+			write(40,"(1X)")
+			write(*,"(1X)")
 			!call fermisurface(pg,sc,sp,0d0)
 			!if(sc<cvg*100d0.and.pg<cvg*100d0) then
-			if(sc<cvg*100d0) then
+			!if(sc<cvg*100d0) then
 			!if(Tk<abs(dTk)*1.5d0) then
-			!if(Tk>0.1) then
-				!write(70,"(4e16.3)")(Tp(j)/Tp(i),pk(:,j)/pk(:,1),j=1,i)
+			write(70,"(e16.5$)")nf,Tk,Td(i),pk(1:2)/pk0(1:2)
+			write(70,"(1X)")
+			i=i+1
+			if(i>10) then
 				!call DOS(0d0,sc,ap,sp,Tk,(/-0.5d0,0.7d0/),0.0001d0)
 				!write(30,"(1X)")
 				!call DOS(pg,sc,ap,sp,Tk,(/-0.5d0,0.7d0/),0.0001d0)
@@ -175,15 +195,15 @@ program main
 				!stop
 				exit
 			endif
-			exit
-			i=i+1
-			Tk=Tk+dTk
+			!exit
 			write(30,"(1X)")
 		enddo
-		!stop
-		nf=nf-0.05d0
+		!exit
+		j=j+1
+		!nf=nf-0.05d0
 		!if(pg<cvg*100d0) then
-		if(nf<0.2d0) then
+		!if(nf<0.2d0) then
+		if(j>10) then
 			exit
 		endif
 		write(10,"(1X)")
@@ -256,7 +276,6 @@ subroutine raman(pg,sc,ap,sp,Tk,omgr,domg,pk)
 	peak=0d0
 	DJp=DJ/(dp*t(1)+DJ*ap)**2
 	do while(omg<omgr(2))
-		omg=omg+domg
 		R=0d0
 		!$OMP PARALLEL DO REDUCTION(+:R) PRIVATE(k,gm,ek,Uk,fk,Tr) SCHEDULE(GUIDED)
 		do i=0,mr
@@ -282,7 +301,7 @@ subroutine raman(pg,sc,ap,sp,Tk,omgr,domg,pk)
 		!R_rpa=-dimag(R(1)/(1d0+DJp*R(1)))
 		!R_rpa=-dimag(R(1))/((1d0+DJp*dreal(R(1)))**2+(DJp*dimag(R(1)))**2)
 		!write(50,"(e16.3$)")omg,-dimag(R),R_rpa,Djp,dreal(R(1)),(1d0+DJp*dreal(R(1)))**2+(DJp*dimag(R(1)))**2
-		write(50,"(e16.3$)")omg,-dimag(R)
+		write(50,"(e16.5$)")omg,-dimag(R)
 		write(50,"(1X)")
 		if(peak(1,2)<-dimag(R(1))) then
 			peak(1,:)=(/omg,-dimag(R(1))/)
@@ -293,6 +312,7 @@ subroutine raman(pg,sc,ap,sp,Tk,omgr,domg,pk)
 		!if(peak(3,2)<R_rpa) then
 			!peak(3,:)=(/omg,R_rpa/)
 		!endif
+		omg=omg+domg
 	enddo
 	pk=peak(:,1)
 	write(50,"(1X)")
@@ -332,17 +352,28 @@ subroutine EDC(k,pg,sc,ap,sp,Tk,omgr,domg,peak,fw)
 	bt=1d0/Tk
 	omg=omgr(1)
 	call EU1(k,pg,sc,ap,sp,ek,Uk)
+	!call EU2(k,pg,sc,ap,sp,ek,Uk)
 	fk=1d0/(1d0+exp(bt*ek))
 	peak=0d0
 	!fk=1d0
+	peak(1)=-100d0
+	do i=1,2
+		if(peak(1)<ek(i).and.ek(i)<0) then
+			peak(1)=ek(i)
+		endif
+	enddo
+	peak(1)=abs(peak(1))
+	return
 	do while(omg<omgr(2))
 		omg=omg+domg
-		A=-sum(DIMAG(fk*Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*200d0)))
+		!A=-sum(DIMAG(fk*Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*400d0)))
+		A=-sum(DIMAG(fk*Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*40d0)))
 		if(peak(2)<A) then
 			peak=(/-omg,A/)
 		endif
 		if(fw) then
-			write(30,"(5e16.3)")-omg,A,k(2),nf,Tk
+			write(30,"(e16.3$)")omg,A,k(2),nf,Tk
+			write(30,"(1X)")
 		endif
 	enddo
 	if(fw) then
@@ -409,7 +440,7 @@ subroutine mingap(pg,sc,ap,sp,Tk,ki,kf,gap,km)
 	gap=1000d0
 	kn=ki
 	do
-		kn=kn+(kf-ki)/sum((kf-ki)**2)*pi/mk
+		kn=kn+(kf-ki)/sum((kf-ki)**2)*pi/ms
 		!!do l=1,4
 		call EU1(kn,pg,sc,ap,sp,ek,Uk)
 		!if(abs(Uk(1,2))>5e-2) then
@@ -421,7 +452,7 @@ subroutine mingap(pg,sc,ap,sp,Tk,ki,kf,gap,km)
 			!gap=abs(ek(1))
 			!km=kn
 		!endif
-		call EDC(kn,pg,sc,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak,.false.)
+		call EDC(kn,pg,sc,ap,sp,Tk,(/-0.2d0,0d0/),0.0002d0,peak,.false.)
 		if(peak(1)<gap) then
 			gap=peak(1)
 			km=kn
@@ -436,14 +467,19 @@ subroutine mingap(pg,sc,ap,sp,Tk,ki,kf,gap,km)
 		!eka=-((1d0-nf)*t(1)+ap)*(cos(kn(1))+cos(kn(2)))
 		!write(10,"(10e16.3)")(ek(l),abs(Uk(1,l)),l=1,4),&
 			!eks+(/1d0,-1d0/)*sqrt((0.5d0*(cos(kn(1))-cos(kn(2)))*pg)**2+eka**2)*sign(1d0,eka)
-		write(10,"(11e16.3)")kn(2),(ek(l),abs(Uk(1,l)),l=1,4)
+		write(10,"(e16.3$)")kn(2),(ek(l),abs(Uk(1,l)),l=1,4)
+		write(10,"(1X)")
 		if(all((kn-kf)*(kf-ki)>=0d0)) then
 			exit
 		endif
 	enddo
-	call EDC(km,pg,sc,sp,Tk,(/-0.1d0,0d0/),0.0001d0,peak,.true.)
+	call EDC(km,pg,sc,ap,sp,Tk,(/-0.2d0,0d0/),0.0001d0,peak,.true.)
 	write(10,"(1X)")
-	write(40,"(9e12.4)")nf,Tk,sp,sc,pg,gap,-0.5d0*(cos(km(1))-cos(km(2)))*sc,-0.5d0*(cos(km(1))-cos(km(2)))*pg,km(2)
+	write(*,"(e12.4$)")nf,Tk,-0.5d0*(cos(km(1))-cos(km(2)))*sc*Vs*4d0,-0.5d0*(cos(km(1))-cos(km(2)))*pg*Vd*4d0,gap
+	write(40,"(e12.4$)")nf,Tk,-0.5d0*(cos(km(1))-cos(km(2)))*sc*Vs*4d0,-0.5d0*(cos(km(1))-cos(km(2)))*pg*Vd*4d0,gap
+	!write(*,"(e12.4$)")nf,Tk,-0.5d0*(cos(km(1))-cos(km(2)))*sc*Vs*4d0,pg*DJ*2d0,gap
+	!write(40,"(e12.4$)")nf,Tk,-0.5d0*(cos(km(1))-cos(km(2)))*sc*Vs*4d0,pg*DJ*2d0,gap
+	!write(40,"(9e12.4)")nf,Tk,sp,sc,pg,gap,-0.5d0*(cos(km(1))-cos(km(2)))*sc,-0.5d0*(cos(km(1))-cos(km(2)))*pg,km(2)
 end
 subroutine fermisurface(pg,sc,ap,sp,omg)
 	use global
@@ -832,9 +868,9 @@ subroutine fileopen()
 	open(unit=20,file="../data/fermi.dat")
 	open(unit=30,file="../data/EDC.dat")
 	open(unit=40,file="../data/gaptemp.dat")
-	open(unit=50,file="../data/raman.dat")
+	open(unit=50,file="../data/sraman.dat")
 	open(unit=60,file="../data/gaptheta.dat")
-	open(unit=70,file="../data/ramantemp.dat")
+	open(unit=70,file="../data/ssum.dat")
 	open(unit=80,file="../data/phase_tJ.dat")
 	open(unit=90,file="../data/freeenergy.dat")
 end
