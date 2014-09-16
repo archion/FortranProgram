@@ -1,25 +1,27 @@
 module global
 	implicit none
 	save
-	real(8), parameter ::t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),escal=0.125d0,pi=3.1415926d0,cvg=1e-6,&
-		!V=0.12d0,DJ=0.35d0,&
-		V=0.d0,DJ=0.25d0,&
+	real(8), parameter :: t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),escal=0.125d0,pi=3.1415926d0,cvg=1e-6,&
+		V=0.12d0,DJ=0.35d0,&
+		!V=0.d0,DJ=0.25d0,&
 		Vs=DJ-V,Vd=0.5d0*DJ+V
 	real(8) :: nf=0.8d0
-	!character(3) :: pgflag="ddw"
-	character(3) :: pgflag="sdw"
+	character(3) :: pgflag="ddw"
+	!character(3) :: pgflag="sdw"
 	integer, parameter :: mk=512,ms=100,mf=128,mr=512
 	complex(8),parameter :: img=(0d0,1d0)
 end module
 program main
 	use global
 	implicit none
-	real(8) :: kf(2,2),sp=0d0,bt,sc,psc,pg,ppg,ap,th,gap,Tk,pk(3),pk0(3),peak(2),&
-		nd(10)=(/0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.14d0,0.145d0,0.15d0,0.16d0,0.2d0/),&
+	real(8) :: kf(2),sp=0d0,bt,sc,psc,pg,ppg,ap,th,gap,Tk,pk(3),pk0(3),peak(2),&
+		!nd(10)=(/0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.14d0,0.145d0,0.15d0,0.16d0,0.2d0/),&
+		nd(3)=(/0.1d0,0.135d0,0.18d0/),&
 		Tc(10)=(/0.1050E-01,0.1650E-01,0.1770E-01,0.1950E-01,0.2150E-01,0.2350E-01,0.2550E-01,0.2750E-01,0.3200E-01,0.3000E-01/),&
 		!Tc(10)=(/0.1950E-01,0.2500E-01,0.2750E-01,0.3100E-01,0.3600E-01,0.4300E-01,0.4250E-01,0.3900E-01,0.3750E-01/),&
-		Td(10)=(/1d-6,0.5d0,0.55d0,0.6d0,0.65d0,0.7d0,0.75d0,0.8d0,0.9d0,1d0/),&
-		dltn=0.0025d0,dltT=-1d0,den(2),pden(2),dTk,feg,ddf(2)
+		!Td(12)=(/1d-3,0.1d0,0.2d0,0.3d0,0.4d0,0.6d0,0.65d0,0.7d0,0.75d0,0.8d0,0.9d0,1d0/),&
+		Td(18),&
+		dltn=0.0025d0,dltT=-1d0,den(2),pden(2),dTk,feg,ddf(2),psg,sg
 	integer :: i,j,l
 	if(pgflag=="ddw".or.pgflag=="sdw") then
 		write(*,*)"calculate for: ",pgflag
@@ -32,14 +34,18 @@ program main
 	!do i=24,96,1
 	!do i=24,72,8
 	!nf=0.9d0
-	!nf=0.865d0
+	nf=0.855d0
 	!nf=0.87d0
 	!nf=0.82d0
 	sp=0d0
 	j=1
 	!j=6
 	!do i=1,3
+	Tc=0.0001d0
+	!Tk=0.02d0
+	Tk=0.03d0
 	do
+		dTk=0.0005d0
 		nf=1d0-nd(j)
 		write(80,"(e12.4$)")nf
 		psc=1d0
@@ -54,29 +60,38 @@ program main
 		!call fermisurface(ppg,psc,sp,0d0)
 		!write(*,*)mx,my,gap
 		!!write(70,"(F5.2)")1d0-nf
-		!Tk=0.0001
-		!dTk=0.001d0
-		!do
-			!Tk=Tk+dTk
-			!sc=sc+0.1d0
-			!pg=pg+0.1d0
-			!ap=ap+0.1d0
-			!call selforder(pg,sc,ap,sp,Tk,1)
-			!if(sc<cvg*100d0) then
-				!Tc=Tk
-				!exit
-			!endif
-		!enddo
+		!*************************************************
+		sc=sc+0.1d0
+		pg=pg+0.1d0
+		ap=ap+0.1d0
+		call selforder(pg,sc,ap,sp,Tk,1)
+		psg=sign(1d0,sc-cvg*100d0)
+		!psg=sign(1d0,pg-cvg*100d0)
+		sg=psg
+		do
+			sc=sc+0.1d0
+			pg=pg+0.1d0
+			ap=ap+0.1d0
+			Tk=Tk+sg*dTk
+			call selforder(pg,sc,ap,sp,Tk,1)
+			sg=sign(1d0,sc-cvg*100d0)
+			!sg=sign(1d0,pg-cvg*100d0)
+			if(sg*psg<0) then
+				Tc(j)=Tk
+				exit
+			endif
+		enddo
+		!*************************************************
 		Tk=0.0001d0
-		!dTk=0.008d0
+		!dTk=0.001d0
+		dTk=Tc(j)/(size(Td)-1)
 		!Tk=0.12d0
 		!dTk=-0.002d0
 		!Tk=0.015d0
 		i=1
 		do
 		!do j=1,3
-			!Tk=Td(j)+0.001
-			Tk=Td(i)*Tc(j)
+			!Tk=Td(i)*Tc(j)
 			sc=sc+0.1d0
 			pg=pg+0.1d0
 			ap=ap+0.1d0
@@ -88,7 +103,7 @@ program main
 			!write(40,"(e12.4$)")nf,Tk,sc*Vs,pg*DJ*0.5d0,ap*Vd
 			!write(*,"(e12.4$)")nf,Tk,sc*Vs*4d0,pg*Vd*4d0
 			!write(40,"(e12.4$)")Tk,sc*Vs*4d0,pg*Vd*4d0
-			write(*,"(e12.4$)")Tk,sc*Vs*4d0,pg*DJ*2d0
+			!write(*,"(e12.4$)")nf,Tk,sc*Vs*4d0,pg*DJ*2d0
 			!write(40,"(e12.4$)")Tk,sc*Vs*4d0,pg*DJ*2d0
 			!write(90,"(e12.4$)")Tk,feg
 			!sc=0.01d0
@@ -159,12 +174,21 @@ program main
 				!exit
 			!endif
 			!!!!!!!!!!!!!!!!!!!!!!!!!!instable end!!!!!!!!!!!!!!!!!!!!!!!!!
-			!Tp(i)=Tk
-			call raman(pg,sc,ap,sp,Tk,(/0d0,0.5d0/),0.001d0,pk)
-			if(i==1) then
-				pk0=pk
-			endif
-			!call mingap(pg,sc,ap,sp,Tk,(/pi,0d0/),(/pi,pi/2d0/),gap,kf)
+			!!!!!!!!!!!!!!!!!!!!!!!!!!raman start!!!!!!!!!!!!!!!!!!!!!!!!!
+			!call raman(pg,sc,ap,sp,Tk,(/0d0,0.4d0/),0.0002d0,pk)
+			!if(i==1) then
+				!pk0=pk
+			!endif
+			!write(70,"(e16.5$)")nf,Tk,Td(i),pk(1:2)/pk0(1:2)
+			!write(70,"(1X)")
+			!!!!!!!!!!!!!!!!!!!!!!!!!!raman end!!!!!!!!!!!!!!!!!!!!!!!!!
+			!!!!!!!!!!!!!!!!!!!!!!!!!!gap start!!!!!!!!!!!!!!!!!!!!!!!!!
+			call mingap(pg,sc,ap,sp,Tk,(/pi,0d0/),(/pi,pi/),gap,kf)
+			write(*,"(e12.4$)")nf,Tk,Tk/Tc(j),-0.5d0*(cos(kf(1))-cos(kf(2)))*sc*Vs*4d0,-0.5d0*(cos(kf(1))-cos(kf(2)))*pg*Vd*4d0,gap
+			write(40,"(e12.4$)")nf,Tk,Tk/Tc(j),-0.5d0*(cos(kf(1))-cos(kf(2)))*sc*Vs*4d0,-0.5d0*(cos(kf(1))-cos(kf(2)))*pg*Vd*4d0,gap
+			!write(*,"(e12.4$)")nf,Tk,Tk/Tc(j),-0.5d0*(cos(kf(1))-cos(kf(2)))*sc*Vs*4d0,pg*Vd*4d0,gap
+			!write(40,"(e12.4$)")nf,Tk,Tk/Tc(j),-0.5d0*(cos(kf(1))-cos(kf(2)))*sc*Vs*4d0,pg*Vd*4d0,gap
+			!!!!!!!!!!!!!!!!!!!!!!!!!!gap end!!!!!!!!!!!!!!!!!!!!!!!!!
 			!do l=0,10
 				!call  EDC((/pi,pi/20d0*l/),pg,sc,ap,sp,Tk,(/-0.5d0,0.7d0/),0.0001d0,peak,.true.)
 			!enddo
@@ -180,13 +204,11 @@ program main
 			write(40,"(1X)")
 			write(*,"(1X)")
 			!call fermisurface(pg,sc,sp,0d0)
+			i=i+1
 			!if(sc<cvg*100d0.and.pg<cvg*100d0) then
 			!if(sc<cvg*100d0) then
 			!if(Tk<abs(dTk)*1.5d0) then
-			write(70,"(e16.5$)")nf,Tk,Td(i),pk(1:2)/pk0(1:2)
-			write(70,"(1X)")
-			i=i+1
-			if(i>10) then
+			if(i>size(Td)) then
 				!call DOS(0d0,sc,ap,sp,Tk,(/-0.5d0,0.7d0/),0.0001d0)
 				!write(30,"(1X)")
 				!call DOS(pg,sc,ap,sp,Tk,(/-0.5d0,0.7d0/),0.0001d0)
@@ -195,21 +217,23 @@ program main
 				!stop
 				exit
 			endif
+			Tk=Tk+dTk
 			!exit
 			write(30,"(1X)")
 		enddo
+		Tk=Tc(j)
 		!exit
 		j=j+1
 		!nf=nf-0.05d0
 		!if(pg<cvg*100d0) then
 		!if(nf<0.2d0) then
-		if(j>10) then
+		if(j>size(nd)) then
 			exit
 		endif
 		write(10,"(1X)")
 		write(30,"(1X/)")
 		write(50,"(1X)")
-		!write(40,"(1X/)")
+		write(40,"(1X/)")
 		write(70,"(1X/)")
 		write(80,"(1X)")
 	enddo
@@ -475,11 +499,6 @@ subroutine mingap(pg,sc,ap,sp,Tk,ki,kf,gap,km)
 	enddo
 	call EDC(km,pg,sc,ap,sp,Tk,(/-0.2d0,0d0/),0.0001d0,peak,.true.)
 	write(10,"(1X)")
-	write(*,"(e12.4$)")nf,Tk,-0.5d0*(cos(km(1))-cos(km(2)))*sc*Vs*4d0,-0.5d0*(cos(km(1))-cos(km(2)))*pg*Vd*4d0,gap
-	write(40,"(e12.4$)")nf,Tk,-0.5d0*(cos(km(1))-cos(km(2)))*sc*Vs*4d0,-0.5d0*(cos(km(1))-cos(km(2)))*pg*Vd*4d0,gap
-	!write(*,"(e12.4$)")nf,Tk,-0.5d0*(cos(km(1))-cos(km(2)))*sc*Vs*4d0,pg*DJ*2d0,gap
-	!write(40,"(e12.4$)")nf,Tk,-0.5d0*(cos(km(1))-cos(km(2)))*sc*Vs*4d0,pg*DJ*2d0,gap
-	!write(40,"(9e12.4)")nf,Tk,sp,sc,pg,gap,-0.5d0*(cos(km(1))-cos(km(2)))*sc,-0.5d0*(cos(km(1))-cos(km(2)))*pg,km(2)
 end
 subroutine fermisurface(pg,sc,ap,sp,omg)
 	use global
@@ -724,6 +743,8 @@ subroutine selforder(pg,sc,ap,sp,Tk,sig)
 		sc=scp
 		pg=pgp
 		ap=app
+		!write(*,"(e12.4$)")np,Tk,sp,sc,pg,ap
+		!write(*,"(1X)")
 	enddo
 	!write(*,"(e12.4$)")np,Tk,sp,sc,pg,ap
 	!write(*,"(1X)")

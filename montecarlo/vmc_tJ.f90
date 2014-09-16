@@ -70,8 +70,7 @@ module global
 			write(f,"(1X)")
 		end subroutine
 		subroutine imwrite(f,A)
-			real(8) :: A(:,:)
-			integer :: f,i
+			integer :: f,i,A(:,:)
 			do i=1,size(A,1)
 				write(f,"(i4$)")A(i,:)
 				write(f,"(1X)")
@@ -122,12 +121,18 @@ module vmc
 			wf=0d0
 			do j=1,Ns2
 				call one2two(j,ik,jk)
-				k=(/2d0*pi/Ns(1)*jk,2d0*pi/Ns(2)*ik-pi/Ns(2)/)-pi
-				!k=(/2d0*pi/Ns(1)*jk,2d0*pi/Ns(2)*ik/)-pi
+				k=(/2d0*pi/Ns(1)*jk,2*pi/Ns(2)*ik+pi/Ns(2)/)
+				!k=(/2d0*pi/Ns(1)*jk,2d0*pi/Ns(2)*ik/)
 				Ek=-2d0*t(1)*(cos(k(1))+cos(k(2)))-var(2)
-				sck=(cos(k(1))-cos(k(2)))*var(1)
+				!sck=(cos(k(1))-cos(k(2)))*var(1)
+				sck=(cos(k(1))+cos(k(2)))*var(1)
 				!sck=var(1)
 				tmp=sck/(Ek+sqrt(Ek**2+sck**2))
+				!if(Ek<0d0) then
+					!tmp=1d0
+				!else
+					!tmp=0d0
+				!endif
 				!tmp=sck
 				!wf(ik,jk)=tmp
 				do i=1,Ns2
@@ -141,6 +146,8 @@ module vmc
 					endif
 				enddo
 			enddo
+			!write(*,*)wf
+			!stop
 			wf=wf/maxval(abs(wf))
 			!call rmwrite(10,imag(wf))
 			!call rmwrite(10,real(wf))
@@ -155,6 +162,7 @@ module vmc
 				cfg(i)=i
 			enddo
 			call fisher_yates_shuffle(cfg,Ns2)
+			Nhot=Nmc
 			!write(*,*)"***********hot start**********"
 			!n=0
 			!do 
@@ -182,12 +190,17 @@ module vmc
 				icfg(cfg(i))=i
 			enddo
 			do i=1,ne2
-				call pair(vu(:,1),cfg(i),wf,cfg,0)
+				call pair(vu,(/-10,i/),wf,cfg,0)
 				A(i,:)=vu(:,1)
 			enddo
 			iA=A
+			!call checkcfg(icfg,80)
+			!write(*,*)real(A)
+			!stop
 			call matrix_inv(iA)
-			call energy(cfg,icfg,wf,A,iA,El)
+			if(n>Nhot) then
+				call energy(cfg,icfg,wf,A,iA,El)
+			endif
 			!iA=matmul(iA,A)
 			!call cmwrite(10,iA)
 			!stop
@@ -202,8 +215,9 @@ module vmc
 				if(j>ne2) then
 					j=ne2+j
 					sg=(i-1)/ne2+1
-					cr(sg)=mod(i-1,ne2)+1
-					call pair(vu(:,sg),cfg(j),wf,cfg,sg-1)
+					cr(sg)=i
+					cr(mod(sg,2)+1)=j
+					call pair(vu,cr,wf,cfg,sg-1)
 				else
 					sg=3
 					if(i>ne2) then
@@ -211,59 +225,40 @@ module vmc
 					else
 						j=j+ne2
 					endif
-					cr=(/i,j-ne2/)
-					call pair(vu(:,1),cfg(j),wf,cfg,0)
-					call pair(vu(:,2),cfg(i),wf,cfg,1)
+					cr=(/i,j/)
+					call pair(vu,cr,wf,cfg,sg-1)
 					!write(*,*)vu(cr(2),1)-vu(cr(1),2)
 				endif
-				!A=0d0
-				!do i=1,ne2
-					!do j=1,ne2
-						!call random_number(rpb)
-						!A(i,j)=cmplx(0d0,rpb)
-						!call random_number(rpb)
-						!A(i,j)=A(i,j)+rpb
-						!!A(i,j)=rpb
-					!enddo
-					!call random_number(rpb)
-					!!vu(i,2)=rpb
-					!vu(i,2)=cmplx(0d0,rpb)
-					!call random_number(rpb)
-					!vu(i,2)=vu(i,2)+rpb
-					!call random_number(rpb)
-					!!vu(i,1)=rpb
-					!vu(i,1)=cmplx(0d0,rpb)
-					!call random_number(rpb)
-					!vu(i,1)=vu(i,1)+rpb
-				!enddo
-				!iA=A
-				!call matrix_inv(iA)
-				!sg=3
-				!cr(1)=1
-				!cr(2)=1
-				!call det(vu,cr,A,iA,Y,pb,sg)
-				!call cmwrite(10,A)
-				!call cmwrite(10,iA)
-				!call ifinv(A,iA,rpb)
-				!write(*,*)rpb
-				!call update(vu,cr,A,iA,Y,pb,sg)
-				!call cmwrite(10,A)
-				!call cmwrite(10,iA)
-				!call cmwrite(10,vu)
-				!write(*,*)rpb
-				!stop
 				jw=1d0
 				call det(vu,cr,A,iA,Y,pb,sg)
 				!call jast(cfg,cr,sg,v,jw)
-				call random_number(rpb)
+				!call checkcfg(icfg,80)
+				!write(*,*)A
 				!write(*,*)real(pb*jw*dconjg(pb*jw))
+				if(abs(pb)>1d10) then
+					write(*,*)"initial configure may be not good"
+					call fisher_yates_shuffle(cfg,Ns2)
+					do i=1,Ns2
+						icfg(cfg(i))=i
+					enddo
+					do i=1,ne2
+						call pair(vu,(/-10,i/),wf,cfg,0)
+						A(i,:)=vu(:,1)
+					enddo
+					iA=A
+					call matrix_inv(iA)
+					n=0
+					cycle
+				endif
+				call random_number(rpb)
 				if(rpb<abs(pb*jw)**2) then
+				!if(1<abs(pb*jw)**2) then
 					acp=acp+1
 					call swap(icfg(cfg(i)),icfg(cfg(j)))
 					call swap(cfg(i),cfg(j))
 					call update(vu,cr,A,iA,Y,pb,sg)
-					!call checkinv(A,iA,rpb)
-					!if(rpb>1d-6) then
+					call checkinv(A,iA,rpb)
+					!if(rpb>1d-8) then
 						!write(*,*)n,rpb
 						!iA=A
 						!call matrix_inv(iA)
@@ -271,53 +266,90 @@ module vmc
 						!write(*,*)n,rpb
 					!endif
 					!call checkcfg(icfg,80)
-					if(mod(Nmc,500)==0) then
+					!write(*,*)A
+					!write(*,*)pb
+					!exit
+					if(mod(n,500)==0) then
 						iA=A
 						call matrix_inv(iA)
 					endif
-					call energy(cfg,icfg,wf,A,iA,El)
+					if(n>Nhot) then
+						!call checkcfg(icfg,80)
+						call energy(cfg,icfg,wf,A,iA,El)
+					endif
 					!write(*,*)El
 					!exit
 				endif
-				E=E+El
-				if(n>=Nmc) then
+				if(n>Nhot) then
+					E=E+El
+				endif
+				if(n>=(Nmc+Nhot)) then
 					E=E/(Nmc*Ns2)
 					exit
 				endif
 			enddo
-			!write(*,"('accept/total number is ',I5,'/',I5)")acp,n
+			write(*,"('accept/total number is ',I6,'/',I6)")acp,n
 		end subroutine
 		subroutine pair(vu,r,wf,cfg,sg)
-			complex(8) :: vu(:),wf(0:,0:)
-			integer :: sg,s1,i,ir,jr,ii,jj,r,cfg(:),n
-			real(8) :: s2
-			s1=(-1)**sg
-			s2=1d0
-			n=abs(sg-1)*size(vu,1)
-			call one2two(r,ir,jr)
-			do i=1,size(vu,1)
-				call one2two(cfg(n+i),ii,jj)
-				ii=s1*(ir-ii)
-				jj=s1*(jr-jj)
-				s2=sign(1d0,jj+0.1d0)
-				ii=mod(ii+Ns(2),Ns(2))
-				jj=mod(jj+Ns(1),Ns(1))
-				vu(i)=wf(ii,jj)*s2
-			enddo
+			complex(8) :: vu(:,:),wf(0:,0:)
+			integer :: sg,i,ir,jr,ii,jj,r(2),cfg(:),n
+			real(8) :: s
+			s=1d0
+			vu=0d0
+			if(sg==0.or.sg==2) then
+				call one2two(cfg(r(2)),ir,jr)
+				do i=ne2+1,ne
+					if(r(2)==i) then
+						call one2two(cfg(r(1)),ii,jj)
+					else
+						call one2two(cfg(i),ii,jj)
+					endif
+					ii=(ir-ii)
+					jj=(jr-jj)
+					s=sign(1d0,ii+0.1d0)
+					ii=mod(ii+Ns(2),Ns(2))
+					jj=mod(jj+Ns(1),Ns(1))
+					if(ii==0.and.jj==0) then
+						write(*,*)"some thing go wrong"
+					endif
+					vu(i-ne2,1)=wf(ii,jj)*s
+				enddo
+			endif
+			if(sg==1.or.sg==2) then
+				call one2two(cfg(r(1)),ir,jr)
+				do i=1,ne2
+					if(r(1)==i) then
+						call one2two(cfg(r(2)),ii,jj)
+					else
+						call one2two(cfg(i),ii,jj)
+					endif
+					ii=-(ir-ii)
+					jj=-(jr-jj)
+					s=sign(1d0,ii+0.1d0)
+					ii=mod(ii+Ns(2),Ns(2))
+					jj=mod(jj+Ns(1),Ns(1))
+					if(ii==0.and.jj==0) then
+						write(*,*)"some thing go wrong"
+					endif
+					vu(i,2)=wf(ii,jj)*s
+				enddo
+			endif
 		end subroutine
 		subroutine det(vu,cr,A,iA,Y,pb,sg)
 			complex(8) :: vu(:,:),A(:,:),iA(:,:),Y(:,:),pb
-			integer :: cr(:),sg,i,j,n
+			integer :: cr(:),sg,i,j,n,ii,jj
 			n=size(A,1)
 			Y=0d0
 			if(sg==3) then
-				vu(:,1)=vu(:,1)-A(cr(1),:)
-				vu(cr(2),1)=0d0
-				vu(:,2)=vu(:,2)-A(:,cr(2))
-				Y(2,1)=-iA(cr(2),cr(1))
+				ii=cr(1)
+				jj=cr(2)-ne2
+				vu(:,1)=vu(:,1)-A(ii,:)
+				vu(jj,1)=0d0
+				vu(:,2)=vu(:,2)-A(:,jj)
+				Y(2,1)=-iA(jj,ii)
 				do i=1,n
-					Y(1,1)=Y(1,1)+iA(cr(2),i)*vu(i,2)
-					Y(2,2)=Y(2,2)+vu(i,1)*iA(i,cr(1))
+					Y(1,1)=Y(1,1)+iA(jj,i)*vu(i,2)
+					Y(2,2)=Y(2,2)+vu(i,1)*iA(i,ii)
 					do j=1,n
 						Y(1,2)=Y(1,2)-vu(i,1)*iA(i,j)*vu(j,2)
 					enddo
@@ -326,17 +358,19 @@ module vmc
 				Y(2,2)=Y(2,2)+1d0
 			else
 				if(sg==1) then
-					vu(:,1)=vu(:,1)-A(cr(1),:)
+					ii=cr(1)
+					vu(:,1)=vu(:,1)-A(ii,:)
 					do i=1,n
-						Y(1,1)=Y(1,1)+vu(i,1)*iA(i,cr(1))
+						Y(1,1)=Y(1,1)+vu(i,1)*iA(i,ii)
 					enddo
 					Y(1,1)=Y(1,1)+1d0
 					Y(2,2)=1d0
 				else
-					vu(:,2)=vu(:,2)-A(:,cr(2))
+					jj=cr(2)-ne2
+					vu(:,2)=vu(:,2)-A(:,jj)
 					Y(1,1)=1d0
 					do i=1,n
-						Y(2,2)=Y(2,2)+iA(cr(2),i)*vu(i,2)
+						Y(2,2)=Y(2,2)+iA(jj,i)*vu(i,2)
 					enddo
 					Y(2,2)=Y(2,2)+1d0
 				endif
@@ -345,12 +379,14 @@ module vmc
 		end subroutine
 		subroutine update(vu,cr,A,iA,Y,pb,sg)
 			complex(8) :: vu(:,:),A(:,:),iA(:,:),tmp(size(iA,1),size(iA,2)),tmp1(size(iA,1),2),Y(:,:),pb
-			integer :: cr(:),n,s,i,j,sg
+			integer :: cr(:),n,s,i,j,sg,ii,jj
 			tmp1=0d0
 			n=size(iA,1)
 			if(sg==3) then
-				A(cr(1),:)=A(cr(1),:)+vu(:,1)
-				A(:,cr(2))=A(:,cr(2))+vu(:,2)
+				ii=cr(1)
+				jj=cr(2)-ne2
+				A(ii,:)=A(ii,:)+vu(:,1)
+				A(:,jj)=A(:,jj)+vu(:,2)
 				do i=1,n
 					do j=1,n
 						tmp1(i,1)=tmp1(i,1)+iA(j,i)*vu(j,1)
@@ -360,12 +396,13 @@ module vmc
 				do i=1,n
 					do j=1,n
 						tmp(i,j)=iA(i,j)-1d0/pb*&
-							((iA(i,cr(1))*Y(1,1)+tmp1(i,2)*Y(2,1))*tmp1(j,1)+(iA(i,cr(1))*Y(1,2)+tmp1(i,2)*Y(2,2))*iA(cr(2),j))
+							((iA(i,ii)*Y(1,1)+tmp1(i,2)*Y(2,1))*tmp1(j,1)+(iA(i,ii)*Y(1,2)+tmp1(i,2)*Y(2,2))*iA(jj,j))
 					enddo
 				enddo
 			else
 				if(sg==1) then
-					A(cr(1),:)=A(cr(1),:)+vu(:,1)
+					ii=cr(1)
+					A(ii,:)=A(ii,:)+vu(:,1)
 					do i=1,n
 						do j=1,n
 							tmp1(i,1)=tmp1(i,1)+iA(j,i)*vu(j,1)
@@ -373,11 +410,12 @@ module vmc
 					enddo
 					do i=1,n
 						do j=1,n
-							tmp(i,j)=iA(i,j)-1d0/pb*iA(i,cr(1))*tmp1(j,1)
+							tmp(i,j)=iA(i,j)-1d0/pb*iA(i,ii)*tmp1(j,1)
 						enddo
 					enddo
 				else
-					A(:,cr(2))=A(:,cr(2))+vu(:,2)
+					jj=cr(2)-ne2
+					A(:,jj)=A(:,jj)+vu(:,2)
 					do i=1,n
 						do j=1,n
 							tmp1(i,2)=tmp1(i,2)+iA(i,j)*vu(j,2)
@@ -385,7 +423,7 @@ module vmc
 					enddo
 					do i=1,n
 						do j=1,n
-							tmp(i,j)=iA(i,j)-1d0/pb*tmp1(i,2)*iA(cr(2),j)
+							tmp(i,j)=iA(i,j)-1d0/pb*tmp1(i,2)*iA(jj,j)
 						enddo
 					enddo
 				endif
@@ -419,7 +457,7 @@ module vmc
 						!hopping
 						sg=(i-1)/ne2+1
 						cr(sg)=mod(i-1,ne2)+1
-						call pair(vu(:,sg),cfg(j),wf,cfg,sg-1)
+						call pair(vu,cr,wf,cfg,sg-1)
 						call det(vu,cr,A,iA,Y,pb,sg)
 						jw=1d0
 						!call jast(cfg,cr,sg,v,jw)
@@ -428,6 +466,7 @@ module vmc
 						else
 							El=El-t(1)*dconjg(pb)*jw
 						endif
+						write(*,*)"hopping"
 						cycle
 					endif
 					!diagnal
@@ -439,13 +478,12 @@ module vmc
 						!diagnal
 						El=El-0.5d0*DJ
 						!spin flip
-						cr=(/i,j-ne2/)
-						call pair(vu(:,1),cfg(j),wf,cfg,0)
-						call pair(vu(:,2),cfg(i),wf,cfg,1)
+						cr=(/i,j/)
+						call pair(vu,cr,wf,cfg,2)
 						call det(vu,cr,A,iA,Y,pb,3)
 						jw=1d0
 						!call jast(cfg,cr,sg,v,jw)
-						El=El+0.5d0*DJ*dconjg(pb)*jw
+						El=El-0.5d0*DJ*dconjg(pb)*jw
 					endif
 				enddo
 			enddo
@@ -511,7 +549,7 @@ program main
 	write(10,"(A)")"#data"
 	call init_random_seed()
 	call gen_latt_square()
-	n=2
+	n=40
 	l=-2d0
 	do
 		Eb=0d0
@@ -520,7 +558,7 @@ program main
 		call ini(var,wf)
 		!$OMP PARALLEL DO REDUCTION(+:Eb,E2) PRIVATE(E) SCHEDULE(STATIC)
 		do j=1,n
-			call mc(wf,50000,E)
+			call mc(wf,300000,E)
 			Eb=Eb+real(E)
 			E2=E2+real(E)**2
 			!if(all(abs(dvar)<cvg)) then
@@ -533,7 +571,9 @@ program main
 		!$OMP END PARALLEL DO
 		write(*,*)var(1),Eb/n,sqrt(abs((Eb/n)**2-E2/n))
 		write(10,*)var(1),Eb/n,sqrt(abs((Eb/n)**2-E2/n))
-		exit
-		l=l+0.2d0
+		l=l+0.1d0
+		if(l>2d0) then
+			exit
+		endif
 	enddo
 end
