@@ -169,7 +169,7 @@ contains
 								do i=1,2
 									do j=1,2
 										Xq(:,qi,qj,i,j)=Xq(:,qi,qj,i,j)+(Ukq(1,n)*Uk(3+i-1,m)+Ukq(2,n)*Uk(3+i-1+(-1)**(i-1),m)-&
-											Ukq(3+i-1,n)*Uk(1,m)-Ukq(3+i-1-(-1)**(3+i-1),n)*Uk(2,m))*&
+											Ukq(3+i-1,n)*Uk(1,m)-Ukq(3+i-1-(-1)**(i-1),n)*Uk(2,m))*&
 											dconjg(Ukq(1,n)*Uk(3+j-1,m))*(1-fk(n)-fkq(m))/(omg+ek(n)+ekq(m)+1d-10)
 									enddo
 								enddo
