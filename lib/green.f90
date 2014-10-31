@@ -1,13 +1,11 @@
-module green
+module M_green
+	use M_const
 	implicit none
 	contains
 	subroutine pade(z,u,omg,c)
-		complex(8), parameter :: img=(0d0,1d0)
-		real(8), parameter :: pi=3.14159265358979d0
 		real(8) :: rtmp
 		complex(8) :: z(:),u(:),omg(:),c(:),p(size(u),size(u)),a(size(u)),DA(0:1),DB(0:1),ctmp,ctmp1
 		integer :: n,m,i,j,ct
-		open(10,file="../data/debug.dat")
 		n=size(z)
 		m=size(omg)
 		ct=n

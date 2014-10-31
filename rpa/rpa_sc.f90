@@ -1,83 +1,222 @@
-module global
+module pmt
+	use M_const
 	implicit none
-	save
-	real(8), parameter ::t(5)=(/2d0,-0.9d0,0.d0,0.d0,0d0/),escal=0.25d0,pi=3.1415926d0,cvg=1d-5,DJ=0.75d0,V=-3d0,alp=0.34d0
-	real(8) :: nf=0.8d0,Tk,it=0.005d0,omgrg(2)=(/-2d0,2d0/),qrg(2)=(/0d0,2d0/)*pi
+	real(8), parameter :: t(5)=(/2d0,-0.9d0,0.d0,0.d0,0d0/),&
+		!V=0.12d0,DJ=0.35d0,&
+		V=0.d0,DJ=1.5d0,&
+	Vs=0.5d0*(DJ-V),Vd=0.5d0*DJ+V,alp=0.34
+	real(8) :: it=0.02d0
 	character(3) :: pgflag="ddw"
 	!character(3) :: pgflag="sdw"
-	integer, parameter :: mk=16,mq=16,mo=16,mro=16
-	complex(8),parameter :: img=(0d0,1d0)
-	contains
-	subroutine spinsus(pg,sc,ap,sp,q,omg,Xq)
+	!real(8), parameter :: t(5)=(/0.1483d0,-0.035d0,0.0355d0,0d0,0d0/),&
+		!!V=0.12d0,DJ=0.35d0,&
+		!V=0.d0,DJ=1.2d0,&!DJ=1.5d0,&
+	!Vs=0.25,Vd=0.5d0*DJ+V,alp=0.2
+end module
+module selfcons
+	use pmt
+	use M_utility
+	implicit none
+contains
+	subroutine selfconsist_tg(nf,Tk,pg,sc,ap,sp)
+		real(8) :: Tk,nf
+		complex(8) :: Uk(4,4)
+		real(8),target :: k(2),np,pnp,pg,pgp,ek(4),sp,sc,scp,cvg1,al,ap,app,cvg
+		integer :: i,j,c,sg,mk
+		real(8),pointer :: p
+		mk=512
+		cvg=1e-6
+		if(Tk<0d0) then
+			write(*,*)"Tk<0"
+			stop
+		endif
+		al=1d0
+		al=0.2d0
+		pg=max(pg,0.1d0)
+		sc=max(sc,0.1d0)
+		ap=max(ap,0.1d0)
+		c=0
+		do 
+			pnp=0d0
+			do 			
+				pgp=0d0
+				scp=0d0
+				app=0d0
+				np=0d0
+				c=c+1
+				pg=0d0
+				!$OMP PARALLEL DO REDUCTION(+:np,pgp,scp,app) PRIVATE(k,ek,Uk) SCHEDULE(GUIDED)
+				do i=0,mk
+					do j=0,min(i,mk-i)
+						k=(/pi/mk*i,pi/mk*j/)
+						call EU(k,nf,pg,sc,ap,sp,ek,Uk)
+						call order(k,ek,Uk,Tk,np,pgp,scp,app)
+					enddo
+				enddo
+				!$OMP END PARALLEL DO
+				np=np/(mk**2)*2d0
+				pgp=pgp/(mk**2)*2d0
+				scp=scp/(mk**2)*2d0
+				app=app/(mk**2)*2d0
+				if(abs(nf-np)<1d-5) then
+					exit
+				endif
+				call find_cross(pnp,np-nf,sg)
+				if(sg/=0) then
+					al=al*0.3d0
+				endif
+				sp=sp+al*sign(1d0,nf-np)
+			enddo
+			if((abs(scp-sc)+abs(pgp-pg)+abs(app-ap))<cvg) then
+				exit
+			endif
+			sc=(scp*0.4d0+sc*0.6d0)
+			pg=(pgp*0.4d0+pg*0.6d0)
+			ap=(app*0.4d0+ap*0.6d0)
+		enddo
+	end subroutine
+	subroutine EU(k,nf,pg,sc,ap,sp,ek,Uk)
+		complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
+		real(8) :: eka,eks,e1(2),e2(2),ek(4),k(2),pg,pgk,sp,sck,sc,gk,th,fy(2),cos2th,sin2th,cos2fy(2),sin2fy(2),ap,dp,nf
+		dp=abs(1d0-nf)
+		eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-sp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
+		eka=-2d0*(dp*t(1)+ap*Vd)*(cos(k(1))+cos(k(2)))
+		gk=0.5d0*(cos(k(1))-cos(k(2)))
+		select case(pgflag)
+		case("ddw")
+			pgk=pg*gk*4d0*Vd
+		case("sdw")
+			pgk=-pg*DJ*2d0
+		end select
+		sck=sc*gk*Vs*4d0
+		e1=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)
+		e2=sqrt(e1**2+sck**2)
+		!ek=(/e2*sign(1d0,e1),-e2*sign(1d0,e1)/)
+		ek=(/e2,-e2/)
+		cos2th=eka/sqrt(pgk**2+eka**2)
+		sin2th=pgk/sqrt(pgk**2+eka**2)
+		if(abs(eka)<1d-8) then
+			cos2th=0d0
+			sin2th=1d0
+		endif
+		!cos2fy=e1/e2*sign(1d0,e1)
+		!sin2fy=sck/e2*sign(1d0,e1)
+		cos2fy=e1/e2
+		sin2fy=sck/e2
+		cth=dcmplx(sqrt(0.5d0*(1d0+cos2th)))
+		select case(pgflag)
+		case("ddw")
+			sth=img*dcmplx(sqrt(0.5d0*(1d0-cos2th))*sign(1d0,sin2th))
+		case("sdw")
+			sth=dcmplx(sqrt(0.5d0*(1d0-cos2th))*sign(1d0,sin2th))
+		end select
+		cfy=dcmplx(sqrt(0.5d0*(1d0+cos2fy)))
+		sfy=dcmplx(sqrt(0.5d0*(1d0-cos2fy))*sign(1d0,sin2fy))
+		Uk=reshape((/   cth*cfy(1) ,  dconjg(sth)*cfy(1) ,  cth*sfy(1) , -dconjg(sth)*sfy(1) ,   & 
+			-sth*cfy(2) ,          cth*cfy(2) , -sth*sfy(2) ,         -cth*sfy(2) ,   & 
+			-cth*sfy(1) , -dconjg(sth)*sfy(1) ,  cth*cfy(1) , -dconjg(sth)*cfy(1) ,   & 
+			-sth*sfy(2) ,          cth*sfy(2) ,  sth*cfy(2) ,   cth*cfy(2)     /) , (/4 , 4/))
+	end subroutine
+	subroutine order(k,ek,Uk,Tk,n,pg,sc,ap)
+		complex(8) :: Uk(4,4)
+		real(8) :: k(2),ek(4),pg,sc,gk,n,Tk,fk(4),bt,ap
+		bt=1d0/Tk
+		fk=1d0/(1d0+exp(bt*ek))
+		gk=0.5d0*(cos(k(1))-cos(k(2)))
+		select case(pgflag)
+		case("ddw")
+			pg=pg+dimag(dot_product(Uk(1,:)*dconjg(Uk(2,:))-Uk(2,:)*dconjg(Uk(1,:)),fk)*gk)
+		case("sdw")
+			pg=pg+0.5d0*dot_product(Uk(2,:)*dconjg(Uk(1,:))+Uk(1,:)*dconjg(Uk(2,:))+&
+				Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)
+		end select
+		n=n+2d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))+Uk(2,:)*dconjg(Uk(2,:))-&
+			Uk(3,:)*dconjg(Uk(3,:))-Uk(4,:)*dconjg(Uk(4,:)),fk)
+		sc=sc+dot_product(-Uk(1,:)*dconjg(Uk(3,:))+Uk(2,:)*dconjg(Uk(4,:)),fk)*gk
+		ap=ap+dot_product(Uk(1,:)*dconjg(Uk(1,:))-Uk(2,:)*dconjg(Uk(2,:)),fk)*0.5d0*(cos(k(1))+cos(k(2)))
+	end subroutine
+end module
+module phys
+	use pmt
+	use selfcons
+	use M_utility
+	implicit none
+	integer, parameter :: mk=64
+contains
+	subroutine spinsus(nf,Tk,pg,sc,ap,sp,q,omg,Xq)
 		implicit none
-		integer :: i,j,l,m,n
-		complex(8) :: Uk(4,4),Ukq(4,4),omg(:),Xq(:,:,:),Xtmp1(size(Xq,1),2,2),Xtmp2(size(Xq,1),2,2),Det(size(Xq,1))
-		real(8) :: k(2),q(2),sp,bt,pg,sc,ap,ek(4),ekq(4),fk(4),fkq(4),DJq,DJqq
+		integer :: i,j,l,m,n,mq(2),ki,kj,qi,qj
+		complex(8) :: Uk(4,4),Ukq(4,4),omg(:),Xq(:,:,:,:,:),Xtmp1(size(Xq,1),2,2),Xtmp2(size(Xq,1),2,2),Det(size(Xq,1))
+		real(8) :: k(2),q(:,:,:),sp,bt,pg,sc,ap,ek(4),ekq(4),fk(4),fkq(4),DJq,DJqq,nf,Tk
 		bt=1d0/Tk
 		Xq=0d0
+		mq(1)=size(Xq,2)
+		mq(2)=size(Xq,3)
+		write(*,"(A$)")"    "
 		!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(k,ek,Uk,fk,ekq,Ukq,fkq) SCHEDULE(GUIDED)
-		do i=1,mk
-			k(1)=2d0*pi/mk*i
-			do j=1,mk
-				k(2)=2d0*pi/mk*j
-				call EU(k,pg,sc,ap,sp,ek,Uk)
-				call EU(k+q,pg,sc,ap,sp,ekq,Ukq)
+		do ki=0,mk-1
+			write(*,"(4A,I3,'%'$)")char(8),char(8),char(8),char(8),int(real(ki)/mk*100)
+			do kj=0,mk-1
+				k=2d0*pi*(/ki,kj/)/mk
+				call EU(k,nf,pg,sc,ap,sp,ek,Uk)
 				fk=1d0/(1d0+exp(bt*ek))
-				fkq=1d0/(1d0+exp(bt*ekq))
-				do n=1,4
-					do m=1,4
-						Xq(:,1,1)=Xq(:,1,1)+(Uk(1,n)*Ukq(3,m)*dconjg(Uk(1,n)*Ukq(3,m))+Uk(1,n)*Ukq(3,m)*dconjg(Uk(2,n)*Ukq(4,m))-&
-							Uk(1,n)*Ukq(3,m)*dconjg(Uk(3,n)*Ukq(1,m))-Uk(1,n)*Ukq(3,m)*dconjg(Uk(4,n)*Ukq(2,m)))*&
-							(1-fk(n)-fkq(m))/(omg-ek(n)-ekq(m)+1d-10)
-						Xq(:,1,2)=Xq(:,1,2)+(Uk(1,n)*Ukq(3,m)*dconjg(Uk(1,n)*Ukq(4,m))+Uk(1,n)*Ukq(3,m)*dconjg(Uk(2,n)*Ukq(3,m))-&
-							Uk(1,n)*Ukq(3,m)*dconjg(Uk(3,n)*Ukq(2,m))-Uk(1,n)*Ukq(3,m)*dconjg(Uk(4,n)*Ukq(1,m)))*&
-							(1-fk(n)-fkq(m))/(omg-ek(n)-ekq(m)+1d-10)
-						Xq(:,2,1)=Xq(:,2,1)+(Uk(1,n)*Ukq(4,m)*dconjg(Uk(1,n)*Ukq(3,m))+Uk(1,n)*Ukq(4,m)*dconjg(Uk(2,n)*Ukq(4,m))-&
-							Uk(1,n)*Ukq(4,m)*dconjg(Uk(3,n)*Ukq(1,m))-Uk(1,n)*Ukq(4,m)*dconjg(Uk(4,n)*Ukq(2,m)))*&
-							(1-fk(n)-fkq(m))/(omg-ek(n)-ekq(m)+1d-10)
-						Xq(:,2,2)=Xq(:,2,2)+(Uk(1,n)*Ukq(4,m)*dconjg(Uk(1,n)*Ukq(4,m))+Uk(1,n)*Ukq(4,m)*dconjg(Uk(2,n)*Ukq(3,m))-&
-							Uk(1,n)*Ukq(4,m)*dconjg(Uk(3,n)*Ukq(2,m))-Uk(1,n)*Ukq(4,m)*dconjg(Uk(4,n)*Ukq(1,m)))*&
-							(1-fk(n)-fkq(m))/(omg-ek(n)-ekq(m)+1d-10)
+				do qi=1,mq(1)
+					do qj=1,mq(2)
+						call EU(k+q(qi,qj,:),nf,pg,sc,ap,sp,ekq,Ukq)
+						fkq=1d0/(1d0+exp(bt*ekq))
+						do n=1,4
+							do m=1,4
+								do i=1,2
+									do j=1,2
+										Xq(:,qi,qj,i,j)=Xq(:,qi,qj,i,j)+(Ukq(1,n)*Uk(3+i-1,m)+Ukq(2,n)*Uk(3+i-1+(-1)**(i-1),m)-&
+											Ukq(3+i-1,n)*Uk(1,m)-Ukq(3+i-1-(-1)**(3+i-1),n)*Uk(2,m))*&
+											dconjg(Ukq(1,n)*Uk(3+j-1,m))*(1-fk(n)-fkq(m))/(omg+ek(n)+ekq(m)+1d-10)
+									enddo
+								enddo
+							enddo
+						enddo
 					enddo
 				enddo
 			enddo
 		enddo
 		!$OMP END PARALLEL DO
-		Xq=-Xq/mk**2
-		DJq=alp*(cos(q(1))+cos(q(2)))
-		DJqq=-alp*(cos(q(1))+cos(q(2)))
-		!DJq=-DJ*2d0
-		!DJqq=-DJ*2d0
-		Xtmp1=Xq
-		Xtmp2(:,1,1)=1d0+DJqq*Xtmp1(:,2,2)
-		Xtmp2(:,2,2)=1d0+DJq*Xtmp1(:,1,1)
-		Xtmp2(:,1,2)=-DJq*Xtmp1(:,1,2)
-		Xtmp2(:,2,1)=-DJqq*Xtmp1(:,2,1)
-		Det=1d0/(Xtmp2(:,1,1)*Xtmp2(:,2,2)-Xtmp2(:,1,2)*Xtmp2(:,2,1))
-		Xq(:,1,1)=(Xtmp1(:,1,1)*Xtmp2(:,1,1)+Xtmp1(:,1,2)*Xtmp2(:,2,1))*Det
-		Xq(:,1,2)=(Xtmp1(:,1,1)*Xtmp2(:,1,2)+Xtmp1(:,1,2)*Xtmp2(:,2,2))*Det
-		Xq(:,2,1)=(Xtmp1(:,2,1)*Xtmp2(:,1,1)+Xtmp1(:,2,2)*Xtmp2(:,2,1))*Det
-		Xq(:,2,2)=(Xtmp1(:,2,1)*Xtmp2(:,1,2)+Xtmp1(:,2,2)*Xtmp2(:,2,2))*Det
+		Xq=Xq/mk**2
+		!!$OMP PARALLEL DO PRIVATE(DJq,DJqq,Xtmp2,Xtmp1,Det) SCHEDULE(GUIDED)
+		!do qi=1,mq(1)
+			!do qj=1,mq(2)
+				!DJq=alp*(cos(q(qi,qj,1))+cos(q(qi,qj,2)))
+				!DJqq=-alp*(cos(q(qi,qj,1))+cos(q(qi,qj,2)))
+				!Xtmp1=Xq(:,qi,qj,:,:)
+				!Xtmp2(:,1,1)=1d0+DJqq*Xtmp1(:,2,2)
+				!Xtmp2(:,2,2)=1d0+DJq*Xtmp1(:,1,1)
+				!Xtmp2(:,1,2)=-DJq*Xtmp1(:,1,2)
+				!Xtmp2(:,2,1)=-DJqq*Xtmp1(:,2,1)
+				!Det=1d0/(Xtmp2(:,1,1)*Xtmp2(:,2,2)-Xtmp2(:,1,2)*Xtmp2(:,2,1))
+				!Xq(:,qi,qj,1,1)=(Xtmp1(:,1,1)*Xtmp2(:,1,1)+Xtmp1(:,1,2)*Xtmp2(:,2,1))*Det
+				!Xq(:,qi,qj,1,2)=(Xtmp1(:,1,1)*Xtmp2(:,1,2)+Xtmp1(:,1,2)*Xtmp2(:,2,2))*Det
+				!Xq(:,qi,qj,2,1)=(Xtmp1(:,2,1)*Xtmp2(:,1,1)+Xtmp1(:,2,2)*Xtmp2(:,2,1))*Det
+				!Xq(:,qi,qj,2,2)=(Xtmp1(:,2,1)*Xtmp2(:,1,2)+Xtmp1(:,2,2)*Xtmp2(:,2,2))*Det
+			!enddo
+		!enddo
+		!!$OMP END PARALLEL DO
 	end subroutine
-	subroutine greenfunc(pg,sc,ap,sp,omg,G0,G0_inv)
+	subroutine greenfunc(nf,pg,sc,ap,sp,k,omg,G0,G0_inv)
 		implicit none
 		integer :: i,j,l,m,n,o,p,ii,jj,sig
-		complex(8) :: Uk(4,4),omg(:),G0(:,0:,0:,:,:),G0_inv(:,0:,0:,:,:)
-		real(8) :: pg,sc,ap,sp,ek(4),k(2)
+		complex(8) :: Uk(4,4),omg(:),G0(:,:,:,:,:),G0_inv(:,:,:,:,:)
+		real(8) :: pg,sc,ap,sp,ek(4),k(:,:,:),nf
+		write(*,*)"*************greenfunc() start***********"
 		G0=0d0
 		G0_inv=0d0
 		l=size(G0,4)
 		o=size(G0,2)
-		!$OMP PARALLEL DO PRIVATE(k,ek,Uk) SCHEDULE(GUIDED)
-		do i=0,o/2
-			do j=0,i
-				k=(/i,j/)*2d0*pi/o
-				call EU(k,pg,sc,ap,sp,ek,Uk)
+		!$OMP PARALLEL DO PRIVATE(ek,Uk) SCHEDULE(GUIDED)
+		do i=1,size(k,1)
+			do j=1,size(k,2)
+				call EU(k(i,j,:),nf,pg,sc,ap,sp,ek,Uk)
 				do m=1,l
 					do n=1,l
 						do p=1,l
-							!G0(:,i,j,m,n)=G0(:,i,j,m,n)-(-1)**((m-1)/2+(n-1)/2)*Uk(mod(n+1,4)+1,p)*dconjg(Uk(mod(m+1,4)+1,p))/&
-								!(-omg-ek(p))
 							G0(:,i,j,m,n)=G0(:,i,j,m,n)+Uk(m,p)*dconjg(Uk(n,p))/(omg-ek(p)+1d-10)
 							G0_inv(:,i,j,m,n)=G0_inv(:,i,j,m,n)+Uk(m,p)*dconjg(Uk(n,p))*(omg-ek(p))
 						enddo
@@ -86,48 +225,49 @@ module global
 			enddo
 		enddo
 		!$OMP END PARALLEL DO
-		do i=1,l
-			do j=1,l
-				call symfill(G0(:,:,:,i,j),(-1)**((i-1)/2+(j-1)/2))
-				call symfill(G0_inv(:,:,:,i,j),(-1)**((i-1)/2+(j-1)/2))
-			enddo
-		enddo
 	end subroutine
-	subroutine effint(pg,sc,ap,sp,omg,Veff)
-		use fft, only : fft3d
+	subroutine effint(nf,Tk,pg,sc,ap,sp,omg,Veff)
+		use M_fft, only : fft3d
 		implicit none
-		integer :: i,j,n,ii,jj
-		real(8) :: pg,sc,ap,sp,DJq,q(2),dq
-		complex(8) :: Veff(:,0:,0:,:,:),omg(:)
-		n=size(Veff,2)
-		dq=(qrg(2)-qrg(1))/n
-		!!$OMP PARALLEL DO PRIVATE(q,Veff,DJq) SCHEDULE(GUIDED)
-		do i=0,n/2
-			do j=0,i
-				!q=((/i,j/)*2d0*pi/size(Veff,2)-(/pi,pi/))*0.5+(/pi,pi/)
-				q=qrg(1)+(/i,j/)*dq
-				call spinsus(pg,sc,ap,sp,q,omg,Veff(:,i,j,:,:))
-				DJq=(cos(q(1))+cos(q(2)))
-				Veff(:,i,j,1,1)=Veff(:,i,j,1,1)*DJq**2
-				Veff(:,i,j,1,2)=-Veff(:,i,j,1,2)*DJq**2
-				Veff(:,i,j,2,1)=-Veff(:,i,j,2,1)*DJq**2
-				Veff(:,i,j,2,2)=Veff(:,i,j,2,2)*DJq**2
+		integer :: i,j,n,ii,jj,mq
+		complex(8) :: Veff(:,:,:,:,:),omg(:)
+		real(8) :: pg,sc,ap,sp,DJq,q(size(Veff,2),size(Veff,3),2),nf,Tk
+		write(*,*)"*************effint() start***********"
+		!write(*,"(A$)")"    "
+		!write(*,"(4A,I3,'%'$)")char(8),char(8),char(8),char(8),int(2d0*i/n*100)
+		mq=size(Veff,2)
+		!$OMP PARALLEL DO SCHEDULE(GUIDED)
+		do i=1,mq
+			do j=1,mq
+				q(i,j,:)=2d0*pi*(/i-1,j-1/)/mq
 			enddo
 		enddo
+		!$OMP END PARALLEL DO
+		call spinsus(nf,Tk,pg,sc,ap,sp,q,omg,Veff)
+		!!$OMP PARALLEL DO PRIVATE(DJq) SCHEDULE(GUIDED)
+		!do i=1,mq
+			!do j=1,mq
+				!DJq=(cos(q(i,j,1))+cos(q(i,j,2)))
+				!Veff(:,i,j,1,1)=Veff(:,i,j,1,1)*DJq**2
+				!Veff(:,i,j,1,2)=-Veff(:,i,j,1,2)*DJq**2
+				!Veff(:,i,j,2,1)=-Veff(:,i,j,2,1)*DJq**2
+				!Veff(:,i,j,2,2)=Veff(:,i,j,2,2)*DJq**2
+			!enddo
+		!enddo
 		!!$OMP END PARALLEL DO
-		do i=1,2
-			do j=1,2
-				call symfill(Veff(:,:,:,i,j),1)
-			enddo
-		enddo
+		!do i=1,2
+			!do j=1,2
+				!call symfill(Veff(:,:,:,i,j),1)
+			!enddo
+		!enddo
 	end subroutine
 	subroutine symfill(A,sig)
 		implicit none
 		integer :: i,j,n,ii,jj,sig
-		complex(8) :: A(:,0:,0:)
+		complex(8) :: A(:,:,:)
 		n=size(A,2)
 		!$OMP PARALLEL DO PRIVATE(ii,jj) SCHEDULE(GUIDED)
-		do i=0,n/2
+		do i=1,n/2
 			do j=0,i
 				ii=mod(n-i,n)
 				jj=mod(n-j,n)
@@ -142,485 +282,253 @@ module global
 		enddo
 		!$OMP END PARALLEL DO
 	end subroutine
-	subroutine selfe(G0,Veff,sfeg)
-		use fft
+	subroutine selfefft(Tk,G0,Veff,sfeg)
+		use M_fft
 		implicit none
-		integer :: i,j,n
+		integer :: i,j,n,m
 		complex(8) :: sfeg(:,:,:,:,:),Veff(:,:,:,:,:),G0(:,:,:,:,:),&
 			Gtmp(size(G0,1),size(G0,2),size(G0,3),size(G0,4),size(G0,5))
-		real(8) :: k(2),q(2),sp,bt,sc,ap,ek(2),ekq(2),fk(2),fkq(2),DJq
-		n=size(G0,4)
+		real(8) :: k(2),q(2),sp,bt,sc,ap,ek(2),ekq(2),fk(2),fkq(2),DJq,Tk
+		write(*,*)"*************selfefft() start***********"
 		Gtmp=G0
 		do i=1,2
 			do j=1,2
 				call fft3d(Veff(:,:,:,i,j),-1)
 			enddo
 		enddo
-		do i=1,n
-			do j=1,n
+		do i=1,4
+			do j=1,4
 				call fft3d(Gtmp(:,:,:,i,j),-1)
-				sfeg(:,:,:,i,j)=Gtmp(:,:,:,i,j)*Veff(:,:,:,1,1)+Gtmp(:,:,:,i,j-(-1)**j)*Veff(:,:,:,1,2)+&
-					Gtmp(:,:,:,i-(-1)**i,j)*Veff(:,:,:,2,1)+Gtmp(:,:,:,i-(-1)**i,j-(-1)**j)*Veff(:,:,:,2,2)
+			enddo
+		enddo
+		do i=1,4
+			do j=1,4
+				do n=1,1
+					do m=1,2
+						sfeg(:,:,:,i,j)=sfeg(:,:,:,i,j)+Veff(:,:,:,n,m)*Gtmp(:,:,:,i+(1-n)*(-1)**i,j+(1-m)*(-1)**j)
+					enddo
+				enddo
 				call fft3d(sfeg(:,:,:,i,j),1)
 			enddo
 		enddo
-		sfeg=sfeg*Tk*size(Gtmp,1)
+		sfeg=sfeg*Tk*size(sfeg,1)
 	end subroutine
 	!subroutine rpainstable(sc,ap,sp,q)
-		!implicit none
-		!integer :: i,j,l,m,n
-		!complex(8) :: Uk(2,2),Ukq(2,2)
-		!real(8) :: k(2),q(2),sp,bt,pg,sc,ap,ek(2),ekq(2),fk(2),fkq(2),omg,omgr(2),domg,DJq,Xq,Xq_rpa
-		!bt=1d0/Tk
-		!Xq=0d0
-		!!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(k,ek,Uk,fk,ekq,Ukq,fkq) SCHEDULE(GUIDED)
-		!do i=0,mq
-			!k(1)=pi/mq*i
-			!do j=0,mq
-				!k(2)=pi/mq*j
-				!call EU(k,pg,sc,ap,sp,ek,Uk)
-				!call EU(k+q,pg,sc,ap,sp,ekq,Ukq)
-				!fk=1d0/(1d0+exp(bt*ek))
-				!fkq=1d0/(1d0+exp(bt*ekq))
-				!do n=1,2
-					!do m=1,2
-						!Xq=Xq+(Uk(1,n)*Ukq(2,m)*dconjg(Uk(1,n)*Ukq(2,m))-Uk(2,n)*Ukq(1,m)*dconjg(Uk(1,n)*Ukq(2,m)))*&
-							!(1-fk(n)-fkq(m))/(ek(n)+ekq(m))
-					!enddo
-				!enddo
-			!enddo
-		!enddo
-		!!$OMP END PARALLEL DO
-		!Xq=Xq/mq**2
-		!write(*,"(2e16.3)")1d0-nf,1d0+DJq*Xq
+	!implicit none
+	!integer :: i,j,l,m,n
+	!complex(8) :: Uk(2,2),Ukq(2,2)
+	!real(8) :: k(2),q(2),sp,bt,pg,sc,ap,ek(2),ekq(2),fk(2),fkq(2),omg,omgr(2),domg,DJq,Xq,Xq_rpa
+	!bt=1d0/Tk
+	!Xq=0d0
+	!!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(k,ek,Uk,fk,ekq,Ukq,fkq) SCHEDULE(GUIDED)
+	!do i=0,mq
+	!k(1)=pi/mq*i
+	!do j=0,mq
+	!k(2)=pi/mq*j
+	!call EU(k,pg,sc,ap,sp,ek,Uk)
+	!call EU(k+q,pg,sc,ap,sp,ekq,Ukq)
+	!fk=1d0/(1d0+exp(bt*ek))
+	!fkq=1d0/(1d0+exp(bt*ekq))
+	!do n=1,2
+	!do m=1,2
+	!Xq=Xq+(Uk(1,n)*Ukq(2,m)*dconjg(Uk(1,n)*Ukq(2,m))-Uk(2,n)*Ukq(1,m)*dconjg(Uk(1,n)*Ukq(2,m)))*&
+	!(1-fk(n)-fkq(m))/(ek(n)+ekq(m))
+	!enddo
+	!enddo
+	!enddo
+	!enddo
+	!!$OMP END PARALLEL DO
+	!Xq=Xq/mq**2
+	!write(*,"(2e16.3)")1d0-nf,1d0+DJq*Xq
 	!end subroutine
-	subroutine selfconsist_tg(pg,sc,ap,sp,sig)
-		implicit none
+	subroutine band(pg,sc,ap,sp,nf,Tk,ki,kf)
+		!call band(pg,sc,ap,sp,nf,Tk,(/0d0,0d0,pi,pi,pi,0d0/),(/pi,pi,pi,0d0,0d0,0d0/))
+		integer :: i,j,l,bd(1),sg,m
 		complex(8) :: Uk(4,4)
-		real(8) :: k(2),np,al,ek(4),sp,pg,pgp,sc,scp,ap,app,pnp
-		integer :: i,j,c,info,sig
-		logical :: flaga,flagb
-		c=0
-		al=1d0
-		do 
-			pnp=nf+0.1d0
-			do 			
-				scp=0d0
-				pgp=0d0
-				app=0d0
-				np=0d0
-				c=c+1
-				!call sfcsap(sp,ap)
-				!$OMP PARALLEL DO REDUCTION(+:np,pgp,scp,app) PRIVATE(k,ek,Uk) SCHEDULE(GUIDED)
-				do i=0,mk
-					do j=0,min(i,mk-i)
-						k=(/pi/mk*i,pi/mk*j/)
-						call EU(k,pg,sc,ap,sp,ek,Uk)
-						call order(k,ek,Uk,np,pgp,scp,app)
-					enddo
+		real(8) :: ki(:),kf(:),km(2),kn(2),ek(4),pek(2,4),sp,pg,sc,gap,Tk,peak(2),pk(4),eks,eka,ap,nf
+		open(unit=10,file="../data/band.dat")
+		pek=0d0
+		m=256
+		!j=0
+		do j=1,size(ki),2
+			kn=ki(j:j+1)
+			do while(all((kn-kf(j:j+1))*(kf(j:j+1)-ki(j:j+1))<=0d0))
+				kn=kn+(kf(j:j+1)-ki(j:j+1))/m
+				call EU(kn,nf,pg,sc,ap,sp,ek,Uk)
+				!write(10,"(i4$)")j
+				write(10,"(e16.8$)")(ek(l),abs(Uk(1,l)),l=1,4)
+				do i=1,4
+					call find_peak(pek(:,i),abs(ek(i)),sg)
+					write(10,"(i3$)")sg
 				enddo
-				!$OMP END PARALLEL DO
-				np=np/(mk**2)*2d0
-				pgp=2d0*DJ*pgp/(mk**2)*2d0
-				app=2d0*DJ*app/(mk**2)*2d0
-				scp=V*scp/(mk**2)*2d0
-				if((abs(nf-np)/abs(nf-pnp))>0.8d0) then
-					al=max(al-0.05d0,0.05)
-				endif
-				if(abs(nf-np)<=cvg) then
-					exit
-				else
-					sp=sp+al*(nf-np)
-				endif
-				pnp=np
-			enddo
-			if(sig/=0) then
-				scp=sc
-				app=ap
-				pgp=pg
-			endif
-			if((abs(scp-sc)+abs(pgp-pg)+abs(ap-app))<cvg) then
-				exit
-			endif
-			sc=scp
-			ap=app
-			pg=pgp
-		enddo
-		!write(*,*)"!!!!!!selfconsist return!!!!!!!!"
-		write(*,"(6e12.4,i4)")np,Tk,sp,pg,sc,ap,c
-		!write(*,*)"!!!!!!!!!!!!end!!!!!!!!!!!!!!!!!"
-	end subroutine
-	subroutine EU(k,pg,sc,ap,sp,ek,Uk)
-		implicit none
-		complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
-		real(8) :: eka,eks,e1(2),e2(2),ek(4),k(2),pg,pgk,sp,sck,sc,ap,gk,th,fy(2),cos2th,sin2th,cos2fy(2),sin2fy(2)
-		eks=-4d0*(1d0-nf)*t(2)*cos(k(1))*cos(k(2))-sp-2d0*(1d0-nf)*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
-		eka=-2d0*((1d0-nf)*t(1)+ap)*(cos(k(1))+cos(k(2)))
-		!eks=-4d0*t(2)*cos(k(1))*cos(k(2))-2d0*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))-sp
-		!eka=-2d0*t(1)*(cos(k(1))+cos(k(2)))
-		gk=0.5d0*(cos(k(1))-cos(k(2)))
-		select case(pgflag)
-		case("ddw")
-			pgk=pg*gk
-		case("sdw")
-			pgk=-pg
-		end select
-		sck=sc*gk
-		e1=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)*sign(1d0,eka)
-		e2=sqrt(e1**2+sck**2)
-		ek=(/e2*sign(1d0,e1),-e2*sign(1d0,e1)/)
-		cos2th=eka/sqrt(pgk**2+eka**2)*sign(1d0,eka)
-		sin2th=pgk/sqrt(pgk**2+eka**2)*sign(1d0,eka)
-		cos2fy=e1/e2*sign(1d0,e1)
-		sin2fy=sck/e2*sign(1d0,e1)
-		cth=dcmplx(sqrt(0.5d0*(1d0+cos2th)))
-		select case(pgflag)
-		case("ddw")
-			sth=img*dcmplx(sqrt(0.5d0*(1d0-cos2th))*sign(1d0,sin2th))
-		case("sdw")
-			sth=dcmplx(sqrt(0.5d0*(1d0-cos2th))*sign(1d0,sin2th))
-		end select
-		cfy=dcmplx(sqrt(0.5d0*(1d0+cos2fy)))
-		sfy=dcmplx(sqrt(0.5d0*(1d0-cos2fy))*sign(1d0,sin2fy))
-		Uk=reshape((/   cth*cfy(1) ,  dconjg(sth)*cfy(1) ,  cth*sfy(1) , -dconjg(sth)*sfy(1) ,   & 
-					   -sth*cfy(2) ,          cth*cfy(2) , -sth*sfy(2) ,         -cth*sfy(2) ,   & 
-					   -cth*sfy(1) , -dconjg(sth)*sfy(1) ,  cth*cfy(1) , -dconjg(sth)*cfy(1) ,   & 
-					   -sth*sfy(2) ,          cth*sfy(2) ,  sth*cfy(2) ,   cth*cfy(2)     /) , (/4 , 4/))
-	end subroutine
-	subroutine order(k,ek,Uk,n,pg,sc,ap)
-		implicit none
-		complex(8) :: Uk(4,4)
-		real(8) :: k(2),ek(4),pg,sc,gk,n,fk(4),ap
-		fk=1d0/(1d0+exp(ek/Tk))
-		gk=0.5d0*(cos(k(1))-cos(k(2)))
-		n=n+2d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))+Uk(2,:)*dconjg(Uk(2,:))-&
-			Uk(3,:)*dconjg(Uk(3,:))-Uk(4,:)*dconjg(Uk(4,:)),fk)
-		ap=ap+dot_product(Uk(1,:)*dconjg(Uk(1,:))-Uk(2,:)*dconjg(Uk(2,:)),fk)*cos(k(1))
-		select case(pgflag)
-		case("ddw")
-			pg=pg+dimag(dot_product(Uk(1,:)*dconjg(Uk(2,:))-Uk(2,:)*dconjg(Uk(1,:))-&
-				Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)*gk)
-		case("sdw")
-			pg=pg+0.5d0*dot_product(Uk(1,:)*dconjg(Uk(2,:))+Uk(2,:)*dconjg(Uk(1,:))+&
-				Uk(4,:)*dconjg(Uk(3,:))+Uk(3,:)*dconjg(Uk(4,:)),fk)
-		end select
-		sc=sc+dot_product(Uk(1,:)*dconjg(Uk(3,:))-Uk(2,:)*dconjg(Uk(4,:)),fk)*gk
-	end subroutine
-	!subroutine matrix_inv(A)
-		!implicit none
-		!complex(8) :: A(:,:)
-		!complex(8), allocatable :: ctmp(:)
-		!real(8) :: tmp
-		!integer :: i,j,k,n,m,l,mx(size(A,1),2)
-		!l=size(A,1)
-		!allocate(ctmp(l))
-		!do i=1,l
-			!tmp=0d0
-			!do j=i,l
-				!do k=i,l
-					!if(tmp<abs(A(j,k))) then
-						!tmp=abs(A(j,k))
-						!mx(i,1)=j
-						!mx(i,2)=k
-					!endif
-				!enddo
-			!enddo
-			!ctmp=A(i,:)
-			!A(i,:)=A(mx(i,1),:)
-			!A(mx(i,1),:)=ctmp
-			!ctmp=A(:,i)
-			!A(:,i)=A(:,mx(i,2))
-			!A(:,mx(i,2))=ctmp
-			!A(i,i)=1d0/A(i,i)
-			!do j=1,l-1
-				!n=mod(i+j-1,l)+1
-				!do k=1,l-1
-					!m=mod(k+i-1,l)+1
-					!A(i,m)=A(i,i)*A(i,m)
-					!A(n,m)=A(n,m)-A(n,i)*A(i,m)
-				!enddo
-				!A(n,i)=-A(n,i)*A(i,i)
-			!enddo
-		!enddo
-		!do i=l,1,-1
-			!ctmp=A(:,i)
-			!A(:,i)=A(:,mx(i,1))
-			!A(:,mx(i,1))=ctmp
-			!ctmp=A(i,:)
-			!A(i,:)=A(mx(i,2),:)
-			!A(mx(i,2),:)=ctmp
-		!enddo
-	!end subroutine
-	subroutine matrix_inv(A)
-		use lapack95
-		implicit none
-		complex(8) :: A(:,:,:,:,:),work(45)
-		integer :: ipiv(4),LDA=4,n,n1,n2,n3,i,j,k,info,lwork=45
-		n1=size(A,1)
-		n2=size(A,2)
-		n3=size(A,3)
-		n=4
-		!$OMP PARALLEL DO PRIVATE(ipiv,info) SCHEDULE(GUIDED)
-		do i=1,n1
-			do j=1,n2
-				do k=1,n3
-					!write(*,*)"start"
-					!call zgetrf(n,n,A(i,j,k,:,:),LDA,ipiv,info)
-					call getrf(A(i,j,k,:,:),ipiv,info)
-					if(info/=0) then
-						write(*,*)"error1",info
-						stop
-					endif
-					!call zgetri(n,A(i,j,k,:,:),LDA,ipiv,work,lwork,info)
-					call getri(A(i,j,k,:,:),ipiv,info)
-					!write(*,*)"finish"
-					if(info/=0) then
-						write(*,*)"error2",info
-						stop
-					endif
-				enddo
+				write(10,"(e16.8$)")&
+					-0.5d0*(cos(kn(1))-cos(kn(2)))*sc*Vs*4d0,-0.5d0*(cos(kn(1))-cos(kn(2)))*pg*Vd*4d0
+				!-0.5d0*(cos(kn(1))-cos(kn(2)))*sc*Vs*4d0,pg*Vd*4d0
+				write(10,"(1X)")
+				!j=j+1
 			enddo
 		enddo
-		!$OMP END PARALLEL DO
+		write(10,"(1X)")
 	end subroutine
 end module
 program main
-	use global
-	use green
-	use fft, only: fft1d, fft3d
+	use M_green
+	use M_utility
+	use selfcons
+	use phys
+	use M_matrix
+	use M_fft
 	implicit none
-	complex(8) :: iomgf(mo),iomgb(mo),romg(mro),G0(size(iomgb),mq,mq,4,4),G0_inv(size(iomgb),mq,mq,4,4),rG0(size(romg),mq,mq,4,4),&
-		Veff(size(G0,1),size(G0,2),size(G0,3),2,2),sfeg(size(G0,1),size(G0,2),size(G0,3),4,4),&
-		Gf(size(G0,1),size(G0,2),size(G0,3),4,4), rVeff(size(rG0,1),size(rG0,2),size(rG0,3),2,2),&
-		rsfeg(size(rG0,1),size(rG0,2),size(rG0,3),4,4),rGf(size(rG0,1),size(rG0,2),size(rG0,3),4,4)
-	real(8) :: k(2),sp=0.1d0,bt,sc,psc,pg,ppg,ap=0.1d0,th,gap,Tc,pk(3),pk0(3),peak(2),&
-		nd(3)=(/0.0025d0,0.114d0,0.178d0/),Td(3)=(/0d0,40d0,70d0/),DOS(mro),DJq,ek
-	integer :: i,j,l,ntmp
-	call fileopen
-	call gnuplot
-	!do i=24,96,1
-	!do i=24,72,8
-	!nf=0.94d0
-	!Tk=0.02d0
-	Tk=0.005d0
-	!iomgf=(/(cmplx(0d0,pi*Tk*(2d0*(i-1)+1)),i=-size(iomgf)/2+1,size(iomgf)/2)/)
-	ntmp=size(iomgf)
-	iomgf=(/(cmplx(0d0,pi*Tk*(2*(i-i/(ntmp/2)*ntmp)+1)),i=0,ntmp-1)/)
-	!iomgb=(/(cmplx(0d0,pi*Tk*(2d0*i)),i=-size(iomgb)/2+1,size(iomgb)/2)/)
-	ntmp=size(iomgb)
-	iomgb=(/(cmplx(0d0,pi*Tk*(2*(i-i/(ntmp/2)*ntmp))),i=0,ntmp-1)/)
-	ntmp=size(romg)
-	romg=(/(cmplx(omgrg(1)+real(i)/ntmp*(omgrg(2)-omgrg(1)),it),i=1,ntmp)/)
-	!romg=(/cmplx(0.01d0,it),cmplx(0.3d0,it),cmplx(0.51d0,it),cmplx(0.7d0,it)/)
-	nf=0.88d0
-	!nf=1.15d0
-	!do i=1,3
-	do
-		!nf=1d0-nd(i)
-		psc=0d0
-		!Tk=0.05d0
-		do
-		!do j=1,3
-			!Tk=Td(j)+0.001
-			sc=sc+0.1d0
-			pg=pg+0.1d0
-			sc=0d0
-			!pg=0d0
-			!ap=0d0
-			call selfconsist_tg(pg,sc,ap,sp,0)
-			write(*,"('calculate greenfunction')")
-			call greenfunc(pg,sc,ap,sp,iomgf,G0,G0_inv)
-			write(*,"('finish')")
-			write(*,"('calculate effint')")
-			call effint(pg,sc,ap,sp,iomgb,Veff)
-			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			!call effint(pg,sc,ap,sp,romg,rVeff)
-			!call spinsus(pg,sc,ap,sp,(/pi,pi/),romg,rVeff(:,1,1,:,:))
-			!write(*,"('export data')")
-			!do i=1,mq
-				!write(50,"(e16.4,$)")dimag(rVeff(:,i,i,1,1))
-				!write(50,"(1X)")
-			!enddo
-			!write(50,"(1X)")
-			!stop
-			!do l=1,4
-				!do i=1,mq
-					!do j=1,mq
-						!write(50,"(e16.4,$)")dimag(rVeff(l,i,j,1,1))
-					!enddo
-					!write(50,"(1X)")
-				!enddo
-				!write(50,"(1X)")
-			!enddo
-			!stop
-			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			write(*,"('calculate self energy')")
-			call selfe(G0,Veff,sfeg)
-			!ntmp=size(sfeg,1)/2
-			!!call pade(iomgf(ntmp+1:ntmp*2),sfeg(ntmp+1:ntmp*2,mq/2,int(0.075*mq),1),romg,rsfeg(:,mq/2,int(0.075*mq),1))
-			!call pade(iomgf(1:ntmp),sfeg(1:ntmp,mq/2,int(0.075*mq),1,2),romg,rsfeg(:,mq/2,int(0.075*mq),1,2))
-			!call pade(iomgf(1:ntmp),sfeg(1:ntmp,mq/2,int(0.075*mq),1,1),romg,rsfeg(:,mq/2,int(0.075*mq),1,1))
-			!write(30,"(5e16.4)")(real(romg(i)),rsfeg(i,mq/2,int(0.075*mq),1,1),rsfeg(i,mq/2,int(0.075*mq),1,2),i=1,size(romg))
-			!stop
-			!Gf=G0_inv-sfeg
-			Gf=G0_inv
-			call matrix_inv(Gf)
-			!write(30,"(8e16.4)")Gf(mo/2,mq/2,int(0.075*mq),:,:)
-			!write(30,"(8e16.4)")Gf(mo/2,mq/2,int(0.075*mq),:,:)
-			!write(30,"(8e16.4)")G0(mo/2,mq/2,int(0.075*mq),:,:)
-			!stop
-			write(*,"('calculate pade')")
-			ntmp=size(Gf,1)/2
-			!$OMP PARALLEL DO SCHEDULE(GUIDED)
-			do i=1,mq
-				do j=1,mq
-					call pade(iomgf(1:ntmp),Gf(1:ntmp,i,j,1,1),romg,rGf(:,i,j,1,1))
-				enddo
-			enddo
-			!$OMP END PARALLEL DO
-			!call pade(iomgf(1:ntmp),Gf(1:ntmp,mq/2,int(0.075*mq),1,1),romg,rGf(:,mq/2,int(0.075*mq),1,1))
-			!call pade(iomgf(ntmp+1:ntmp*2),Gf(ntmp+1:ntmp*2,mq/2,int(0.075*mq),1,1),romg,rGf(:,mq/2,int(0.075*mq),1,1))
-			write(*,"('export data')")
-			!write(30,"(3e16.4)")(dimag(iomgf(i)),sfeg(i,mq/2,int(0.75*mq)),i=1,size(iomgf))
-			write(30,"(3e16.4)")(real(romg(i)),rGf(i,mq/2,int(0.075*mq),1,1),i=1,size(romg))
-			!write(30,"(3e16.4)")(dimag(iomgf(i)),Gf(i,mq/2,int(0.075*mq),1,1),i=1,size(iomgf))
-			do i=1,mq/2
-				do j=1,mq/2
-					write(50,"(e16.4,$)")sum(dimag(rGf(mro/2-10:mro/2+1,i,j,1,1)))
-				enddo
-				write(50,"(1X)")
-			enddo
-			write(50,"(1X)")
-			stop
-			!call rpainstable(sc,ap,sp,(/pi,pi/))
-			write(40,"(4e12.4)")nf,Tk,sp,sc
-			!if(sc<cvg*100d0.and.dd<cvg*100d0) then
-			!!if(sc<cvg*100d0) then
-				!exit
-			!endif
-			if(Tk>0d0) then
-				exit
-			endif
-			Tk=Tk+1d0
-			psc=sc
-			write(30,"(1X)")
-		enddo
-		nf=nf-0.002d0
-		if(nf<0.99d0) then
-			exit
-		endif
-		write(10,"(1X)")
-		write(50,"(1X)")
-		write(40,"(1X/)")
-		write(70,"(1X)")
-		write(80,"(1X)")
-	enddo
-	call fileclose
-end
-subroutine fileclose()
-	implicit none
-	close(10)
-	close(20)
-	close(30)
-	close(40)
-	close(50)
-	close(60)
-	close(70)
-	close(80)
-end
-subroutine fileopen()
-	implicit none
-	open(unit=10,file="../data/energy.dat")
-	open(unit=20,file="../data/fermi.dat")
+	integer, parameter :: mq=mk,mo=128,mro=256
+	complex(8) :: iomgf(mo),iomgb(mo),romg(mro),&
+		G0(mo,mq,mq,4,4),G0_inv(mo,mq,mq,4,4),Veff(mo,mq,mq,2,2),sfeg(mo,mq,mq,4,4),Gf(mo,mq,mq,4,4),&
+		rG0(mro,mq,mq,4,4),rVeff(mro,mq,mq,2,2),rsfeg(mro,mq,mq,4,4),rGf(mro,mq,mq,4,4)
+	real(8) :: k(mk,mk,2),q(mq,mq,2),sp,sc,pg,ap,&
+		Tk=5d-3,nf,&
+		nd(1)=(/0.12d0/)
+	integer :: i,j,l,m,n,ik(2)
+	open(unit=10,file="../data/1d.dat")
+	open(unit=20,file="../data/2d.dat")
 	open(unit=30,file="../data/EDC.dat")
-	open(unit=40,file="../data/gaptemp.dat")
-	open(unit=50,file="../data/rpa.dat")
-	open(unit=60,file="../data/gaptheta.dat")
-	open(unit=70,file="../data/ramantemp.dat")
-	open(unit=80,file="../data/phase_tJ.dat")
-end
-subroutine gnuplot()
-	implicit none
-	integer :: i
-	do i=10,80,10
-		write(i,"(A)")'reset'
-		write(i,"(A)")'#custom'
-		write(i,"(A)")'#multiplot'
-		write(i,"(A)")'ix=1'
-		write(i,"(A)")'iy=1'
-		write(i,"(A)")'sx=5*ix'
-		write(i,"(A)")'sy=4*iy'
-		write(i,"(A)")'xlb="T"'
-		write(i,"(A)")'ylb="gap size"'
-		write(i,"(A)")'ml=0.8/sx'
-		write(i,"(A)")'mb=0.6/sy'
-		write(i,"(A)")'mr=0.1/sx'
-		write(i,"(A)")'mt=0.1/sy'
-		write(i,"(A)")'gx=(1.-ml-mr)/ix'
-		write(i,"(A)")'gy=(1.-mb-mt)/iy'
-		write(i,"(A)")'#term'
-		write(i,"(A)")'#set term eps font ",18" size sx,sy'
-		write(i,"(A)")'#set output "-."."eps"'
-		write(i,"(A)")'set label ylb font ",20" rotate by 90 center at character 0.8,screen 0.5*(1+mb-mt)'
-		write(i,"(A)")'set label xlb font ",20" center at screen 0.5*(1+ml-mr),character 0.5'
-		write(i,"(A)")'set xtics out nomirror'
-		write(i,"(A)")'set ytics out nomirror'
-		write(i,"(A)")'#'
-		write(i,"(A)")'set size gx,gy'
-		write(i,"(A)")'set tmargin 0'
-		write(i,"(A)")'set bmargin 0'
-		write(i,"(A)")'set lmargin 0'
-		write(i,"(A)")'set rmargin 0'
-		write(i,"(A)")'set multiplot'
-		write(i,"(A)")'set mxtics 5'
-		write(i,"(A)")'set mytics 5'
-		write(i,"(A)")'unset xlabel'
-		write(i,"(A)")'unset ylabel'
-		write(i,"(A)")'unset key'
-		write(i,"(A)")'do for[i=0:(ix*iy-1)]{'
-		write(i,"(A)")'	oxi=i%ix'
-		write(i,"(A)")'	oyi=i/ix+1'
-		write(i,"(A)")'	set origin ml+oxi*gx,mb+(iy-oyi)*gy'
-		write(i,"(A)")'	if(oxi!=0){'
-		write(i,"(A)")'		set format y ""'
-		write(i,"(A)")'	}'
-		write(i,"(A)")'	if(oyi!=iy){'
-		write(i,"(A)")'		set format x ""'
-		write(i,"(A)")'	}'
-		write(i,"(A)")'	if(i==(ix*iy-1)){'
-		write(i,"(A)")'		set key font ",16" at screen 1-mr-0.01/sx,1-mt-0.01/sy horizontal maxcols 1 opaque autotitle columnhead'
-		write(i,"(A)")'	}'
-		write(i,"(A)")'	set label sprintf("(%1.3f)",0.11+0.005*i) at graph 0.1/(gx*sx),1.-0.15/(gy*sy)'
+	open(unit=40,file="../data/pattern.dat")
+	!iomgf=arth(-mo/2,mo)*cmplx(0d0,2d0*pi*Tk)+cmplx(0d0,pi*Tk)
+	!iomgb=arth(-mo/2,mo)*cmplx(0d0,2d0*pi*Tk)
+	iomgf(1:mo/2)=arth(0,mo/2)*cmplx(0d0,2d0*pi*Tk)+cmplx(0d0,pi*Tk)
+	iomgf(mo/2+1:mo)=arth(-mo/2,mo/2)*cmplx(0d0,2d0*pi*Tk)+cmplx(0d0,pi*Tk)
+	iomgb(1:mo/2)=arth(0,mo/2)*cmplx(0d0,2d0*pi*Tk)
+	iomgb(mo/2+1:mo)=arth(-mo/2,mo/2)*cmplx(0d0,2d0*pi*Tk)
+	romg=arth(-1.2d0,4d0/mro,mro)+it*img
+	!romg=(/0.1d0,0.3d0,0.515d0,0.8d0/)+it*img
+	do i=1,mq
+		do j=1,mq
+			q(i,j,:)=2d0*pi*(/i-1,j-1/)/mq
+		enddo
 	enddo
-	!plot energy
-	write(10,"(A)")'	set xzeroaxis'
-	write(10,"(A)")'	plot [0:][:] for[j=0:11] "-" index i every 5 using 0:2*j+1:(column(2*j+2)*0.5) with points pt 7 ps variable lc j+1 notitle'
-	!plot 
-	write(20,"(A)")'	plot [:55][0:0.1] for[j=0:2] "-" index i using 2:j+4 with line title word("SC DDW Total",j+1)'
-	!plot phase diagram
-	write(30,"(A)")'	plot [:55][0:0.1] for[j=0:2] "-" index i using 2:j+4 with line title word("SC DDW Total",j+1)'
-	!plot phase diagram
-	write(40,"(A)")'	plot [:55][0:0.1] for[j=0:2] "-" index i using 2:j+4 with line title word("SC DDW Total",j+1)'
-	!plot phase diagram
-	write(50,"(A)")'	plot [:1.2][0:] for[j=0:8] "-" index j using 1:2 with line title "".sprintf("%1.3f",0.02+0.02*j)'
-	!plot phase diagram
-	write(60,"(A)")'	plot [:55][0:0.1] for[j=0:2] "-" index i using 2:j+4 with line title word("SC DDW Total",j+1)'
-	!plot phase diagram
-	write(70,"(A)")'	plot [:1.1][0.2:1.3] for[j=0:12:2] "-" using 1:i:(100.) lc (i/2+1) smooth acsplines notitle'
-	!plot phase diagram
-	write(80,"(A)")'set style fill transparent solid 0.3 border'
-	write(80,"(A)")'set style rect fc lt -1 fs solid 0.15 noborder'
-	write(80,"(A)")'set obj rect from 0.14, graph 0 to 0.175, graph 1 behind'
-	write(80,"(A)")'plot [0.06:0.24][0:100] "-" using (1-$1):3:(1e7) smooth acsplines with filledcu y1=0 lc 3 lw 2, "-" u (1-$1):4:(1e9) smooth acsplines with filledcu x1=0 lc 1 lw 2, "-" u (1-$1):5:(1e9) smooth acsplines with filledcu x1=0 lc 1 lw 2 '
-	do i=10,80,10
-		write(i,"(A)")'	unset label'
-		write(i,"(A)")'	unset format'
-		write(i,"(A)")'}'
-		write(i,"(A)")'	unset multiplot'
-		write(i,"(A)")'if(GPVAL_TERM eq "qt"){'
-		write(i,"(A)")'	pause -1'
-		write(i,"(A)")'}'
-		write(i,"(A)")'#data'
+	!q(1,1,:)=(/pi,pi/)
+	do n=1,size(nd)
+		nf=1d0-nd(n)
+		call selfconsist_tg(nf,Tk,pg,sc,ap,sp)
+		pg=1d-1
+		sc=1d-7
+		write(*,"(e14.4$)")nf,Tk,pg,sc,ap,sp
+		write(*,"(1X)")
+		!check spinsus()
+		!call spinsus(nf,Tk,pg,sc,ap,sp,q(1:1,1:1,:),iomgb,Veff(:,1:1,1:1,:,:))
+		!call pade(iomgb(mo/2:mo),Veff(mo/2:mo,1,1,1,1),romg,rVeff(:,1,1,1,1))
+		!write(10,"(2e14.4)")(real(romg(i)),dimag(rVeff(i,1,1,1,1)),i=1,size(romg,1))
+		!write(10,"(1x/)")
+		!call spinsus(nf,Tk,pg,sc,ap,sp,q(1:1,1:1,:),romg,rVeff(:,1:1,1:1,:,:))
+		!write(10,"(2e14.4)")(real(romg(i)),dimag(rVeff(i,1,1,1,1)),i=1,size(romg,1))
+		!stop
+		!write(10,"(2e16.4)")(real(romg(i)),dimag(rVeff(i,1,1,1,1)),i=1,size(romg,1))
+		!call spinsus(nf,Tk,pg,sc,ap,sp,q,romg,rVeff)
+		!call mwrite(20,dimag(rVeff(1,:,:,1,1)))
+		!write(20,"(1x)")
+		!call mwrite(20,dimag(rVeff(2,:,:,1,1)))
+		!write(20,"(1x)")
+		!call mwrite(20,dimag(rVeff(3,:,:,1,1)))
+		!write(20,"(1x)")
+		!stop
+		!end check
+		call greenfunc(nf,pg,sc,ap,sp,q,iomgf,G0,G0_inv)
+		!call greenfunc(nf,pg,sc,ap,sp,q,romg,rGf,rG0)
+		!do i=1,mq
+			!do l=1,mq
+				!call pade(iomgf(1:mo/2),G0(1:mo/2,i,l,1,1),romg,rG0(:,i,l,1,1))
+			!enddo
+		!enddo
+		!do l=1,mq/2
+			!write(20,"(e14.4$)")(dimag(rG0(i,l,l,1,1)),i=1,mro)
+			!write(20,"(1x)")
+		!enddo
+		!write(20,"(1x)")
+		!do l=mq/2,1,-1
+			!write(20,"(e14.4$)")(dimag(rG0(i,mq/2,l,1,1)),i=1,mro)
+			!write(20,"(1x)")
+		!enddo
+		!write(20,"(1x)")
+		!do l=mq/2,1,-1
+			!write(20,"(e14.4$)")(dimag(rG0(i,l,1,1,1)),i=1,mro)
+			!write(20,"(1x)")
+		!enddo
+		!write(20,"(1x)")
+		!stop
+		!call pade(iomgf,G0(:,mq/2,int(0.15d0/2d0*mq),1,1),romg,rG0(:,1,1,1,1))
+		!write(10,"(2e14.4)")(real(romg(i)),dimag(rG0(i,1,1,1,1)),i=1,size(romg,1))
+		!write(10,"(1x/)")
+		!call greenfunc(nf,pg,sc,ap,sp,q,romg,rG0,rGf)
+		!write(10,"(2e14.4)")(real(romg(i)),dimag(rG0(i,mq/2,int(0.15d0/2d0*mq),1,1)),i=1,size(romg,1))
+		!stop
+		call effint(nf,Tk,pg,sc,ap,sp,iomgb,Veff)
+		!call effint(nf,Tk,pg,sc,ap,sp,romg,rVeff)
+		!do i=1,mq
+			!do j=1,mq
+				!call pade(iomgb(1:mo/2),Veff(1:mo/2,i,j,1,1),romg,rVeff(:,i,j,1,1))
+			!enddo
+		!enddo
+		do l=1,mo,8
+			call mwrite(20,dimag(Veff(l,:,:,1,1)))
+			write(20,"(1x)")
+			call mwrite(20,dimag(Veff(l,:,:,2,2)))
+			write(20,"(1x)")
+			call mwrite(20,dimag(Veff(l,:,:,1,2)))
+			write(20,"(1x)")
+			call mwrite(20,dimag(Veff(l,:,:,2,1)))
+			write(20,"(1x)")
+		enddo
+		stop
+		!do l=1,mq
+			!write(20,"(e14.4$)")(dimag(rVeff(i,l,l,1,1)),i=1,mro)
+			!write(20,"(1x)")
+		!enddo
+		!write(20,"(1x)")
+		!do l=1,mq
+			!write(20,"(e14.4$)")(dimag(rVeff(i,mq/2,l,1,1)),i=1,mro)
+			!write(20,"(1x)")
+		!enddo
+		!write(20,"(1x)")
+		!call mwrite(20,dimag(rVeff(1,:,:,1,1)))
+		!write(20,"(1x)")
+		!call mwrite(20,dimag(rVeff(2,:,:,1,1)))
+		!write(20,"(1x)")
+		!call mwrite(20,dimag(rVeff(3,:,:,1,1)))
+		!write(20,"(1x)")
+		!stop
+		sfeg=0d0
+		call selfefft(Tk,G0,Veff,sfeg)
+		!ik=(/mq/2,int(0.15d0/2d0*mq)/)
+		!call pade(iomgf(1:mo/2),sfeg(1:mo/2,mq/2,int(0.15d0/2d0*mq),1,1),romg,rsfeg(:,1,1,1,1))
+		!write(10,"(3e14.4)")(real(romg(i)),rsfeg(i,1,1,1,1),i=1,mro)
+		!write(10,"(1x/)")
+		!$OMP PARALLEL DO SCHEDULE(GUIDED)
+		do i=1,mq
+			do j=1,mq
+				Gf(:,i,j,:,:)=G0_inv(:,i,j,:,:)-sfeg(:,i,j,:,:)
+				do l=1,mo
+					call matrix_inv(Gf(l,i,j,:,:))
+				enddo
+				call pade(iomgf(1:mo/2),Gf(1:mo/2,i,j,1,1),romg,rGf(:,i,j,1,1))
+			enddo
+		enddo
+		!$OMP END PARALLEL DO
+		call mwrite(20,dimag(rGf(int(1.2d0/4d0*mro),:,:,1,1)))
+		write(20,"(1x)")
+		do l=1,mq/2
+			write(20,"(e14.4$)")(dimag(rGf(i,l,l,1,1)),i=1,mro)
+			write(20,"(1x)")
+		enddo
+		do l=mq/2,1,-1
+			write(20,"(e14.4$)")(dimag(rGf(i,mq/2,l,1,1)),i=1,mro)
+			write(20,"(1x)")
+		enddo
+		do l=mq/2,1,-1
+			write(20,"(e14.4$)")(dimag(rGf(i,l,1,1,1)),i=1,mro)
+			write(20,"(1x)")
+		enddo
+		do l=1,mq/2+1
+			write(20,"(e14.4$)")(dimag(rGf(i,l,mq/2+2-l,1,1)),i=1,mro)
+			write(20,"(1x)")
+		enddo
+		write(20,"(1x)")
 	enddo
-end
-
+end program

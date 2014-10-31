@@ -1,22 +1,12 @@
-# mkllib=/sbin/ifort/mkl/lib/intel64
-# mklinc=/sbin/ifort/mkl/include
-# FCC = ifort
-# FFT.out: FFT.o
-# FFT.o: FFT.f90
-	# $(FCC) FFT.f90 -c -g
-# clean:
-	# rm FFT.o FFT.out
-out=bdg_no.out
-#FCCFLAG= -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-FCCFLAG = -L ../lib -llapack95 -llapack -lmy
-FFCMOD = -I /usr/lib/lapack95_modules -I ../lib
-FFCOPT = 
-FCC = gfortran
-OMPFLAG = -fopenmp
-all : $(out)
-%.out : %.o
-	$(FCC) $< -o $@ ${OMPFLAG} $(FCCFLAG)
-%.o : %.f90
-	$(FCC) -c $< ${OMPFLAG} $(FFCMOD) $(FFCOPT) $(OMPFLAG)
+out=bdg.out
+FCC = ifort
+#OMPFLAG= -openmp
+#FCCFLAG= -lmkl_intel -lmkl_sequential -lmkl_core -lpthread -lmkl_lapack95 -lmy
+FCCFLAG= -lmkl_intel -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lmkl_lapack95 -lmy
+all:$(out)
+%.out: %.o
+	$(FCC) $< -o $@ $(OMPFLAG) $(FCCFLAG)
+%.o: %.f90
+	$(FCC) -c $< $(OMPFLAG)
 clean:
-	rm -f *.out *.mod *.o
+	rm -f *.out *.mod

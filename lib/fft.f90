@@ -1,7 +1,7 @@
-module fft
+module M_fft
+	use M_const
 	implicit none
-	real(8),parameter :: pi=3.1415926535d0
-	contains
+contains
 	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	!!!!       fft for complex array in one-demension              !!!!
 	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -362,4 +362,4 @@ module fft
 		a=reshape(tmp2,(/n/))
 		deallocate(tmp1,tmp2,m,w,wp)
 	end subroutine
-end
+end module

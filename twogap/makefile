@@ -1,5 +1,5 @@
 out=twogap_tJ.out
-FCCFLAG= -lmkl_intel -lmkl_sequential -lmkl_core -lpthread
+FCCFLAG= -lmy -lmkl_intel -lmkl_sequential -lmkl_core -lpthread
 OMPFLAG= -openmp
 FCC = ifort
 all:$(out)

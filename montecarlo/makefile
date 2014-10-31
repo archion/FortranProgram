@@ -1,7 +1,7 @@
 out=vmc_tJ.out
 FCC = ifort
 OMPFLAG= -openmp
-FCCFLAG= -lmkl_intel -lmkl_sequential -lmkl_core -lpthread -lmkl_lapack95
+FCCFLAG= -lmy -lmkl_intel -lmkl_sequential -lmkl_core -lpthread -lmkl_lapack95
 all:$(out)
 %.out: %.o
 	$(FCC) $< -o $@ $(OMPFLAG) $(FCCFLAG)
