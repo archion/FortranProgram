@@ -1,0 +1,185 @@
+module M_matrix
+	use lapack95, only : getrf, getri
+	implicit none
+contains
+	subroutine det_ratio_row(c,ci,A,iA,pb)
+		complex(8) :: c(:),A(:,:),iA(:,:),pb
+		integer :: ci,i,n
+		pb=0d0
+		n=size(A,1)
+		c=c-A(ci,:)
+		do i=1,n
+			pb=pb+c(i)*iA(i,ci)
+		enddo
+		pb=pb+1d0
+	end subroutine
+	subroutine det_ratio_col(c,cj,A,iA,pb)
+		complex(8) :: c(:),A(:,:),iA(:,:),pb
+		integer :: cj,i,n
+		pb=0d0
+		n=size(A,1)
+		c=c-A(:,cj)
+		do i=1,n
+			pb=pb+iA(cj,i)*c(i)
+		enddo
+		pb=pb+1
+	end subroutine
+	subroutine det_ratio_rowcol(c,ij,A,iA,iY,pb)
+		complex(8) :: c(:,:),A(:,:),iA(:,:),pb,iY(:,:)
+		integer :: ij(:),i,j,n
+		iY=0d0
+		n=size(A,1)
+		c(:,1)=c(:,1)-A(ij(1),:)
+		c(ij(2),1)=0d0
+		c(:,2)=c(:,2)-A(:,ij(2))
+		iY(2,1)=-iA(ij(2),ij(1))
+		do i=1,n
+			iY(1,1)=iY(1,1)+iA(ij(2),i)*c(i,2)
+			iY(2,2)=iY(2,2)+c(i,1)*iA(i,ij(1))
+			do j=1,n
+				iY(1,2)=iY(1,2)-c(i,1)*iA(i,j)*c(j,2)
+			enddo
+		enddo
+		iY(1,1)=iY(1,1)+1d0
+		iY(2,2)=iY(2,2)+1d0
+		pb=iY(1,1)*iY(2,2)-iY(1,2)*iY(2,1)
+		iY=1d0/pb*iY
+	end subroutine
+	subroutine inv_update_row(c,ci,pb,A,iA)
+		complex(8) :: c(:),A(:,:),iA(:,:),pb,ipb
+		complex(8), allocatable :: tmp1(:),tmp2(:,:)
+		integer :: ci,i,j,n
+		ipb=1d0/pb
+		n=size(iA,1)
+		allocate(tmp1(n),tmp2(n,n))
+		tmp1=0d0
+		A(ci,:)=A(ci,:)+c
+		do i=1,n
+			do j=1,n
+				tmp1(i)=tmp1(i)+c(j)*iA(j,i)
+			enddo
+		enddo
+		do i=1,n
+			do j=1,n
+				tmp2(i,j)=iA(i,j)-ipb*iA(i,ci)*tmp1(j)
+			enddo
+		enddo
+		iA=tmp2
+	end subroutine
+	subroutine inv_update_col(c,cj,pb,A,iA)
+		complex(8) :: c(:),A(:,:),iA(:,:),pb,ipb
+		complex(8), allocatable :: tmp1(:),tmp2(:,:)
+		integer :: cj,i,j,n
+		ipb=1d0/pb
+		n=size(iA,1)
+		allocate(tmp1(n),tmp2(n,n))
+		tmp1=0d0
+		A(:,cj)=A(:,cj)+c
+		do i=1,n
+			do j=1,n
+				tmp1(i)=tmp1(i)+iA(i,j)*c(j)
+			enddo
+		enddo
+		do i=1,n
+			do j=1,n
+				tmp2(i,j)=iA(i,j)-ipb*tmp1(i)*iA(cj,j)
+			enddo
+		enddo
+		iA=tmp2
+	end subroutine
+	subroutine inv_update_rowcol(c,ij,iY,A,iA)
+		complex(8) :: c(:,:),A(:,:),iA(:,:),iY(:,:)
+		complex(8), allocatable :: tmp1(:,:),tmp2(:,:)
+		integer :: ij(:),i,j,n
+		n=size(iA,1)
+		allocate(tmp1(n,2),tmp2(n,n))
+		tmp1=0d0
+		A(ij(1),:)=A(ij(1),:)+c(:,1)
+		A(:,ij(2))=A(:,ij(2))+c(:,2)
+		do i=1,n
+			do j=1,n
+				tmp1(i,1)=tmp1(i,1)+c(j,1)*iA(j,i)
+				tmp1(i,2)=tmp1(i,2)+iA(i,j)*c(j,2)
+			enddo
+		enddo
+		do i=1,n
+			do j=1,n
+				tmp2(i,j)=iA(i,j)-((iA(i,ij(1))*iY(1,1)+tmp1(i,2)*iY(2,1))*tmp1(j,1)+&
+					(iA(i,ij(1))*iY(1,2)+tmp1(i,2)*iY(2,2))*iA(ij(2),j))
+			enddo
+		enddo
+		iA=tmp2
+	end subroutine
+	subroutine matrix_inv(A)
+		complex(8) :: A(:,:)
+		integer :: ipiv(size(A,1)),info
+		call getrf(A,ipiv,info)
+		if(info/=0) then
+			write(*,*)"error1",info
+			stop
+		endif
+		call getri(A,ipiv,info)
+		if(info/=0) then
+			write(*,*)"error2",info
+			stop
+		endif
+	end subroutine
+	subroutine checkinv(A,iA,p)
+		complex(8) :: A(:,:),iA(:,:)
+		complex(8), allocatable :: tmp(:,:)
+		real(8) :: p
+		integer :: i,n
+		n=size(A,1)
+		allocate(tmp(n,n))
+		tmp=matmul(A,iA)
+		do i=1,n
+			tmp(i,i)=tmp(i,i)-1d0
+		enddo
+		p=sum(abs(tmp))
+	end subroutine
+	!subroutine matrix_inv(a)
+		!implicit none
+		!complex(8) :: a(:,:)
+		!complex(8), allocatable :: ctmp(:)
+		!real(8) :: tmp
+		!integer :: i,j,k,n,m,l,mx(size(a,1),2)
+		!l=size(a,1)
+		!allocate(ctmp(l))
+		!do i=1,l
+			!tmp=0d0
+			!do j=i,l
+				!do k=i,l
+					!if(tmp<abs(a(j,k))) then
+						!tmp=abs(a(j,k))
+						!mx(i,1)=j
+						!mx(i,2)=k
+					!endif
+				!enddo
+			!enddo
+			!ctmp=a(i,:)
+			!a(i,:)=a(mx(i,1),:)
+			!a(mx(i,1),:)=ctmp
+			!ctmp=a(:,i)
+			!a(:,i)=a(:,mx(i,2))
+			!a(:,mx(i,2))=ctmp
+			!a(i,i)=1d0/a(i,i)
+			!do j=1,l-1
+				!n=mod(i+j-1,l)+1
+				!do k=1,l-1
+					!m=mod(k+i-1,l)+1
+					!a(i,m)=a(i,i)*a(i,m)
+					!a(n,m)=a(n,m)-a(n,i)*a(i,m)
+				!enddo
+				!a(n,i)=-a(n,i)*a(i,i)
+			!enddo
+		!enddo
+		!do i=l,1,-1
+			!ctmp=a(:,i)
+			!a(:,i)=a(:,mx(i,1))
+			!a(:,mx(i,1))=ctmp
+			!ctmp=a(i,:)
+			!a(i,:)=a(mx(i,2),:)
+			!a(mx(i,2),:)=ctmp
+		!enddo
+	!end subroutine
+end module
