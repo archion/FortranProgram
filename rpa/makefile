@@ -1,4 +1,4 @@
-out=rpa_sc.out
+out=rpa_tJ.out
 FCC = ifort
 OMPFLAG = -openmp
 #FCCFLAG= -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread

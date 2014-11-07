@@ -13,7 +13,7 @@ module M_vmc
 	use M_utility
 	implicit none
 contains
-	subroutine inisc(var,wf)
+	subroutine ini(var,wf)
 		complex(8) :: wf(0:,0:)
 		real(8) :: k(2),var(:),Ek,sck,tmp
 		integer :: i,j,ix(2),ik(2)
@@ -35,39 +35,6 @@ contains
 		enddo
 		wf=wf/maxval(abs(wf))
 	end subroutine
-	subroutine inisdw(var,wf)
-		complex(8) :: wf(0:,0:)
-		real(8) :: k(2),var(:),Ek,sck,tmp(2),e(2)
-		integer :: i,j,ix(2),ik(2),n
-		wf=0d0
-		n=0
-		do j=1,Ns2
-			call square_one2two(j,Ns,ik)
-			k=(/2d0*pi/Ns(1)*ik(2),2*pi/Ns(2)*ik(1)+pi/Ns(2)/)
-			Ek=-2d0*t(1)*(cos(k(1))+cos(k(2)))
-			e(1)=-var(2)+sqrt(var(1)**2+Ek**2)
-			e(2)=-var(2)-sqrt(var(1)**2+Ek**2)
-			tmp(1)=sqrt(1+Ek/sqrt(var(1)**2+Ek**2))
-			tmp(2)=sqrt(1-Ek/sqrt(var(1)**2+Ek**2))
-			if(e(1)<0) then
-				n=n+1
-				do i=1,Ns2
-					call square_one2two(i,Ns,ix)
-					wf(n,i)=tmp(1)*exp(img*(k(1)*ix(2)+k(2)*ix(1)))+tmp(2)*exp(img*((k(1)+pi)*ix(2)+(k(2)+pi)*ix(1)))
-					wf(n,i+Ns2)=tmp(1)*exp(img*(k(1)*ix(2)+k(2)*ix(1)))-tmp(2)*exp(img*((k(1)+pi)*ix(2)+(k(2)+pi)*ix(1)))
-				enddo
-			endif
-			if(e(2)<0) then
-				n=n+1
-				do i=1,Ns2
-					call square_one2two(i,Ns,ix)
-					wf(n,i)=-tmp(2)*exp(img*(k(1)*ix(2)+k(2)*ix(1)))+tmp(1)*exp(img*((k(1)+pi)*ix(2)+(k(2)+pi)*ix(1)))
-					wf(n,i+Ns)=tmp(2)*exp(img*(k(1)*ix(2)+k(2)*ix(1)))+tmp(1)*exp(img*((k(1)+pi)*ix(2)+(k(2)+pi)*ix(1)))
-				enddo
-			endif
-		enddo
-		wf=wf/maxval(abs(wf))
-	end subroutine
 	subroutine mc(wf,Nmc,E)
 		complex(8) :: pb,A(ne2,ne2),iA(ne2,ne2),vu(ne2,2),wf(:,:),Y(2,2),jw,E,El
 		real(8) :: rpb
@@ -86,25 +53,12 @@ contains
 				do i=1,Ns2
 					icfg(cfg(i))=i
 				enddo
-				select case(flag)
-				case("dsc")
-					do i=1,ne2
-						call diffsc(vu,(/-10,i/),wf,cfg,0)
-						A(i,:)=vu(:,1)
-					enddo
-					iA=A
-					call matrix_inv(iA)
-				case("sdw")
-					do i=1,ne2
-						call diffsdw(vu,(/-10,i/),wf,cfg,0)
-						A(:,i)=vu(:,1)
-						call diffsdw(vu,(/i,-10/),wf,cfg,1)
-						A(:,i+ne2)=vu(:,2)
-					enddo
-					iA=A
-					call matrix_inv(iA(:,1:ne2))
-					call matrix_inv(iA(:,ne2+1:ne))
-				end select
+				do i=1,ne2
+					call diffsc(vu,(/-10,i/),wf,cfg,1)
+					A(i,:)=vu(:,1)
+				enddo
+				iA=A
+				call matrix_inv(iA)
 			endif
 			n=n+1
 			if(n==Nhot) then
@@ -114,12 +68,16 @@ contains
 			call irandom(j,Ns2-ne2)
 			vu=0d0
 			cr=0
-			if(j>ne2) then
-				j=ne2+j
-				sg=(i-1)/ne2+1
-				cr(sg)=i
-				cr(mod(sg,2)+1)=j
-				call diffsc(vu,cr,wf,cfg,sg-1)
+			if(j>ne2.and.i<=ne2) then
+				sg=1
+				cr(1)=i
+				cr(2)=j+ne2
+				call diffsc(vu,cr,wf,cfg,sg)
+			elseif(j>ne2.and.i>ne2) then
+				sg=2
+				cr(2)=i
+				cr(1)=j+ne2
+				call diffsc(vu,cr,wf,cfg,sg)
 			else
 				sg=3
 				if(i>ne2) then
@@ -128,8 +86,7 @@ contains
 					j=j+ne2
 				endif
 				cr=(/i,j/)
-				call diffsc(vu,cr,wf,cfg,sg-1)
-				!write(*,*)vu(cr(2),1)-vu(cr(1),2)
+				call diffsc(vu,cr,wf,cfg,sg)
 			endif
 			jw=1d0
 			call det(vu,cr,A,iA,Y,pb,sg)
@@ -188,7 +145,7 @@ contains
 		real(8) :: s
 		s=1d0
 		vu=0d0
-		if(sg==0.or.sg==2) then
+		if(sg==1.or.sg==3) then
 			call square_one2two(cfg(r(2)),Ns,ir)
 			do i=ne2+1,ne
 				if(r(2)==i) then
@@ -207,7 +164,7 @@ contains
 				vu(i-ne2,1)=wf(ii(1),ii(2))*s
 			enddo
 		endif
-		if(sg==1.or.sg==2) then
+		if(sg==2.or.sg==3) then
 			call square_one2two(cfg(r(1)),Ns,ir)
 			do i=1,ne2
 				if(r(1)==i) then
@@ -227,117 +184,31 @@ contains
 			enddo
 		endif
 	end subroutine
-	subroutine diffsdw(vu,r,wf,cfg,sg)
-		complex(8) :: vu(:,:),wf(0:,0:)
-		integer :: sg,i,ir(2),ii(2),r(2),cfg(:),n
-		real(8) :: s
-		s=1d0
-		vu=0d0
-		if(sg==0) then
-			vu(:,1)=wf(:,r(2))
-		endif
-		if(sg==1) then
-			vu(:,2)=wf(:,r(1)+Ns2)
-		endif
-		if(sg==2) then
-			vu(:,1)=wf(:,r(2))
-			vu(:,2)=wf(:,r(1)+Ns2)
-		endif
-	end subroutine
 	subroutine det(vu,cr,A,iA,Y,pb,sg)
 		complex(8) :: vu(:,:),A(:,:),iA(:,:),Y(:,:),pb
 		integer :: cr(:),sg,i,j,n,ii,jj
-		n=size(A,1)
-		Y=0d0
 		if(sg==3) then
-			ii=cr(1)
-			jj=cr(2)-ne2
-			vu(:,1)=vu(:,1)-A(ii,:)
-			vu(jj,1)=0d0
-			vu(:,2)=vu(:,2)-A(:,jj)
-			Y(2,1)=-iA(jj,ii)
-			do i=1,n
-				Y(1,1)=Y(1,1)+iA(jj,i)*vu(i,2)
-				Y(2,2)=Y(2,2)+vu(i,1)*iA(i,ii)
-				do j=1,n
-					Y(1,2)=Y(1,2)-vu(i,1)*iA(i,j)*vu(j,2)
-				enddo
-			enddo
-			Y(1,1)=Y(1,1)+1d0
-			Y(2,2)=Y(2,2)+1d0
+			call det_ratio_rowcol(vu,(/cr(1),cr(2)-ne2/),A,iA,Y,pb)
 		else
 			if(sg==1) then
-				ii=cr(1)
-				vu(:,1)=vu(:,1)-A(ii,:)
-				do i=1,n
-					Y(1,1)=Y(1,1)+vu(i,1)*iA(i,ii)
-				enddo
-				Y(1,1)=Y(1,1)+1d0
-				Y(2,2)=1d0
+				call det_ratio_row(vu(:,1),cr(1),A,iA,pb)
 			else
-				jj=cr(2)-ne2
-				vu(:,2)=vu(:,2)-A(:,jj)
-				Y(1,1)=1d0
-				do i=1,n
-					Y(2,2)=Y(2,2)+iA(jj,i)*vu(i,2)
-				enddo
-				Y(2,2)=Y(2,2)+1d0
+				call det_ratio_col(vu(:,2),cr(2)-ne2,A,iA,pb)
 			endif
 		endif
-		pb=Y(1,1)*Y(2,2)-Y(1,2)*Y(2,1)
 	end subroutine
 	subroutine update(vu,cr,A,iA,Y,pb,sg)
-		complex(8) :: vu(:,:),A(:,:),iA(:,:),tmp(size(iA,1),size(iA,2)),tmp1(size(iA,1),2),Y(:,:),pb
+		complex(8) :: vu(:,:),A(:,:),iA(:,:),Y(:,:),pb
 		integer :: cr(:),n,s,i,j,sg,ii,jj
-		tmp1=0d0
-		n=size(iA,1)
 		if(sg==3) then
-			ii=cr(1)
-			jj=cr(2)-ne2
-			A(ii,:)=A(ii,:)+vu(:,1)
-			A(:,jj)=A(:,jj)+vu(:,2)
-			do i=1,n
-				do j=1,n
-					tmp1(i,1)=tmp1(i,1)+iA(j,i)*vu(j,1)
-					tmp1(i,2)=tmp1(i,2)+iA(i,j)*vu(j,2)
-				enddo
-			enddo
-			do i=1,n
-				do j=1,n
-					tmp(i,j)=iA(i,j)-1d0/pb*&
-						((iA(i,ii)*Y(1,1)+tmp1(i,2)*Y(2,1))*tmp1(j,1)+(iA(i,ii)*Y(1,2)+tmp1(i,2)*Y(2,2))*iA(jj,j))
-				enddo
-			enddo
+			call inv_update_rowcol(vu,(/cr(1),cr(2)-ne2/),Y,A,iA)
 		else
 			if(sg==1) then
-				ii=cr(1)
-				A(ii,:)=A(ii,:)+vu(:,1)
-				do i=1,n
-					do j=1,n
-						tmp1(i,1)=tmp1(i,1)+iA(j,i)*vu(j,1)
-					enddo
-				enddo
-				do i=1,n
-					do j=1,n
-						tmp(i,j)=iA(i,j)-1d0/pb*iA(i,ii)*tmp1(j,1)
-					enddo
-				enddo
+				call inv_update_row(vu(:,1),cr(1),pb,A,iA)
 			else
-				jj=cr(2)-ne2
-				A(:,jj)=A(:,jj)+vu(:,2)
-				do i=1,n
-					do j=1,n
-						tmp1(i,2)=tmp1(i,2)+iA(i,j)*vu(j,2)
-					enddo
-				enddo
-				do i=1,n
-					do j=1,n
-						tmp(i,j)=iA(i,j)-1d0/pb*tmp1(i,2)*iA(jj,j)
-					enddo
-				enddo
+				call inv_update_col(vu(:,2),cr(2)-ne2,pb,A,iA)
 			endif
 		endif
-		iA=tmp
 	end subroutine
 	!subroutine jast(cfg,cr,sg,v,jw)
 	!if(sg==3) then
@@ -367,7 +238,7 @@ contains
 					sg=(i-1)/ne2+1
 					cr(sg)=i
 					cr(mod(sg,2)+1)=j
-					call diffsc(vu,cr,wf,cfg,sg-1)
+					call diffsc(vu,cr,wf,cfg,sg)
 					call det(vu,cr,A,iA,Y,pb,sg)
 					jw=1d0
 					!call jast(cfg,cr,sg,v,jw)
@@ -388,7 +259,7 @@ contains
 					El=El-0.5d0*DJ
 					!spin flip
 					cr=(/i,j/)
-					call diffsc(vu,cr,wf,cfg,2)
+					call diffsc(vu,cr,wf,cfg,3)
 					call det(vu,cr,A,iA,Y,pb,3)
 					jw=1d0
 					!call jast(cfg,cr,sg,v,jw)
@@ -430,7 +301,7 @@ program main
 		Eb=0d0
 		E2=0d0
 		var(1)=10d0**l
-		call inisc(var,wf)
+		call ini(var,wf)
 		!$OMP PARALLEL DO REDUCTION(+:Eb,E2) PRIVATE(E) SCHEDULE(STATIC)
 		do j=1,n
 			call mc(wf,50000,E)

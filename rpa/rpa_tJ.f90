@@ -202,6 +202,63 @@ contains
 		enddo
 		!$OMP END PARALLEL DO
 	end subroutine
+	subroutine ddwsus(nf,Tk,pg,sc,ap,sp,q,omg,Xq)
+		implicit none
+		integer :: i,j,l,m,n,mq(2),ki,kj,qi,qj
+		complex(8) :: Uk(4,4),Ukq(4,4),omg(:),Xq(:,:,:,:,:),Xtmp1(size(Xq,1),2,2),Xtmp2(size(Xq,1),2,2),Det(size(Xq,1))
+		real(8) :: k(2),q(:,:,:),sp,bt,pg,sc,ap,ek(4),ekq(4),fk(4),fkq(4),DJq,DJqq,nf,Tk
+		bt=1d0/Tk
+		Xq=0d0
+		mq(1)=size(Xq,2)
+		mq(2)=size(Xq,3)
+		write(*,"(A$)")"    "
+		!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(k,ek,Uk,fk,ekq,Ukq,fkq) SCHEDULE(GUIDED)
+		do ki=0,mk-1
+			write(*,"(4A,I3,'%'$)")char(8),char(8),char(8),char(8),int(real(ki)/mk*100)
+			do kj=0,mk-1
+				k=2d0*pi*(/ki,kj/)/mk
+				call EU(k,nf,pg,sc,ap,sp,ek,Uk)
+				fk=1d0/(1d0+exp(bt*ek))
+				do qi=1,mq(1)
+					do qj=1,mq(2)
+						call EU(k+q(qi,qj,:),nf,pg,sc,ap,sp,ekq,Ukq)
+						fkq=1d0/(1d0+exp(bt*ekq))
+						do n=1,4
+							do m=1,4
+								do i=1,2
+									do j=1,2
+										Xq(:,qi,qj,i,j)=Xq(:,qi,qj,i,j)+(Ukq(1,n)*Uk(3+i-1,m)+Ukq(2,n)*Uk(3+i-1+(-1)**(i-1),m)-&
+											Ukq(3+i-1,n)*Uk(1,m)-Ukq(3+i-1+(-1)**(i-1),n)*Uk(2,m))*&
+											dconjg(Ukq(1,n)*Uk(3+j-1,m))*(1-fk(n)-fkq(m))/(omg+ek(n)+ekq(m)+1d-10)
+									enddo
+								enddo
+							enddo
+						enddo
+					enddo
+				enddo
+			enddo
+		enddo
+		!$OMP END PARALLEL DO
+		Xq=Xq/mk**2
+		!$OMP PARALLEL DO PRIVATE(DJq,DJqq,Xtmp2,Xtmp1,Det) SCHEDULE(GUIDED)
+		do qi=1,mq(1)
+			do qj=1,mq(2)
+				DJq=alp*(cos(q(qi,qj,1))+cos(q(qi,qj,2)))
+				DJqq=-alp*(cos(q(qi,qj,1))+cos(q(qi,qj,2)))
+				Xtmp1=Xq(:,qi,qj,:,:)
+				Xtmp2(:,1,1)=1d0+DJqq*Xtmp1(:,2,2)
+				Xtmp2(:,2,2)=1d0+DJq*Xtmp1(:,1,1)
+				Xtmp2(:,1,2)=-DJq*Xtmp1(:,1,2)
+				Xtmp2(:,2,1)=-DJqq*Xtmp1(:,2,1)
+				Det=1d0/(Xtmp2(:,1,1)*Xtmp2(:,2,2)-Xtmp2(:,1,2)*Xtmp2(:,2,1))
+				Xq(:,qi,qj,1,1)=(Xtmp1(:,1,1)*Xtmp2(:,1,1)+Xtmp1(:,1,2)*Xtmp2(:,2,1))*Det
+				Xq(:,qi,qj,1,2)=(Xtmp1(:,1,1)*Xtmp2(:,1,2)+Xtmp1(:,1,2)*Xtmp2(:,2,2))*Det
+				Xq(:,qi,qj,2,1)=(Xtmp1(:,2,1)*Xtmp2(:,1,1)+Xtmp1(:,2,2)*Xtmp2(:,2,1))*Det
+				Xq(:,qi,qj,2,2)=(Xtmp1(:,2,1)*Xtmp2(:,1,2)+Xtmp1(:,2,2)*Xtmp2(:,2,2))*Det
+			enddo
+		enddo
+		!$OMP END PARALLEL DO
+	end subroutine
 	subroutine greenfunc(nf,pg,sc,ap,sp,k,omg,G0,G0_inv)
 		implicit none
 		integer :: i,j,l,m,n,o,p,ii,jj,sig
@@ -315,34 +372,6 @@ contains
 		enddo
 		sfeg=sfeg*Tk*size(sfeg,1)
 	end subroutine
-	!subroutine rpainstable(sc,ap,sp,q)
-	!implicit none
-	!integer :: i,j,l,m,n
-	!complex(8) :: Uk(2,2),Ukq(2,2)
-	!real(8) :: k(2),q(2),sp,bt,pg,sc,ap,ek(2),ekq(2),fk(2),fkq(2),omg,omgr(2),domg,DJq,Xq,Xq_rpa
-	!bt=1d0/Tk
-	!Xq=0d0
-	!!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(k,ek,Uk,fk,ekq,Ukq,fkq) SCHEDULE(GUIDED)
-	!do i=0,mq
-	!k(1)=pi/mq*i
-	!do j=0,mq
-	!k(2)=pi/mq*j
-	!call EU(k,pg,sc,ap,sp,ek,Uk)
-	!call EU(k+q,pg,sc,ap,sp,ekq,Ukq)
-	!fk=1d0/(1d0+exp(bt*ek))
-	!fkq=1d0/(1d0+exp(bt*ekq))
-	!do n=1,2
-	!do m=1,2
-	!Xq=Xq+(Uk(1,n)*Ukq(2,m)*dconjg(Uk(1,n)*Ukq(2,m))-Uk(2,n)*Ukq(1,m)*dconjg(Uk(1,n)*Ukq(2,m)))*&
-	!(1-fk(n)-fkq(m))/(ek(n)+ekq(m))
-	!enddo
-	!enddo
-	!enddo
-	!enddo
-	!!$OMP END PARALLEL DO
-	!Xq=Xq/mq**2
-	!write(*,"(2e16.3)")1d0-nf,1d0+DJq*Xq
-	!end subroutine
 	subroutine band(pg,sc,ap,sp,nf,Tk,ki,kf)
 		!call band(pg,sc,ap,sp,nf,Tk,(/0d0,0d0,pi,pi,pi,0d0/),(/pi,pi,pi,0d0,0d0,0d0/))
 		integer :: i,j,l,bd(1),sg,m

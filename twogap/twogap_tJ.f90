@@ -2,11 +2,11 @@ module pmt
 	use M_const
 	implicit none
 	real(8), parameter :: t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),cvg=1e-6,&
-		V=0.12d0,DJ=0.35d0,&
-		!V=0.d0,DJ=0.25d0,&
+		!V=0.12d0,DJ=0.35d0,&
+		V=0.d0,DJ=0.25d0,&
 	Vs=DJ-V,Vd=0.5d0*DJ+V
-	character(3) :: pgflag="ddw"
-	!character(3) :: pgflag="sdw"
+	!character(3) :: pgflag="ddw"
+	character(3) :: pgflag="sdw"
 end module
 module selfcons
 	use pmt
@@ -113,13 +113,13 @@ contains
 		sck=sc*gk*Vs*4d0
 		e1=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)
 		e2=sqrt(e1**2+sck**2)
-		ek=(/e2*sign(1d0,e1),-e2*sign(1d0,e1)/)
-		!ek=(/e2,-e2/)
+		!ek=(/e2*sign(1d0,e1),-e2*sign(1d0,e1)/)
+		ek=(/e2,-e2/)
 		cos2th=eka/sqrt(pgk**2+eka**2)
 		sin2th=pgk/sqrt(pgk**2+eka**2)
 		if(abs(eka)<1d-8) then
 			cos2th=0d0
-			sin2th=1d0
+			sin2th=sign(1d0,pgk)
 		endif
 		!cos2fy=e1/e2*sign(1d0,e1)
 		!sin2fy=sck/e2*sign(1d0,e1)
@@ -379,16 +379,17 @@ contains
 			Rs=Rs/mr**2
 			Rs(4,1)=sum(Rs(:,1))
 			Rs(4,2)=sum(Rs(:,2))
+			Rs(1,1)=Rs(1,1)+Rs(3,1)
 			!R_rpa=-dimag(R(1)/(1d0+DJp*R(1)))
 			!R_rpa=-dimag(R(1))/((1d0+DJp*dreal(R(1)))**2+(DJp*dimag(R(1)))**2)
 			!write(50,"(e16.8$)")omg,-dimag(R),R_rpa,Djp,dreal(R(1)),(1d0+DJp*dreal(R(1)))**2+(DJp*dimag(R(1)))**2
 			!write(50,"(e16.5$)")omg,R
-			write(50,"(e16.5$)")omg,Rs
+			write(50,"(e16.5$)")omg,Rs(:,1)
 			!do i=1,2
 				!call find_peak(pR(:,i),R(i),sg)
 				!write(50,"(i3$)")sg
 			!enddo
-			do j=1,2
+			do j=1,1
 				do i=1,4
 					call find_peak(pRs(:,i,j),Rs(i,j),sg)
 					write(50,"(i3$)")sg
@@ -632,7 +633,7 @@ program main
 	implicit none
 	complex(8) :: Uk(4,4)
 	real(8) :: kf(2),sp,sc,pg,ap,gap,Tk,pk0(2),pk(2),&
-		nd(1)=(/0.135d0/),&
+		nd(1)=(/0.13d0/),&
 		!nd(3)=(/0.11d0,0.135d0,0.18d0/),&
 		!nd(7)=(/0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0/),&
 		!nd(9)=(/0.08d0,0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0/),&
@@ -660,9 +661,9 @@ program main
 		!call findTc(nf,Tp,1)
 		!write(*,"(e12.4$)")Tp
 		do j=0,size(Td)-1
-			if(j/=0.and.j/=6.and.j/=9) then
-				cycle
-			endif
+			!if(j/=0.and.j/=6.and.j/=9) then
+				!cycle
+			!endif
 			!Tk=max(j*max(Tc,Tp)/(size(Td)-1),1d-5)
 			Tk=max(j*Tc/(size(Td)-1),1d-5)
 			write(*,"(e12.4$)")Tk/Tc
@@ -678,8 +679,8 @@ program main
 				!pk0=pk
 			!endif
 			!write(70,"(e12.4$)")pk/pk0
-			sc=0d0
-			call band(pg,sc,ap,sp,nf,Tk,(/pi,pi/2d0,pi,0d0,pi,0d0/),(/pi,0d0,pi/2d0,pi/2d0,pi/2d0,0d0/))
+			!sc=0d0
+			!call band(pg,sc,ap,sp,nf,Tk,(/pi,pi/2d0,pi,0d0,pi,0d0/),(/pi,0d0,pi/2d0,pi/2d0,pi/2d0,0d0/))
 			!call DOS(nf,pg,sc,ap,sp,Tk,(/-0.4d0,0.4d0,0.0002d0/))
 			!write(*,"(e12.4$)")nf,Tk,Tk/Tc,gap
 			!do l=0,10
