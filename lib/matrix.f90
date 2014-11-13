@@ -43,7 +43,7 @@ contains
 		iY(1,1)=iY(1,1)+1d0
 		iY(2,2)=iY(2,2)+1d0
 		pb=iY(1,1)*iY(2,2)-iY(1,2)*iY(2,1)
-		iY=1d0/pb*iY
+		iY=iY/pb
 	end subroutine
 	subroutine inv_update_row(c,ci,pb,A,iA)
 		complex(8) :: c(:),A(:,:),iA(:,:),pb,ipb
@@ -182,4 +182,22 @@ contains
 			!a(mx(i,2),:)=ctmp
 		!enddo
 	!end subroutine
+	subroutine conjgrad(A,b,x)
+		real(8) :: A(:,:),b(:),x(:),r(size(x)),p(size(x)),Ap(size(x)),al,tmp0,tmp1,cvg=1d-10
+		r=b-matmul(A,x)
+		p=r
+		tmp0=dot_product(r,r)
+		do
+			Ap=matmul(A,p)
+			al=tmp0/dot_product(p,Ap)
+			x=x+al*p
+			r=r-al*Ap
+			tmp1=dot_product(r,r)
+			if(tmp1<cvg) then
+				exit
+			endif
+			p=r+tmp1/tmp0*p
+			tmp0=tmp1
+		enddo
+	end subroutine
 end module
