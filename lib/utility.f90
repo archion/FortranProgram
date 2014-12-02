@@ -6,6 +6,9 @@ module M_utility
 	interface arth
 		module procedure carth,rarth,iarth
 	end interface
+	interface random_number
+		module procedure ncrandom,mcrandom
+	end interface
 contains
 	subroutine cmwrite(f,A)
 		complex(8) :: A(:,:)
@@ -103,4 +106,18 @@ contains
 			iarth(i)=iarth(i-1)+1
 		enddo
 	end function
+	subroutine ncrandom(r)
+		complex(8) :: r
+		real(8) :: a,b
+		call random_number(a) 
+		call random_number(b) 
+		r=cmplx(a,b) 
+	end subroutine
+	subroutine mcrandom(r)
+		complex(8) :: r(:,:)
+		real(8) :: a(size(r,1),size(r,2)),b(size(r,1),size(r,2))
+		call random_number(a) 
+		call random_number(b) 
+		r=cmplx(a,b) 
+	end subroutine
 end module

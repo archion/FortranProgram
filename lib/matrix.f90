@@ -124,20 +124,28 @@ contains
 			stop
 		endif
 	end subroutine
-	subroutine checkinv(A,iA,p)
-		complex(8) :: A(:,:),iA(:,:)
-		complex(8), allocatable :: tmp(:,:)
-		real(8) :: p
-		integer :: i,n
-		n=size(A,1)
-		allocate(tmp(n,n))
-		tmp=matmul(A,iA)
-		do i=1,n
-			tmp(i,i)=tmp(i,i)-1d0
+	function diag(a)
+		real(8) :: a(:) 
+		real(8) :: diag(size(a),size(a))
+		integer :: i
+		diag=0d0
+		do i=1,size(a)
+			diag(i,i)=a(i)
 		enddo
-		p=sum(abs(tmp))
-	end subroutine
+	end function
+	function Tr(A,B)
+		complex(8) :: A(:,:),B(:,:),Tr
+		integer :: n,i,j
+		n=size(A,1)
+		Tr=0d0
+		do i=1,n
+			do j=1,n
+				Tr=Tr+A(i,j)*B(j,i)
+			enddo
+		enddo
+	end function
 	!subroutine matrix_inv(a)
+		!writen by myself, not quite work
 		!implicit none
 		!complex(8) :: a(:,:)
 		!complex(8), allocatable :: ctmp(:)
@@ -182,7 +190,7 @@ contains
 			!a(mx(i,2),:)=ctmp
 		!enddo
 	!end subroutine
-	subroutine conjgrad(A,b,x)
+	subroutine r_conjgrad(A,b,x)
 		real(8) :: A(:,:),b(:),x(:),r(size(x)),p(size(x)),Ap(size(x)),al,tmp0,tmp1,cvg=1d-10
 		r=b-matmul(A,x)
 		p=r

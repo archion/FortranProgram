@@ -351,7 +351,6 @@ ex:		do while(.true.)
 	end subroutine
 end module
 
-
 program main
 	use global
 	use lanczos

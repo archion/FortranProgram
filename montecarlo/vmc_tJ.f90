@@ -1,11 +1,12 @@
 module M_pmt
 	use M_const
 	implicit none
-	integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)*Ns(2),ne=88,ne2=ne/2
-	integer :: neb(Ns2,4,3)
-	real(8), parameter :: t(3)=(/1d0,-0.25d0,0.1d0/),DJ=0.25d0,V=0.d0
+	integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)*Ns(2),vn=5
+	integer :: neb(Ns2,4,3),ne=100,ne2
+	real(8), parameter :: t(1)=(/1d0/),DJ=0.5d0,V=-2d0
 	character(3) :: pgflag="sdw"
 	!character(3) :: pgflag="ddw"
+	real(8) :: ncfg(Ns2),scfg(Ns2)
 end module
 module M_vmc
 	use M_pmt
@@ -15,83 +16,27 @@ module M_vmc
 	use M_latt
 	implicit none
 contains
-	!subroutine ini(var,wf)
-		!complex(8) :: wf(0:,0:)
-		!real(8) :: k(2),var(:),Ek,sck,tmp
-		!integer :: i,j,ix(2),ik(2)
-		!write(*,"(A)")"initial the wavefunction"
-		!wf=0d0
-		!do j=1,Ns2
-			!call square_one2two(j,Ns,ik)
-			!k=(/2d0*pi/Ns(1)*ik(2),2*pi/Ns(2)*ik(1)+pi/Ns(2)/)
-			!Ek=-2d0*t(1)*(cos(k(1))+cos(k(2)))-var(2)
-			!sck=(cos(k(1))-cos(k(2)))*var(1)
-			!tmp=sck/(Ek+sqrt(Ek**2+sck**2))
-			!do i=1,Ns2
-				!call square_one2two(i,Ns,ix)
-				!wf(ix(1),ix(2))=wf(ix(1),ix(2))+tmp*exp(img*(k(1)*ix(2)+k(2)*ix(1)))
-				!if(isnan(real(wf(ix(1),ix(2))))) then
-					!write(*,"(A)")"NAN in wf, quit!!"
-					!stop
-				!endif
-			!enddo
-		!enddo
-		!!wf=wf/maxval(abs(wf))
-	!end subroutine
-	!subroutine pair(ri,rj,wf,a)
-		!integer :: ri,rj,ri2(2),rj2(2),dr(2)
-		!complex(8) :: wf(0:,0:),a
-		!real(8) :: s
-		!call square_one2two(ri,Ns,ri2)
-		!call square_one2two(rj,Ns,rj2)
-		!dr=ri2-rj2
-		!s=sign(1d0,dr(1)+0.1d0)
-		!dr(1)=mod(dr(1)+Ns(2),Ns(2))
-		!dr(2)=mod(dr(2)+Ns(1),Ns(1))
-		!a=wf(dr(1),dr(2))*s
-	!end subroutine
-	subroutine ini(var,wf)
-		complex(8) :: wf(0:,0:),p(2)
-		real(8) :: k(2),var(:),sck,a(2),ek(2),pgk,eks,eka,al
-		integer :: i,j,ix(2),ik(2),n,np,pnp,eo
-		!write(*,"(A$)")"initial the wavefunction ... "
-		wf=0d0
-		n=size(wf,2)/2
+	subroutine iniwf(var,wf,dwf)
+		complex(8) :: wf(0:,0:),dwf(0:,0:,:),uv,duv,tmpe(2),dtmpe(2),tmpo(2),dtmpo(2)
+		real(8) :: var(vn),a(2),da(2,vn),al,np,pnp,gk,eks,eka,k(2),ek(2),E(2),pgk,sck,u2,v2,du2,dv2,tmp
+		integer :: i,j,n,ik(2),ix(2),eo
+		logical :: flag
 		al=0.01d0
-		do
-			np=0
-			pnp=0
-			do j=1,Ns2
-				call square_one2two(j,Ns,ik)
-				k=(/2d0*pi/Ns(1)*ik(2),2*pi/Ns(2)*ik(1)+pi/Ns(2)/)-(/pi,pi/)
-				eks=-4d0*t(2)*cos(k(1))*cos(k(2))-2d0*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))-var(2)
-				eka=-2d0*t(1)*(cos(k(1))+cos(k(2)))
-				if((eka+eks)<0d0) then
-					np=np+1
-				endif
-			enddo
-			!write(*,*)np,var(2)
-			!call sleepqq(1000)
-			if((abs(ne2-np)/abs(ne2-pnp))>0.8d0) then
-				al=max(al-0.05d0,0.001d0)
-			endif
-			if(abs(ne2-np)<1d-3) then
-				exit
-			endif
-			var(2)=var(2)+al*(ne2-np)
-			pnp=np
-		enddo
+		pnp=0
+		wf=0d0
+		dwf=0d0
+		n=size(wf,2)/2
 		do j=1,Ns2
 			call square_one2two(j,Ns,ik)
-			k=(/2d0*pi/Ns(1)*ik(2),2*pi/Ns(2)*ik(1)+pi/Ns(2)/)-(/pi,pi/)
-			eks=-4d0*t(2)*cos(k(1))*cos(k(2))-2d0*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))-var(2)
+			k=(/2d0*pi/Ns(1)*ik(1),2*pi/Ns(2)*ik(2)+pi/Ns(2)/)-pi
+			eks=-4d0*var(4)*cos(k(1))*cos(k(2))-2d0*var(5)*(cos(2d0*k(1))+cos(2d0*k(2)))-var(2)
 			eka=-2d0*t(1)*(cos(k(1))+cos(k(2)))
 			gk=(cos(k(1))-cos(k(2)))
 			if(abs(k(1))+abs(k(2))>pi) then
 				cycle
 			endif
-			if(abs(var(1))<1d-5) then
-				var(1)=sign(1d-5,var(1))
+			if(abs(var(1))<1d-3) then
+				var(1)=sign(1d-3,var(1))
 			endif
 			sck=gk*var(1)
 			select case(pgflag)
@@ -101,28 +46,54 @@ contains
 				pgk=var(3)
 			end select
 			tmp=sqrt(pgk**2+eka**2)
-			ek=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)
+			ek=eks+(/1d0,-1d0/)*tmp
+			!if(abs(sck)<1d-6) then
+			!sck=sign(1d-6,sck)
+			!endif
 			E=sqrt(ek**2+sck**2)
 			a=sck/(ek+E)*(/-1d0,1d0/)
-			da(:,1)=gk/(ek+E)+sck*gk/((ek+E)**2*E)*(/1d0,-1d0/)
-			da(:,2)=sck*gk*(1d0+ek/E)/(ek+E)**2*(/-1d0,1d0/)
+			a=min(abs(a),1d6)*sign(1d0,a)
+			!if(sck<1d-3.and.ek<=0d0) then
+				!a=min(2d0*abs(ek)/sck,1d8)*(/-1d0,1d0/)
+			!else
+			!endif
+			!if(any(isnan(a))) then
+				!write(*,"(A)")"NAN in wf, quit!!"
+				!stop
+			!endif
+			!if(abs(ek)<1d-5) then
+				!write(*,"(A)")"ek is too small"
+				!stop
+			!endif
+			da(:,1)=ek*gk/(E**2+ek*E)*(/-1d0,1d0/)
+			!da(:,2)=sck/(E**2+ek*E)*(/-1d0,1d0/)
+			da(:,2)=a/E
+			da(:,4)=da(:,2)*4d0*cos(k(1))*cos(k(2))
+			da(:,5)=da(:,2)*2d0*(cos(2d0*k(1))+cos(2d0*k(2)))
+			!if(sck<1d-6) then
+			!a=(1d0-sign(1d0,ek))*1d10*(/-1d0,1d0/)
+			!da(:,1)=((1d0-sign(1d0,ek))*1d10+1d0/abs(2d0*ek))*sign(1d0,ek)*(/-1d0,1d0/)
+			!da(:,2)=(1d0-sign(1d0,ek))*1d10*(/1d0,-1d0/)
+			!endif
 			select case(pgflag)
 			case("ddw")
+				!write(*,*)"ddw"
 				da(:,3)=da(:,2)*pgk*gk/tmp*(/-1d0,1d0/)
 				u2=0.5d0*(1d0+eka/tmp)
 				v2=0.5d0*(1d0-eka/tmp)
 				uv=0.5d0*pgk/tmp*img
-				du2=0.5d0*(1d0-eka*pgk*gk/tmp**3)
-				dv2=0.5d0*(1d0+eka*pgk*gk/tmp**3)
-				duv=0.5d0*(gk/tmp-pgk*pgk*gk/tmp**3)*img
+				du2=-0.5d0*eka*pgk*gk/tmp**3
+				dv2=0.5d0*eka*pgk*gk/tmp**3
+				duv=0.5d0*(eka**2*gk/tmp**3)*img
 			case("sdw")
+				!write(*,*)"sdw"
 				da(:,3)=da(:,2)*pgk/tmp*(/-1d0,1d0/)
 				u2=0.5d0*(1d0+eka/tmp)
 				v2=0.5d0*(1d0-eka/tmp)
 				uv=0.5d0*pgk/tmp
-				du2=0.5d0*(1d0-eka*pgk/tmp**3)
-				dv2=0.5d0*(1d0+eka*pgk/tmp**3)
-				duv=0.5d0*(1d0/tmp-pgk*pgk/tmp**3)
+				du2=-0.5d0*eka*pgk/tmp**3
+				dv2=0.5d0*eka*pgk/tmp**3
+				duv=0.5d0*(eka**2/tmp**3)
 			end select
 			do i=1,Ns2
 				call square_one2two(i,Ns,ix)
@@ -131,68 +102,32 @@ contains
 				dtmpe=(/du2-eo*dv2,-dv2+eo*du2/)
 				tmpo=(-eo*dconjg(uv)+uv)
 				dtmpo=(-eo*dconjg(duv)+duv)
-				dwf(ix(1),ix(2),:)=dwf(ix(1),ix(2),:)+&
-				(/&
-				(tmpe(1)+tmpo(1))*da(1,1)+(tmpe(2)+tmpo(2))*da(2,1),&
-				(tmpe(1)+tmpo(1))*da(1,2)+(tmpe(2)+tmpo(2))*da(2,2),&
-				(tmpe(1)+tmpo(1))*da(1,3)+(tmpe(2)+tmpo(2))*da(2,3)+(dtmpe(1)+dtmpo(1))*a(1)+(dtmpe(2)+dtmpo(2))*a(2)&
-				/)*exp(img*(k(1)*ix(2)+k(2)*ix(1)))
-				dwf(ix(1),ix(2)+n,:)=dwf(ix(1),ix(2)+n,:)+&
-				(/&
-				(tmpe(1)-tmpo(1))*da(1,1)+(tmpe(2)-tmpo(2))*da(2,1),&
-				(tmpe(1)-tmpo(1))*da(1,2)+(tmpe(2)-tmpo(2))*da(2,2),&
-				(tmpe(1)-tmpo(1))*da(1,3)+(tmpe(2)-tmpo(2))*da(2,3)+(dtmpe(1)-dtmpo(1))*a(1)+(dtmpe(2)-dtmpo(2))*a(2)&
-				/)*exp(img*(k(1)*ix(2)+k(2)*ix(1)))
-				if(isnan(real(wf(ix(1),ix(2))))) then
-					write(*,"(A)")"NAN in wf, quit!!"
-					stop
-				endif
+				wf(ix(1),ix(2))=wf(ix(1),ix(2))+exp(img*sum(k*ix))*sum((tmpe+tmpo)*a)
+				!((tmpe(1)+tmpo(1))*a(1)+(tmpe(2)+tmpo(2))*a(2))
+				wf(ix(1),ix(2)+n)=wf(ix(1),ix(2)+n)+exp(img*sum(k*ix))*sum((tmpe-tmpo)*a)
+				!((tmpe(1)-tmpo(1))*a(1)+(tmpe(2)-tmpo(2))*a(2))
+				dwf(ix(1),ix(2),:)=dwf(ix(1),ix(2),:)+exp(img*sum(k*ix))*&
+					(/&
+					(tmpe(1)+tmpo(1))*da(1,1)+(tmpe(2)+tmpo(2))*da(2,1)&
+					,(tmpe(1)+tmpo(1))*da(1,2)+(tmpe(2)+tmpo(2))*da(2,2)&
+					,(tmpe(1)+tmpo(1))*da(1,3)+(tmpe(2)+tmpo(2))*da(2,3)+(dtmpe(1)+dtmpo(1))*a(1)+(dtmpe(2)+dtmpo(2))*a(2)&
+					,(tmpe(1)+tmpo(1))*da(1,4)+(tmpe(2)+tmpo(2))*da(2,4)&
+					,(tmpe(1)+tmpo(1))*da(1,5)+(tmpe(2)+tmpo(2))*da(2,5)&
+					/)
+				dwf(ix(1),ix(2)+n,:)=dwf(ix(1),ix(2)+n,:)+exp(img*sum(k*ix))*&
+					(/&
+					(tmpe(1)-tmpo(1))*da(1,1)+(tmpe(2)-tmpo(2))*da(2,1)&
+					,(tmpe(1)-tmpo(1))*da(1,2)+(tmpe(2)-tmpo(2))*da(2,2)&
+					,(tmpe(1)-tmpo(1))*da(1,3)+(tmpe(2)-tmpo(2))*da(2,3)+(dtmpe(1)-dtmpo(1))*a(1)+(dtmpe(2)-dtmpo(2))*a(2)&
+					,(tmpe(1)-tmpo(1))*da(1,4)+(tmpe(2)-tmpo(2))*da(2,4)&
+					,(tmpe(1)-tmpo(1))*da(1,5)+(tmpe(2)-tmpo(2))*da(2,5)&
+					/)
 			enddo
 		enddo
-			call square_one2two(j,Ns,ik)
-			k=(/2d0*pi/Ns(1)*ik(2),2*pi/Ns(2)*ik(1)+pi/Ns(2)/)-(/pi,pi/)
-			eks=-4d0*t(2)*cos(k(1))*cos(k(2))-2d0*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))-var(2)
-			eka=-2d0*t(1)*(cos(k(1))+cos(k(2)))
-			if(abs(k(1))+abs(k(2))>pi) then
-				cycle
-			endif
-			if(abs(var(1))<1d-5) then
-				var(1)=sign(1d-5,var(1))
-			endif
-			sck=(cos(k(1))-cos(k(2)))*var(1)
-			select case(pgflag)
-			case("ddw")
-				pgk=(cos(k(1))-cos(k(2)))*var(3)
-			case("sdw")
-				pgk=var(3)
-			end select
-			ek=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)
-			a=sck/(ek+sqrt(ek**2+sck**2))*(/-1d0,1d0/)
-			if(abs(eka)<1d-8) then
-				p=(/1d0,-1d0/)*sign(1d-8,eka)
-			else
-				p=eka/sqrt(pgk**2+eka**2)*(/1d0,-1d0/)
-			endif
-			select case(pgflag)
-			case("ddw")
-				p=(/sqrt(0.5d0*(1d0+p(1))),sqrt(0.5d0*(1d0+p(2)))*sign(1d0,pgk)*img/)
-			case("sdw")
-				p=(/sqrt(0.5d0*(1d0+p(1))),sqrt(0.5d0*(1d0+p(2)))*sign(1d0,pgk)/)
-			end select
-			do i=1,Ns2
-				call square_one2two(i,Ns,ix)
-				eo=(-1)**mod(ix(1)+ix(2),2)
-				wf(ix(1),ix(2))=wf(ix(1),ix(2))+((p(1)**2+eo*(-p(2)*dconjg(p(2))-p(1)*dconjg(p(2)))+p(1)*p(2))*a(1)+&
-					(-p(2)*dconjg(p(2))+eo*(p(1)**2-p(1)*dconjg(p(2)))+p(1)*p(2))*a(2))*exp(img*(k(1)*ix(2)+k(2)*ix(1)))
-				wf(ix(1),ix(2)+n)=wf(ix(1),ix(2)+n)+((p(1)**2+eo*(-p(2)*dconjg(p(2))+p(1)*dconjg(p(2)))-p(1)*p(2))*a(1)+&
-					(-p(2)*dconjg(p(2))+eo*(p(1)**2+p(1)*dconjg(p(2)))-p(1)*p(2))*a(2))*exp(img*(k(1)*ix(2)+k(2)*ix(1)))
-				if(isnan(real(dwf(ix(1),ix(2))))) then
-					write(*,"(A)")"NAN in wf, quit!!"
-					stop
-				endif
-			enddo
-		enddo
-		!write(*,"(A)")"initial finish"
+		dwf=dwf/Ns2
+		wf=wf/Ns2
+		!dwf=dwf/maxval(abs(wf))
+		!wf=wf/maxval(abs(wf))
 	end subroutine
 	subroutine pair(ri,rj,wf,a)
 		integer :: ri,rj,ri2(2),rj2(2),dr(2)
@@ -201,186 +136,29 @@ contains
 		call square_one2two(ri,Ns,ri2)
 		call square_one2two(rj,Ns,rj2)
 		dr=ri2-rj2
-		s=sign(1d0,dr(1)+0.1d0)
-		dr(1)=mod(dr(1)+Ns(2),Ns(2))
-		dr(2)=mod(dr(2)+Ns(1),Ns(1))
+		s=sign(1d0,dr(2)+0.1d0)
+		dr=mod(dr+Ns,Ns)
 		a=wf(dr(1),dr(2)+size(wf,2)/2*mod(ri2(1)+ri2(2),2))*s
 	end subroutine
-	subroutine iniwf(var,wf)
-		complex(8) :: wf(0:,0:),p(2),dp(2,3)
-		real(8) :: var(:),a(2),da(2,3)
-		wf=0d0
-		n=size(wf,2)/2
-			al=0.01d0
-			do
-				np=0
-				pnp=0
-				do j=1,Ns2
-					call square_one2two(j,Ns,ik)
-					k=(/2d0*pi/Ns(1)*ik(2),2*pi/Ns(2)*ik(1)+pi/Ns(2)/)-(/pi,pi/)
-					eks=-4d0*t(2)*cos(k(1))*cos(k(2))-2d0*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))-var(2)
-					eka=-2d0*t(1)*(cos(k(1))+cos(k(2)))
-					if((eka+eks)<0d0) then
-						np=np+1
-					endif
-				enddo
-				!write(*,*)np,var(2)
-				!call sleepqq(1000)
-				if((abs(ne2-np)/abs(ne2-pnp))>0.8d0) then
-					al=max(al-0.05d0,0.001d0)
-				endif
-				if(abs(ne2-np)<1d-3) then
-					exit
-				endif
-				var(2)=var(2)+al*(ne2-np)
-				pnp=np
-			enddo
-		do j=1,Ns2
-			call square_one2two(j,Ns,ik)
-			k=(/2d0*pi/Ns(1)*ik(2),2*pi/Ns(2)*ik(1)+pi/Ns(2)/)-(/pi,pi/)
-			eks=-4d0*t(2)*cos(k(1))*cos(k(2))-2d0*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))-var(2)
-			eka=-2d0*t(1)*(cos(k(1))+cos(k(2)))
-			gk=(cos(k(1))-cos(k(2)))
-			if(abs(k(1))+abs(k(2))>pi) then
-				cycle
-			endif
-			if(abs(var(1))<1d-5) then
-				var(1)=sign(1d-5,var(1))
-			endif
-			sck=gk*var(1)
-			select case(pgflag)
-			case("ddw")
-				pgk=gk*var(3)
-			case("sdw")
-				pgk=var(3)
-			end select
-			tmp=sqrt(pgk**2+eka**2)
-			ek=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)
-			E=sqrt(ek**2+sck**2)
-			a=sck/(ek+E)*(/-1d0,1d0/)
-			select case(pgflag)
-			case("ddw")
-				u2=0.5d0*(1d0+eka/tmp)
-				v2=0.5d0*(1d0-eka/tmp)
-				uv=0.5d0*pgk/tmp*img
-			case("sdw")
-				u2=0.5d0*(1d0+eka/tmp)
-				v2=0.5d0*(1d0-eka/tmp)
-				uv=0.5d0*pgk/tmp
-			end select
-			do i=1,Ns2
-				call square_one2two(i,Ns,ix)
-				eo=(-1)**mod(ix(1)+ix(2),2)
-				tmpe=(/u2-eo*v2,-v2+eo*u2/)
-				tmpo=(-eo*dconjg(uv)+uv)
-				wf(ix(1),ix(2),1)=wf(ix(1),ix(2),1)+&
-					((tmpe(1)+tmpo(1))*a(1)+(tmpe(2)+tmpo(2))*a(2))*exp(img*(k(1)*ix(2)+k(2)*ix(1)))
-				wf(ix(1),ix(2)+n,1)=wf(ix(1),ix(2)+n,1)+&
-					((tmpe(1)-tmpo(1))*a(1)+(tmpe(2)-tmpo(2))*a(2))*exp(img*(k(1)*ix(2)+k(2)*ix(1)))
-				if(isnan(real(wf(ix(1),ix(2))))) then
-					write(*,"(A)")"NAN in wf, quit!!"
-					stop
-				endif
-			enddo
-		enddo
-	end subroutine
-	subroutine inidwf(var,wf)
-		complex(8) :: wf(0:,0:,:),p(2),dp(2,3)
-		real(8) :: var(:),a(2),da(2,3)
-		logical :: flag
-		wf=0d0
-		n=size(wf,2)/2
-		do j=1,Ns2
-			call square_one2two(j,Ns,ik)
-			k=(/2d0*pi/Ns(1)*ik(2),2*pi/Ns(2)*ik(1)+pi/Ns(2)/)-(/pi,pi/)
-			eks=-4d0*t(2)*cos(k(1))*cos(k(2))-2d0*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))-var(2)
-			eka=-2d0*t(1)*(cos(k(1))+cos(k(2)))
-			gk=(cos(k(1))-cos(k(2)))
-			if(abs(k(1))+abs(k(2))>pi) then
-				cycle
-			endif
-			if(abs(var(1))<1d-5) then
-				var(1)=sign(1d-5,var(1))
-			endif
-			sck=gk*var(1)
-			select case(pgflag)
-			case("ddw")
-				pgk=gk*var(3)
-			case("sdw")
-				pgk=var(3)
-			end select
-			tmp=sqrt(pgk**2+eka**2)
-			ek=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)
-			E=sqrt(ek**2+sck**2)
-			a=sck/(ek+E)*(/-1d0,1d0/)
-			da(:,1)=gk/(ek+E)+sck*gk/((ek+E)**2*E)*(/1d0,-1d0/)
-			da(:,2)=sck*gk*(1d0+ek/E)/(ek+E)**2*(/-1d0,1d0/)
-			select case(pgflag)
-			case("ddw")
-				da(:,3)=da(:,2)*pgk*gk/tmp*(/-1d0,1d0/)
-				u2=0.5d0*(1d0+eka/tmp)
-				v2=0.5d0*(1d0-eka/tmp)
-				uv=0.5d0*pgk/tmp*img
-				du2=0.5d0*(1d0-eka*pgk*gk/tmp**3)
-				dv2=0.5d0*(1d0+eka*pgk*gk/tmp**3)
-				duv=0.5d0*(gk/tmp-pgk*pgk*gk/tmp**3)*img
-			case("sdw")
-				da(:,3)=da(:,2)*pgk/tmp*(/-1d0,1d0/)
-				u2=0.5d0*(1d0+eka/tmp)
-				v2=0.5d0*(1d0-eka/tmp)
-				uv=0.5d0*pgk/tmp
-				du2=0.5d0*(1d0-eka*pgk/tmp**3)
-				dv2=0.5d0*(1d0+eka*pgk/tmp**3)
-				duv=0.5d0*(1d0/tmp-pgk*pgk/tmp**3)
-			end select
-			do i=1,Ns2
-				call square_one2two(i,Ns,ix)
-				eo=(-1)**mod(ix(1)+ix(2),2)
-				tmpe=(/u2-eo*v2,-v2+eo*u2/)
-				dtmpe=(/du2-eo*dv2,-dv2+eo*du2/)
-				tmpo=(-eo*dconjg(uv)+uv)
-				dtmpo=(-eo*dconjg(duv)+duv)
-				wf(ix(1),ix(2),:)=wf(ix(1),ix(2),:)+&
-					(/&
-					(tmpe(1)+tmpo(1))*da(1,1)+(tmpe(2)+tmpo(2))*da(2,1),&
-					(tmpe(1)+tmpo(1))*da(1,2)+(tmpe(2)+tmpo(2))*da(2,2),&
-					(tmpe(1)+tmpo(1))*da(1,3)+(tmpe(2)+tmpo(2))*da(2,3)+(dtmpe(1)+dtmpo(1))*a(1)+(dtmpe(2)+dtmpo(2))*a(2)&
-					/)*exp(img*(k(1)*ix(2)+k(2)*ix(1)))
-				wf(ix(1),ix(2)+n,:)=wf(ix(1),ix(2)+n,:)+&
-					(/&
-					(tmpe(1)-tmpo(1))*da(1,1)+(tmpe(2)-tmpo(2))*da(2,1),&
-					(tmpe(1)-tmpo(1))*da(1,2)+(tmpe(2)-tmpo(2))*da(2,2),&
-					(tmpe(1)-tmpo(1))*da(1,3)+(tmpe(2)-tmpo(2))*da(2,3)+(dtmpe(1)-dtmpo(1))*a(1)+(dtmpe(2)-dtmpo(2))*a(2)&
-					/)*exp(img*(k(1)*ix(2)+k(2)*ix(1)))
-				if(isnan(real(wf(ix(1),ix(2))))) then
-					write(*,"(A)")"NAN in wf, quit!!"
-					stop
-				endif
-			enddo
-		enddo
-	end subroutine
-	subroutine mfO(iA,dA,O)
-		complex(8) :: iA(:,:),dA(:,:,:),O(:)
-		integer :: n,i,j,k
-		n=size(iA,1)
-		O=0d0
-		do i=1,n
-			do j=1,n
-				O=O+iA(i,j)*dA(j,i,:)
-			enddo
-		enddo
-	end subroutine
-	subroutine mc(wf,Nmc,phyval,S,g,flag)
-		complex(8) :: pb,A(ne2,ne2),iA(ne2,ne2),vu(ne2,2),wf(:,:),Y(2,2),phyval(:),lphy(size(phyval,1)),S(:,:),g(:)
+	subroutine mc(wf,dwf,Nmc,phyval,O,S,g,flag)
+		complex(8) :: pb,A(ne2,ne2),iA(ne2,ne2),dA(ne2,ne2,vn),vu(ne2,2),dvu(ne2,2,vn),wf(:,:),dwf(:,:,:),Y(2,2),&
+			phyval(:),lphy(size(phyval,1)),O(vn),S(vn,vn),g(vn),lO(vn),lS(vn,vn),lg(vn)
 		real(8) :: rpb
-		integer :: cfg(Ns2),icfg(Ns2),i,j,l,sg,n,Nmc,Nhot,cr(2),acp
+		integer :: cfg(Ns2),icfg(Ns2),i,j,ti,tj,l,sg,n,Nmc,Nhot,cr(2),acp
 		logical :: flag
 		!write(*,"(A)")"start monte carlo"
+		if(mod(Ns2,2)/=0) then
+			write(*,*)"Number of site is not even, exit!!"
+		endif
 		n=0
-		Nhot=Nmc
+		!Nhot=Nmc
+		Nhot=min(10000,Nmc)
 		do
 			if(n==0) then
-				E=0d0
+				phyval=0d0
+				O=0d0
+				S=0d0
+				g=0d0
 				acp=0
 				do i=1,Ns2
 					cfg(i)=i
@@ -392,6 +170,9 @@ contains
 				do i=1,ne2
 					do j=1,ne2
 						call pair(cfg(i),cfg(j+ne2),wf,A(i,j))
+						do ti=1,vn
+							call pair(cfg(i),cfg(j+ne2),dwf(:,:,ti),dA(i,j,ti))
+						enddo
 					enddo
 				enddo
 				iA=A
@@ -399,10 +180,21 @@ contains
 			endif
 			n=n+1
 			if(n==Nhot) then
+				iA=A
+				call matrix_inv(iA)
+				call energy(cfg,icfg,wf,A,iA,lphy(1))
 				if(flag) then
-					call energy(cfg,icfg,wf,A,iA,lphy(1))
+					do ti=1,vn
+						lO(ti)=Tr(iA,dA(:,:,ti))
+					enddo
+					do ti=1,vn
+						do tj=1,vn
+							lS(ti,tj)=dconjg(lO(ti))*lO(tj)
+						enddo
+					enddo
+					lg=real(lphy(1)*lO)
 				else
-					call calSg(lS,lg)
+					call phymeasure(cfg,icfg,wf,A,iA,lphy(2),lphy(3))
 				endif
 			endif
 			call irandom(i,ne)
@@ -415,6 +207,9 @@ contains
 				j=j+ne2
 				do l=1,ne2
 					call pair(cfg(j),cfg(l+ne2),wf,vu(l,1))
+					do ti=1,vn
+						call pair(cfg(j),cfg(l+ne2),dwf(:,:,ti),dvu(l,1,ti))
+					enddo
 				enddo
 			elseif(j>ne2.and.i>ne2) then
 				sg=2
@@ -422,6 +217,9 @@ contains
 				j=j+ne2
 				do l=1,ne2
 					call pair(cfg(l),cfg(j),wf,vu(l,2))
+					do ti=1,vn
+						call pair(cfg(l),cfg(j),dwf(:,:,ti),dvu(l,2,ti))
+					enddo
 				enddo
 			else
 				sg=3
@@ -434,50 +232,69 @@ contains
 				do l=1,ne2
 					call pair(cfg(j),cfg(l+ne2),wf,vu(l,1))
 					call pair(cfg(l),cfg(i),wf,vu(l,2))
+					do ti=1,vn
+						call pair(cfg(j),cfg(l+ne2),dwf(:,:,ti),dvu(l,1,ti))
+						call pair(cfg(l),cfg(i),dwf(:,:,ti),dvu(l,2,ti))
+					enddo
 				enddo
 				call pair(cfg(j),cfg(i),wf,vu(cr(2),1))
 				call pair(cfg(j),cfg(i),wf,vu(cr(1),2))
+				do ti=1,vn
+					call pair(cfg(j),cfg(i),dwf(:,:,ti),dvu(cr(2),1,ti))
+					call pair(cfg(j),cfg(i),dwf(:,:,ti),dvu(cr(1),2,ti))
+				enddo
 			endif
 			call det(vu,cr,A,iA,Y,pb,sg)
-			!call checkcfg(icfg,80)
 			!write(*,*)A
-			if(abs(pb)>1d10) then
-				write(*,*)"initial configure may be not good"
-				n=0
-				cycle
-			endif
+			!if(abs(pb)>1d10.and.n>1) then
+			!call mwrite(10,A)
+			!write(*,*)"initial configure may be not good",n
+			!n=0
+			!cycle
+			!endif
 			call random_number(rpb)
 			if(rpb<abs(pb)**2) then
 				acp=acp+1
 				call swap(icfg(cfg(i)),icfg(cfg(j)))
 				call swap(cfg(i),cfg(j))
-				call update(vu,cr,Y,pb,A,iA,sg)
+				call update(vu,cr,Y,pb,A,iA,dvu,dA,sg)
 				!call checkcfg(icfg,80)
-				!if(mod(n,500)==0) then
-					!call checkinv(A,iA,rpb)
+				if(mod(n,500)==0) then
 					!write(*,"(I9,E14.3$)")n,rpb
-					!iA=A
-					!call matrix_inv(iA)
-					!call checkinv(A,iA,rpb)
+					iA=A
+					call matrix_inv(iA)
 					!write(*,"(E14.3)")rpb
-				!endif
+				endif
 				if(n>Nhot) then
+				!if(.false.) then
+					call energy(cfg,icfg,wf,A,iA,lphy(1))
 					if(flag) then
-						call energy(cfg,icfg,wf,A,iA,lphy(1))
+						do ti=1,vn
+							lO(ti)=Tr(iA,dA(:,:,ti))
+						enddo
+						do ti=1,vn
+							do tj=1,vn
+								lS(ti,tj)=dconjg(lO(ti))*lO(tj)
+							enddo
+						enddo
+						lg=real(lphy(1)*lO)
 					else
-						call calcuSg(iA,dA,lS,lg)
+						call phymeasure(cfg,icfg,wf,A,iA,lphy(2),lphy(3))
 					endif
 				endif
 			endif
 			if(n>Nhot) then
+				call realcfg(cfg)
 				phyval=phyval+lphy
 				S=S+lS
 				g=g+lg
+				O=O+lO
 			endif
 			if(n>=(Nmc+Nhot)) then
 				phyval=phyval/(Nmc*Ns2)
-				S=S/(Nmc*Ns2)
+				S=S/(Nmc)
 				g=g/(Nmc*Ns2)
+				O=O/(Nmc)
 				exit
 			endif
 		enddo
@@ -494,25 +311,130 @@ contains
 			call det_ratio_col(vu(:,2),cr(2),A,iA,pb)
 		endif
 	end subroutine
-	subroutine update(vu,cr,Y,pb,A,iA,sg)
-		complex(8) :: vu(:,:),A(:,:),iA(:,:),Y(:,:),pb
+	subroutine update(vu,cr,Y,pb,A,iA,dvu,dA,sg)
+		complex(8) :: vu(:,:),A(:,:),iA(:,:),dvu(:,:,:),dA(:,:,:),Y(:,:),pb
 		integer :: cr(:),sg
 		if(sg==3) then
 			call inv_update_rowcol(vu,cr,Y,A,iA)
+			dA(cr(1),:,:)=dvu(:,1,:)
+			dA(:,cr(2),:)=dvu(:,2,:)
 		elseif(sg==1) then
 			call inv_update_row(vu(:,1),cr(1),pb,A,iA)
+			dA(cr(1),:,:)=dvu(:,1,:)
 		else
 			call inv_update_col(vu(:,2),cr(2),pb,A,iA)
+			dA(:,cr(2),:)=dvu(:,2,:)
 		endif
+	end subroutine
+	subroutine realcfg(cfg)
+		integer :: cfg(:),ix(2),i
+		do i=1,ne
+			call square_one2two(cfg(i),Ns,ix)
+			ncfg(cfg(i))=ncfg(cfg(i))+1d0
+			!scfg(cfg(i))=scfg(cfg(i))+(-1d0)**((i-1)/ne2))
+			scfg(cfg(i))=scfg(cfg(i))+(-1d0)**((i-1)/ne2)*((-1d0)**(mod(ix(1)+ix(2),2)))
+		enddo
+	end subroutine
+	subroutine phymeasure(cfg,icfg,wf,A,iA,lpg,lsc)
+		complex(8) :: A(:,:),iA(:,:),vu(ne2,2),Y(2,2),pb,wf(:,:),lpg,lsc,a11
+		integer :: cfg(:),icfg(:),i,n,m,j,l,inb,sg,cr(2),x1(2),x2(2),nr(2),dr(2),r(2)
+		lpg=0d0
+		select case(pgflag)
+		case("sdw")
+			do i=1,ne
+				call square_one2two(cfg(i),Ns,x1)
+				lpg=lpg+(-1d0)**((i-1)/ne2)*((-1d0)**(mod(x1(1)+x1(2),2)))
+			enddo
+		case("ddw")
+			do i=ne+1,Ns2
+				nr(1)=cfg(i)
+				call square_one2two(nr(1),Ns,x1)
+				do inb=1,4
+					j=icfg(neb(nr(1),inb,1))
+					if(j<=ne) then
+						if(j>ne2) then
+							sg=2d0
+							cr=(/-1,j-ne2/)
+							do l=1,ne2
+								call pair(cfg(l),nr(1),wf,vu(l,2))
+							enddo
+						else
+							sg=1d0
+							cr=(/j,-1/)
+							do l=1,ne2
+								call pair(nr(1),cfg(l+ne2),wf,vu(l,1))
+							enddo
+						endif
+						call det(vu,cr,A,iA,Y,pb,sg)
+						lpg=lpg+abs(dimag(dconjg(pb)))
+						!lpg=lpg+dimag(dconjg(pb))*(-1d0)**inb*((-1d0)**(mod(x1(1)+x1(2),2)))
+					endif
+				enddo
+			enddo
+		end select
+		lsc=0d0
+		return
+		!do i=ne+1,Ns2
+			!nr(1)=cfg(i)
+			!do inb=1,4,1
+				!if(icfg(neb(nr(1),inb,1))>ne) then
+					!nr(2)=neb(nr(1),inb,1)
+					!do l=1,ne2
+						!call pair(nr(1),cfg(l+ne2),wf,vu(l,1))
+						!call pair(cfg(l),nr(2),wf,vu(l,2))
+					!enddo
+					!call pair(nr(1),nr(2),wf,a11)
+					!pb=0d0
+					!do l=1,ne2
+						!do m=1,ne2
+							!pb=pb+vu(l,1)*iA(l,m)*vu(m,2)
+						!enddo
+					!enddo
+					!pb=a11-pb
+					!lsc=lsc+dconjg(pb)*(-1d0)**inb
+				!endif
+			!enddo
+		!enddo
+		!return
+		do i=ne+1,Ns2
+			nr(1)=cfg(i)
+			do inb=1,4,1
+				if(icfg(neb(nr(1),inb,1))>ne) then
+					nr(2)=neb(nr(1),inb,1)
+					do j=1,ne2
+						r(1)=cfg(j)
+						do n=1,4,1
+							if(icfg(neb(r(1),n,1))>ne2.and.icfg(neb(r(1),n,1))<=ne) then
+								r(2)=neb(r(1),n,1)
+								!call square_one2two(abs(nr(1)-r(1)),Ns,x1)
+								!if(sum(x1**2)<4d0.or.sum(x1**2)>25d0) then
+		if(any(neb(nr(1),:,:)==r(1)).or.any(neb(nr(1),:,:)==r(2)).or.any(neb(nr(2),:,:)==r(1)).or.any(neb(nr(2),:,:)==r(2))) then
+									cycle
+								endif
+								cr=(/icfg(r(1)),icfg(r(2))-ne2/)
+								do l=1,ne2
+									call pair(nr(1),cfg(l+ne2),wf,vu(l,1))
+									call pair(cfg(l),nr(2),wf,vu(l,2))
+								enddo
+								call pair(nr(1),nr(2),wf,vu(cr(2),1))
+								call pair(nr(1),nr(2),wf,vu(cr(1),2))
+								call det(vu,cr,A,iA,Y,pb,3)
+								lsc=lsc+dconjg(pb)*(-1)**(inb+n)
+							endif
+						enddo
+					enddo
+				endif
+			enddo
+		enddo
+		lsc=lsc/Ns2
 	end subroutine
 	subroutine energy(cfg,icfg,wf,A,iA,El)
 		complex(8) :: A(:,:),iA(:,:),vu(ne2,2),Y(2,2),pb,wf(:,:),El
-		!real(8) :: 
 		integer :: cfg(:),icfg(:),i,ii,j,k,l,inb,sg,cr(2)
 		El=0d0
 		do i=1,ne
 			do ii=1,4
-				do inb=1,1
+				do inb=1,size(t)
 					k=neb(cfg(i),ii,inb)
 					j=icfg(k)
 					if(j>ne) then
@@ -531,10 +453,10 @@ contains
 							enddo
 						endif
 						call det(vu,cr,A,iA,Y,pb,sg)
-						if(abs(k-cfg(i))>2*Ns(1)) then
-							El=El+t(1)*dconjg(pb)
+						if(abs(k-cfg(i))>3*Ns(1)) then
+							El=El+t(inb)*dconjg(pb)
 						else
-							El=El-t(1)*dconjg(pb)
+							El=El-t(inb)*dconjg(pb)
 						endif
 						cycle
 					endif
@@ -560,11 +482,6 @@ contains
 			enddo
 		enddo
 	end subroutine
-	subroutine calcuSg(iA,dA,lS,lg)
-		call mfO(iA,dA,O)
-		lg=
-		lS=
-	end subroutine
 	subroutine checkcfg(icfg,s)
 		integer :: i,s,icfg(:)
 		do i=1,Ns2
@@ -582,37 +499,149 @@ contains
 		call sleepqq(s)
 		write(*,"(1X)")
 	end subroutine
+	subroutine variational(var)
+		use lapack95, only: heevd,heevr
+		complex(8) :: wf(Ns(2),Ns(1)*2),dwf(Ns(2),Ns(1)*2,vn),O(vn),S(vn,vn),g(vn),phyval(1),er(1),Ov(vn),Sv(vn,vn),gv(vn),Ev
+		complex(8) :: tmp(vn,vn)
+		real(8) :: var(vn),dvar(vn),pdvar(vn),eg(vn),dt=5d0
+		integer :: n,i,j,k,info,sg(vn),cs
+		open(20,file="../data/var_-sdw.dat")
+		n=32
+		pdvar=0d0
+		cs=0
+		sg=0
+		do
+			write(*,"(I3$)")ne
+			if(var(1)<1d-3) then
+				var(1)=1d-3
+			endif
+			write(*,"(es9.2$)")var
+			call iniwf(var,wf,dwf)
+			Ev=0d0
+			!Ov=0d0
+			Sv=0d0
+			gv=0d0
+			er=0d0
+			!$OMP PARALLEL DO REDUCTION(+:Ev,Sv,gv,er) PRIVATE(phyval,O,S,g) SCHEDULE(STATIC)
+			do k=1,n
+				call mc(wf,dwf,5000,phyval,O,S,g,.true.)
+				Ev=Ev+phyval(1)
+				do i=1,vn
+					do j=1,vn
+						Sv(i,j)=Sv(i,j)+S(i,j)-dconjg(O(i))*O(j)
+					enddo
+				enddo
+				gv=gv+g-real(phyval(1)*O)
+				er=er+abs(phyval(1))**2
+			enddo
+			!$OMP END PARALLEL DO
+			Ev=Ev/n
+			Sv=Sv/n
+			gv=2d0*gv/n
+			er=sqrt(abs(er/n-abs(Ev)**2))
+			!Sv(:,4:5)=0d0
+			!Sv(4:5,:)=0d0
+			Sv=Sv+diag((/1d0,1d0,1d0,1d0,1d0/)*2d-1)
+			call heevd(Sv,eg,"V")
+			!write(*,*)sum(abs(matmul(matmul(Sv,diag(eg)),dconjg(transpose(Sv)))-tmp)),eg(vn)/eg(1)
+			!if(eg(1)<=0d0) then
+				!write(*,*)"S matrix is not positive define or singular"
+			!endif
+			!gv(4)=0d0
+			!gv(5)=0d0
+			!dvar=real(matmul(matmul(matmul(Sv,diag(1d0/eg)),dconjg(transpose(Sv))),gv))
+			do i=1,vn
+				dvar(i)=0d0
+				do j=1,vn
+					do k=1,vn
+						!if(eg(k)/eg(vn)<1d-3) then
+							!cycle
+						!endif
+						dvar(i)=dvar(i)+real(Sv(i,k)*1d0/eg(k)*dconjg(Sv(j,k))*gv(j))
+					enddo
+				enddo
+			enddo
+			write(*,"(es9.2$)")real(gv),real(Ev),real(er)
+			write(*,"(x)")
+			write(20,"(I4$)")ne
+			write(20,"(e14.5$)")var,real(gv),real(Ev),real(er)
+			write(20,"(x)")
+			!do i=1,vn
+				!call find_cross(pdvar(i),dvar(i),sg(i))
+			!enddo
+			!if(all(sg/=0)) then
+				cs=cs+1
+			!endif
+			!if(cs>5.or.sum(abs(dvar))<7d-4) then
+			if(sum(abs(dvar))<1d-3.and.cs>40) then
+				!if(sum(abs(gv))<1d-3) then
+				write(*,*)"variational finish",sum(abs(dvar))
+				write(20,"(x)")
+				write(10,"(I4$)")ne
+				write(10,"(e14.5$)")var,real(Ev),real(er)
+				write(10,"(x)")
+				exit
+			endif
+			var=var-dvar*dt
+			pdvar=dvar
+		enddo
+	end subroutine
 end module
 program main
 	use M_vmc
-	complex(8) :: wf(Ns(2),Ns(1)*2),E,S(3,3),g(3),phyval(1)
-	real(8) :: var(3)=(/0d0,0d0,0d0/),dvar(3),Eb,E2
-	integer :: n,i,j,d
-	open(10,file="../data/2d.dat")
+	complex(8) :: wf(Ns(2),Ns(1)*2),dwf(Ns(2),Ns(1)*2,vn),O(vn),S(vn,vn),g(vn),phyval(3),sphy(3),er(3),tmp(vn,vn),z(vn,vn),&
+		Ov(vn),Sv(vn,vn),gv(vn),Ev
+	real(8) :: var(vn),dvar(vn),Eb,E2,dp(25)
+	integer :: n,i,j,info,Nmc=50000
+	!open(10,file="../data/2d.dat")
+	open(10,file="../data/test.dat")
+	open(30,file="../data/phyvar_-sdw.dat")
+	open(40,file="../data/2d.dat")
+	open(21,file="../data/phyvar_save.dat",status="old",action="read",access="direct",form="formatted",recl=181)
 	call init_random_seed()
 	call square(Ns,neb)
-	n=12
-	do
-		call ini(var,wf)
-		call derive(var,dwf)
-		call mc(wf,dwf,10000,phyval,S,g,.false.)
-		call conjgrad(S,g,dvar)
-		if(sum(abs(dvar))<1d-5) then
-			exit
-		endif
-		var=var+dvar
+	n=1
+	do i=25,0,-1
+		var=(/2d-1,0d0,2d-1,0d0,0d0/)
+		!read(21,rec=i+1,fmt="(I4,5e16.8)")ne,var
+		ne=Ns2-i*2
+		ne2=ne/2
+		write(30,"(i4$)")ne
+		call variational(var)
+		write(*,"(i4$)")ne
+		write(*,"(es9.2$)")var
+		write(30,"(e16.8$)")var
+		write(30,"(1x)")
+		cycle
+		call iniwf(var,wf,dwf)
+		sphy=0d0
+		er=0d0
+		ncfg=0d0
+		scfg=0d0
+		!!$OMP PARALLEL DO REDUCTION(+:sphy,er) PRIVATE(phyval) SCHEDULE(STATIC)
+		do j=1,n
+			call mc(wf,dwf,Nmc,phyval,O,S,g,.false.)
+			sphy=sphy+(/real(phyval(1)),abs(phyval(2)),real(phyval(3))/)
+			er=er+abs(phyval)**2
+		enddo
+		!!$OMP END PARALLEL DO
+		sphy=sphy/n
+		er=sqrt(abs(er/n-abs(sphy)**2))
+		ncfg=ncfg/Nmc
+		scfg=scfg/Nmc
+		write(*,"(es9.2$)")real(sphy)
+		write(*,"(1x)")
+		write(30,"(e16.8$)")real(sphy(1)),real(er(1)),real(sphy(2)),real(er(2)),abs(sphy(3)),real(er(3))
+		write(30,"(1x)")
+		do j=1,Ns(2)
+			write(40,"(e16.8$)")ncfg((j-1)*Ns(1)+1:j*Ns(1))
+			write(40,"(1x)")
+		enddo
+		write(40,"(1x)")
+		do j=1,Ns(2)
+			write(40,"(e16.8$)")scfg((j-1)*Ns(1)+1:j*Ns(1))
+			write(40,"(1x)")
+		enddo
+		write(40,"(1x)")
 	enddo
-	!$OMP PARALLEL DO REDUCTION(+:sphy,err) PRIVATE(phyval) SCHEDULE(STATIC)
-	do j=1,n
-		call mc(wf,dwf,50000,phyval,S,g,.true.)
-		sphy=sphy+phyval
-		err=err+abs(phyval)**2
-	enddo
-	!$OMP END PARALLEL DO
-	sphy=sphy/n
-	err=sqrt(abs(err/n-sphy))
-	write(*,"(e16.8$)")(sphy(i),err(i),i=1,size(sphy))
-	write(*,"(1x)")
-	write(10,"(e16.8$)")(sphy(i),err(i),i=1,size(sphy))
-	write(10,"(1x)")
 end program
