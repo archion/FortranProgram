@@ -3,7 +3,7 @@ module M_pmt
 	implicit none
 	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),r0(2)=(/Ns(1)/2,0/),vn=5
 	integer :: neb(Ns2,4,3),ne=Ns2,ne2=Ns2/2
-	real(8), parameter :: t(1)=(/1d0/),DJ=0.3d0,V=-1d0
+	real(8), parameter :: t(1)=(/1d0/),DJ=0.3d0,V=1d0
 	!character(3) :: pgflag="sdw"
 	character(3) :: pgflag="ddw"
 	real(8) :: ncfg(Ns2),scfg(Ns2),e2=0d0
@@ -92,9 +92,8 @@ contains
 					eo=(-1)**mod(sum(ix),2)
 					tmpe=(/u2-eo*v2,-v2+eo*u2/)
 					dtmpe=(/du2-eo*dv2,-dv2+eo*du2/)
-					!tmpo=(-eo*dconjg(uv)+uv)
-					tmpo=(/-eo*uv+uv,-eo*conjg(uv)+conjg(uv)/)
-					dtmpo=(/-eo*duv+duv,-eo*conjg(duv)+conjg(duv)/)
+					tmpo=(-uv+eo*dconjg(uv))
+					dtmpo=(-duv+eo*dconjg(duv))
 					wf(i)=wf(i)+exp(img*sum(k*ix))*sum((tmpe+tmpo)*a)
 					wf(i+en)=wf(i+en)+exp(img*sum(k*ix))*sum((tmpe-tmpo)*a)
 					dwf(i,:)=dwf(i,:)+exp(img*sum(k*ix))*&
@@ -137,7 +136,7 @@ contains
 		call square_tilda_one2two(rj,Ns,rj2)
 		dr=ri2-rj2+r0
 		call square_tilda_bc(dr,Ns,Tx,Ty,Ns2,n)
-		a=wf(n+size(wf)/2*mod(sum(ri2),2))
+		a=wf(n+size(wf)/2*abs(mod(sum(rj2-r0),2)))
 	end subroutine
 	subroutine mc(wf,dwf,Nmc,phyval,sga,O,S,g,flag)
 		complex(8) :: pb,A(ne2,ne2),iA(ne2,ne2),dA(ne2,ne2,vn),vu(ne2,2),dvu(ne2,2,vn),wf(:),dwf(:,:),Y(2,2),&
@@ -152,7 +151,7 @@ contains
 		endif
 		n=0
 		!Nhot=Nmc
-		Nhot=min(50000,Nmc)
+		Nhot=min(100000,Nmc)
 		bi=1
 		bj=size(sga,1)/2+1
 		sga=0d0
@@ -258,6 +257,7 @@ contains
 			!endif
 			call random_number(rpb)
 			if(rpb<abs(pb)**2) then
+			!if(1d0>abs(pb)**2) then
 				acp=acp+1
 				call swap(icfg(cfg(i)),icfg(cfg(j)))
 				call swap(cfg(i),cfg(j))
@@ -269,8 +269,8 @@ contains
 					!write(*,"(E14.3)")rpb
 				endif
 				if(n>Nhot) then
-					!call checkcfg(icfg,1000)
 				!if(.false.) then
+					!call checkcfg(icfg,200)
 					call energy(cfg,icfg,wf,A,iA,lphy(1))
 					if(flag) then
 						do ti=1,vn
@@ -358,13 +358,13 @@ contains
 				j=icfg(neb(nr(1),inb,1))
 				if(j<=ne) then
 					if(j>ne2) then
-						sg=2d0
+						sg=2
 						cr=(/-1,j-ne2/)
 						do l=1,ne2
 							call pair(cfg(l),nr(1),wf,vu(l,2))
 						enddo
 					else
-						sg=1d0
+						sg=1
 						cr=(/j,-1/)
 						do l=1,ne2
 							call pair(nr(1),cfg(l+ne2),wf,vu(l,1))
@@ -551,6 +551,8 @@ contains
 			Sv=Sv/n
 			gv=2d0*gv/n
 			er=sqrt(abs(er/n-abs(Ev)**2))
+			Sv(:,1)=0d0
+			Sv(1,:)=0d0
 			!Sv(:,2:5)=0d0
 			!Sv(2:5,:)=0d0
 			Sv=Sv+diag((/1d0,1d0,1d0,1d0,1d0/)*2d-1)
@@ -559,6 +561,7 @@ contains
 			!if(eg(1)<=0d0) then
 				!write(*,*)"S matrix is not positive define or singular"
 			!endif
+			gv(1)=0d0
 			!gv(2:5)=0d0
 			!dvar=real(matmul(matmul(matmul(Sv,diag(1d0/eg)),dconjg(transpose(Sv))),gv))
 			do i=1,vn
@@ -578,7 +581,7 @@ contains
 			write(*,"(es9.2$)")real(gv),Ev,er
 			write(*,"(x)")
 			write(20,"(I4$)")ne
-			write(20,"(e14.5$)")var,real(gv),Ev,er
+			write(20,"(es13.5$)")var,real(gv),Ev,er
 			write(20,"(x)")
 			if(real(Ev)<real(mEv)) then
 				mEv=Ev
@@ -595,7 +598,7 @@ contains
 				write(*,*)"variational finish",sum(abs(dvar))
 				write(20,"(x)")
 				write(10,"(I4$)")ne
-				write(10,"(e14.5$)")var,Ev,er
+				write(10,"(es13.5$)")var,Ev,er
 				write(10,"(x)")
 				exit
 			endif
@@ -622,8 +625,10 @@ program main
 	call init_random_seed()
 	call square_tilda(Ns,Tx,Ty,neb)
 	n=32
-	var=(/1d-1,0d0,1d-1,1d-1,1d-1/)
-	do i=20,20,2
+	var=(/5d-3,0d0,1d-1,1d-1,1d-1/)
+	!var=(/0.20443487E+00,-0.82087748E-01,0.50928522E-03,0.26686119E+00,0.15660317E+00/)
+  !0.63188134E-02  0.00000000E+00  0.52567105E-02 -0.45702958E-03  0.15704631E-04  0.34080455E-03  0.69753719E-01  0.66361618E-06  0.10777129E-02  0.10603911E-01  0.35309692E-08  0.24378792E-03
+	do i=0,20,1
 		!var(3)=1d-2*10**(i/10d0)
 		ne=Ns2-i*2
 		!read(21,rec=i+1,fmt="(I4,5e16.8)")ne,var
@@ -632,7 +637,7 @@ program main
 		call variational(var,13)
 		write(*,"(i4$)")ne
 		write(*,"(es9.2$)")var
-		write(30,"(e16.8$)")var
+		write(30,"(es13.5$)")var
 		!write(30,"(1x)")
 		!write(*,"(1x)")
 		!stop
@@ -659,25 +664,24 @@ program main
 !write(30,"(1x)")
 		call mc(wf,dwf,Nmc,phyval,sga,O,S,g,.false.)
 		do j=1,size(sga,1)/2-1
-			write(10,"(e16.8$)")(sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)),sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)*sqrt(2d0/(2**(nm-j+1)-1))),k=1,size(sga,2))
+			write(10,"(es13.5$)")(sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)),sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)*sqrt(2d0/(2**(nm-j+1)-1))),k=1,size(sga,2))
 			write(10,"(x)")
 		enddo
 		!write(*,"(es9.2$)")phyval(1),sqrt((sga(nm-5,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-5)+1)-1))
 		write(*,"(es9.2$)")phyval
 		write(*,"(1x)")
-		write(30,"(e16.8$)")phyval(1),sqrt((sga(nm-5,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-5)+1)-1))
-		write(30,"(e16.8$)")(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=2,5)
+		write(30,"(es13.5$)")phyval(1),sqrt((sga(nm-5,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-5)+1)-1))
+		write(30,"(es13.5$)")(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=2,5)
 		write(30,"(1x)")
 		do j=1,Ns(2)
-			write(40,"(e16.8$)")ncfg((j-1)*Ns(1)+1:j*Ns(1))
+			write(40,"(es13.5$)")ncfg((j-1)*Ns(1)+1:j*Ns(1))
 			write(40,"(1x)")
 		enddo
 		write(40,"(1x)")
 		do j=1,Ns(2)
-			write(40,"(e16.8$)")scfg((j-1)*Ns(1)+1:j*Ns(1))
+			write(40,"(es13.5$)")scfg((j-1)*Ns(1)+1:j*Ns(1))
 			write(40,"(1x)")
 		enddo
 		write(40,"(1x)")
-		!stop
 	enddo
 end program
