@@ -103,4 +103,23 @@ contains
 			iarth(i)=iarth(i-1)+1
 		enddo
 	end function
+	function openfile(i,f)
+		integer :: i
+		character(*) :: f
+		character(100) :: nf
+		logical :: openfile,flag
+		inquire(file=f, exist=flag) 
+		if(flag) then
+			write(*,"(A$)")"File '",f,"' already exit, enter a new name: " 
+			read(*,"(A)")nf
+			if(len(trim(adjustl(nf)))>0) then
+				open(i,file=f(1:scan(f,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat")
+			else
+				open(i,file=f)
+			endif
+		else
+			open(i,file=f)
+		endif
+		openfile=.true.
+	end function
 end module
