@@ -6,6 +6,9 @@ module M_rd
 	interface binning
 		module procedure nbinning,vbinning
 	end interface
+	interface fisher_yates_shuffle
+		module procedure sfisher_yates_shuffle,vfisher_yates_shuffle
+	end interface
 contains
 	subroutine init_random_seed()
 		integer :: i, n, clock
@@ -23,7 +26,18 @@ contains
 		call random_number(rn)
 		i=1+int(rn*(n))
 	end subroutine
-	subroutine fisher_yates_shuffle(a,n)
+	subroutine vfisher_yates_shuffle(a,n)
+		integer :: a(:,:),i,j,tmp(size(a,2)),n
+		real(8) :: rn
+		do i=n,1,-1
+			call random_number(rn)
+			j=ceiling(rn*i)
+			tmp=a(i,:)
+			a(i,:)=a(j,:)
+			a(j,:)=tmp
+		enddo
+	end subroutine
+	subroutine sfisher_yates_shuffle(a,n)
 		integer :: a(:),i,j,tmp,n
 		real(8) :: rn
 		do i=n,1,-1

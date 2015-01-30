@@ -6,6 +6,9 @@ module M_utility
 	interface arth
 		module procedure carth,rarth,iarth
 	end interface
+	interface swap
+		module procedure siswap,vcswap
+	end interface
 contains
 	subroutine cmwrite(f,A)
 		complex(8) :: A(:,:)
@@ -35,8 +38,14 @@ contains
 		enddo
 		write(f,"(1X)")
 	end subroutine
-	subroutine swap(a,b)
-		integer a,b,tmp
+	subroutine siswap(a,b)
+		integer :: a,b,tmp
+		tmp=a
+		a=b
+		b=tmp
+	end subroutine
+	subroutine vcswap(a,b)
+		complex(8) :: a(:),b(:),tmp(size(a))
 		tmp=a
 		a=b
 		b=tmp

@@ -1,6 +1,9 @@
 module M_matrix
 	use lapack95, only : getrf, getri
 	implicit none
+	interface diag
+		module procedure mdiag, ndiag
+	end interface
 contains
 	subroutine det_ratio_row(c,ci,A,iA,pb)
 		complex(8) :: c(:),A(:,:),iA(:,:),pb
@@ -39,6 +42,24 @@ contains
 			do j=1,n
 				iY(1,2)=iY(1,2)-c(i,1)*iA(i,j)*c(j,2)
 			enddo
+		enddo
+		iY(1,1)=iY(1,1)+1d0
+		iY(2,2)=iY(2,2)+1d0
+		pb=iY(1,1)*iY(2,2)-iY(1,2)*iY(2,1)
+		iY=iY/pb
+	end subroutine
+	subroutine det_ratio_tworow(c,ij,A,iA,iY,pb)
+		complex(8) :: c(:,:),A(:,:),iA(:,:),pb,iY(:,:)
+		integer :: ij(:),i,j,n
+		iY=0d0
+		n=size(A,1)
+		c(:,1)=c(:,1)-A(ij(1),:)
+		c(:,2)=c(:,2)-A(ij(2),:)
+		do i=1,n
+			iY(1,1)=iY(1,1)+iA(i,ij(2))*c(i,2)
+			iY(2,2)=iY(2,2)+c(i,1)*iA(i,ij(1))
+			iY(1,2)=iY(1,2)-c(i,1)*iA(i,ij(2))
+			iY(2,1)=iY(2,1)-c(i,2)*iA(i,ij(1))
 		enddo
 		iY(1,1)=iY(1,1)+1d0
 		iY(2,2)=iY(2,2)+1d0
@@ -110,6 +131,29 @@ contains
 		enddo
 		iA=tmp2
 	end subroutine
+	subroutine inv_update_tworow(c,ij,iY,A,iA)
+		complex(8) :: c(:,:),A(:,:),iA(:,:),iY(:,:)
+		complex(8), allocatable :: tmp1(:,:),tmp2(:,:)
+		integer :: ij(:),i,j,n
+		n=size(iA,1)
+		allocate(tmp1(n,2),tmp2(n,n))
+		tmp1=0d0
+		A(ij(1),:)=A(ij(1),:)+c(:,1)
+		A(ij(2),:)=A(ij(2),:)+c(:,2)
+		do i=1,n
+			do j=1,n
+				tmp1(i,1)=tmp1(i,1)+c(j,1)*iA(j,i)
+				tmp1(i,2)=tmp1(i,2)+c(j,2)*iA(j,i)
+			enddo
+		enddo
+		do i=1,n
+			do j=1,n
+				tmp2(i,j)=iA(i,j)-((iA(i,ij(1))*iY(1,1)+iA(i,ij(2))*iY(2,1))*tmp1(j,1)+&
+					(iA(i,ij(1))*iY(1,2)+iA(i,ij(2))*iY(2,2))*tmp1(j,2))
+			enddo
+		enddo
+		iA=tmp2
+	end subroutine
 	subroutine matrix_inv(A)
 		complex(8) :: A(:,:)
 		integer :: ipiv(size(A,1)),info
@@ -124,13 +168,23 @@ contains
 			stop
 		endif
 	end subroutine
-	function diag(a)
+	function mdiag(a)
 		real(8) :: a(:) 
-		real(8) :: diag(size(a),size(a))
+		real(8) :: mdiag(size(a),size(a))
 		integer :: i
-		diag=0d0
+		mdiag=0d0
 		do i=1,size(a)
-			diag(i,i)=a(i)
+			mdiag(i,i)=a(i)
+		enddo
+	end function
+	function ndiag(a,n)
+		real(8) :: a
+		integer :: n
+		real(8) :: ndiag(n,n)
+		integer :: i
+		ndiag=0d0
+		do i=1,n
+			ndiag(i,i)=a
 		enddo
 	end function
 	function Tr(A,B)
