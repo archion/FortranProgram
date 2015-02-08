@@ -112,22 +112,36 @@ contains
 			iarth(i)=iarth(i-1)+1
 		enddo
 	end function
-	function openfile(i,f)
-		integer :: i
-		character(*) :: f
+	function openfile(unit,file,access,recl)
+		integer :: unit
+		character(*) :: file
 		character(100) :: nf
 		logical :: openfile,flag
-		inquire(file=f, exist=flag) 
+		character(*), optional :: access
+		integer, optional :: recl
+		inquire(file=file, exist=flag) 
 		if(flag) then
-			write(*,"(A$)")"File '",f,"' already exit, enter a new name: " 
+			write(*,"(A$)")"File '",file,"' already exit, enter a new name: " 
 			read(*,"(A)")nf
 			if(len(trim(adjustl(nf)))>0) then
-				open(i,file=f(1:scan(f,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat")
+				if(present(access)) then
+					open(unit,file=file(1:scan(file,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat",access=access,recl=recl,form="formatted")
+				else
+					open(unit,file=file(1:scan(file,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat")
+				endif
 			else
-				open(i,file=f)
+				if(present(access)) then
+					open(unit,file=file,access=access,recl=recl,form="formatted")
+				else
+					open(unit,file=file)
+				endif
 			endif
 		else
-			open(i,file=f)
+			if(present(access)) then
+				open(unit,file=file,access=access,recl=recl,form="formatted")
+			else
+				open(unit,file=file)
+			endif
 		endif
 		openfile=.true.
 	end function

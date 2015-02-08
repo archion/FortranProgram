@@ -1,5 +1,5 @@
 #out= $(patsubst %.f90,%.out,$(wildcard *.f90))
-out = vmc_tJ_ph.out
+out = vmc_tJ_bdg.out
 FCC = ifort
 OMPFLAG= -openmp
 CFLAG=-warn nounused
