@@ -210,7 +210,7 @@ contains
 	end subroutine
 	subroutine two(i,j)
 		integer :: i,j,sg,cg(2,2),n
-		call irandom(n,ne2**2+2*ne2*(Ns2-ne))
+		call random_number(n,ne2**2+2*ne2*(Ns2-ne))
 		if(n<=ne2*(Ns2-ne2)) then
 			i=(n-1)/(Ns2-ne2)+1
 			j=ne2+mod(n-1,(Ns2-ne2))+1
@@ -445,17 +445,19 @@ contains
 		complex(8) :: wf(Ns2*2,Ns2),dwf(Ns2*2,Ns2,vn),O(vn),S(vn,vn),g(vn),Ov(vn),Sv(vn,vn),gv(vn)
 		complex(8) :: tmp(vn,vn)
 		integer :: n,i,j,k,info,sg(vn),cs,Nmc(:),nm,l
-		real(8) :: var(vn),dvar(vn),pdvar(vn),eg(vn),dt=1d0,er(1),Ev,allE(400),scv
+		real(8) :: var(vn),dvar(vn),pvar(vn),eg(vn),dt=1d0,er(1),Ev,allE(400),scv
 		complex(8) :: phyval(1)
 		real(8), allocatable :: sga(:,:)
+		logical :: flag
 		nm=log(real(Nmc(3)))/log(2d0)
 		allocate(sga((nm+1)*2,1))
 		n=24
-		pdvar=0d0
 		cs=0
 		sg=0
 		l=0
 		scv=0d0
+		flag=.true.
+		pvar=var
 		do
 			l=l+1
 			write(*,"(I3$)")ne
@@ -485,15 +487,15 @@ contains
 			Sv=Sv+diag(1d-2,size(Sv,1))
 			!Sv(:,5:6)=0d0
 			!Sv(5:6,:)=0d0
-			Sv(:,1)=0d0
-			Sv(1,:)=0d0
-			Sv(:,3:4)=0d0
-			Sv(3:4,:)=0d0
+			!Sv(:,1)=0d0
+			!Sv(1,:)=0d0
+			!Sv(:,3:4)=0d0
+			!Sv(3:4,:)=0d0
 			!Sv(:,2:5)=0d0
 			!Sv(2:5,:)=0d0
 			call heevd(Sv,eg,"V")
-			gv(1)=0d0
-			gv(3:4)=0d0
+			!gv(1)=0d0
+			!gv(3:4)=0d0
 			!gv(5:6)=0d0
 			do i=1,vn
 				dvar(i)=0d0
@@ -514,6 +516,20 @@ contains
 			write(20,"(es13.5$)")var,real(gv),Ev,er
 			write(20,"(x)")
 			allE(l)=Ev
+			if(allE(max(l-1,1))<(Ev-2d0*er(1))) then
+				write(*,"(x)")
+				if(flag) then
+					l=0
+					var(5:6)=0d0
+					pvar=var
+					flag=.false.
+					cycle
+				else
+					write(20,"(x)")
+					var=pvar
+					exit
+				endif
+			endif
 			do i=max(l-49,1),l-1
 				scv=scv+sign(1d0,Ev-allE(i))
 				if(max(l-49,1)>1) then
@@ -529,6 +545,7 @@ contains
 				write(10,"(x)")
 				exit
 			endif
+			pvar=var
 			var=var-dvar*dt
 			write(*,"(x)")
 		enddo
@@ -547,8 +564,8 @@ program main
 	f=openfile(20,"../data/var.dat")
 	f=openfile(40,"../data/2d.dat")
 	f=openfile(10,"../data/err.dat")
-	f=openfile(30,"../data/phyvar.dat",access="direct",recl=278)
-	!f=openfile(30,"../data/phyvar.dat")
+	!f=openfile(30,"../data/phyvar.dat",access="direct",recl=278)
+	f=openfile(30,"../data/phyvar.dat")
 	Nmc(3)=1024*4
 	Nvar(3)=128
 	nm=log(real(Nmc(3)))/log(2d0)
@@ -565,8 +582,8 @@ program main
 	!var=1d-10
 	!var(2)=1d0
 	!var=(/0.18764E-01,-4.24821E-02,2.34273E-02,4.23654E-04,5.68984E-02,8.57877E-02/)
-	var=(/1d-5,0d0,0d0,0d0,0d0,0d0/)
-	do i=0,20,1
+	var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
+	do i=0,40,1
 		!var(1)=1d-1
 		!var=(/1d-2,0d0,1d-2,1d-2,0d0,0d0/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
@@ -598,10 +615,9 @@ program main
 		!write(*,"(es9.2$)")phyval(1),sqrt((sga(nm-5,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-5)+1)-1))
 		write(*,"(es9.2$)")phyval
 		write(*,"(1x)")
-		!write(30,rec=i+1,fmt="(i4,21es13.5,/)")ne,var,(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=2,5)
-		write(30,rec=i+1,fmt="(i4,21es13.5,A)")ne,var,(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=1,5),char(10)
-		!write(30,"(es13.5$)")phyval(1),sqrt((sga(nm-5,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-5)+1)-1))
-		!write(30,"(es13.5$)")(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=2,5)
-		!write(30,"(1x)")
+		!write(30,rec=i+1,fmt="(i4,21es13.5,A)")ne,var,(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=1,5),char(10)
+		write(30,"(i4$)")ne
+		write(30,"(es13.5$)")var,(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=1,5)
+		write(30,"(1x)")
 	enddo
 end program
