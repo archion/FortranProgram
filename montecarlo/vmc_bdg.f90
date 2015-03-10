@@ -514,9 +514,9 @@ contains
 	subroutine mc(wf,ja,Nmc,phyval,sga,dwf,O,S,g)
 		complex(8) :: pb,A(Ns2,Ns2),iA(Ns2,Ns2),dA(Ns2,Ns2,vn),vu(Ns2,2),dvu(Ns2,2,vn),wf(:,:),Y(2,2)
 		complex(8), optional :: O(:),S(:,:),g(:),dwf(:,:,:)
-		complex(8) :: lO(size(O)),lS(size(O),size(O)),lg(size(O))
-		complex(8) :: phyval(:),lphy(size(phyval))
 		real(8) :: rpb,sga(:,:),ja(:)
+		complex(8) :: lO(vn+size(ja)),lS(size(lO),size(lO)),lg(size(lO))
+		complex(8) :: phyval(:),lphy(size(phyval))
 		integer :: cfg(Ns2),icfg(Ns2),i,j,ti,tj,l,sg,n,Nmc(:),cr(2),acp,bi,bj,ii,jj,nd
 		logical :: flag
 		flag=present(O)
@@ -598,8 +598,8 @@ contains
 					do ti=vn+1,size(lO)
 						lO(ti)=-nd
 					enddo
-					do ti=1,vn
-						do tj=1,vn
+					do ti=1,size(lO)
+						do tj=1,size(lO)
 							lS(ti,tj)=dconjg(lO(ti))*lO(tj)
 						enddo
 					enddo
@@ -728,7 +728,7 @@ contains
 			l=l+1
 			write(*,"(I3$)")ne
 			write(*,"(es9.2$)")var
-			call iniwf(var,wf,dwf)
+			call iniwf(var(:vn),wf,dwf)
 			Ev=0d0
 			Sv=0d0
 			gv=0d0
@@ -749,6 +749,9 @@ contains
 			Ev=Ev/n
 			Sv=Sv/n
 			gv=2d0*gv/n
+			!call mwrite(10,real(Sv))
+			!write(*,*)real(gv)
+			!stop
 			er=sqrt(abs(er/n-abs(Ev)**2))
 			Sv=Sv+diag(1d-2,size(Sv,1))
 			!Sv(:,5:6)=0d0
@@ -849,9 +852,9 @@ program main
 	!var=1d-10
 	!var(2)=1d0
 	!var=(/0.18764E-01,-4.24821E-02,2.34273E-02,4.23654E-04,5.68984E-02,8.57877E-02/)
-	var=(/1d-5,0d0,5d0,0d0,0d0,0d0,1d0/)
+	var=(/1d-5,0d0,1.5d0,0d0,0d0,0d0,1d-1/)
 	do i=0,40,1
-		!var(3)=var(3)+0.04
+		!var(7)=var(7)+0.1
 		!var=(/1d-2,0d0,1d-2,1d-2,0d0,0d0/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
 		ne=Ns2-2*i
@@ -873,7 +876,7 @@ program main
 		!write(30,"(1x)")
 		!write(*,"(1x)")
 		!cycle
-		call iniwf(var,wf)
+		call iniwf(var(:vn),wf)
 		call mc(wf,var(vn+1:),Nmc,phyval,sga)
 		do j=1,size(sga,1)/2-1
 			write(10,"(es13.5$)")(sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)),sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)*sqrt(2d0/(2**(nm-j+1)-1))),k=1,size(sga,2))
