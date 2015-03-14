@@ -4,6 +4,9 @@ module M_matrix
 	interface diag
 		module procedure mdiag, ndiag
 	end interface
+	interface crsmv
+		module procedure c_crsmv,r_crsmv
+	end interface
 contains
 	subroutine det_ratio_row(c,ci,A,iA,pb)
 		complex(8) :: c(:),A(:,:),iA(:,:),pb
@@ -260,6 +263,46 @@ contains
 			endif
 			p=r+tmp1/tmp0*p
 			tmp0=tmp1
+		enddo
+	end subroutine
+	subroutine r_crsmv(va,ja,ia,x,y)
+		integer :: i,j
+		integer :: ja(:),ia(:)
+		real(8) :: va(:),y(:),x(:)
+		do i=1,size(x)
+			y(i)=0
+			do j=ia(i),ia(i+1)-1
+				y(i)=y(i)+va(j)*x(ja(j))
+			enddo
+		enddo
+	end subroutine
+	subroutine c_crsmv(va,ja,ia,x,y)
+		integer :: i,j
+		integer :: ja(:),ia(:)
+		complex(8) :: va(:),y(:),x(:)
+		do i=1,size(x)
+			y(i)=0
+			do j=ia(i),ia(i+1)-1
+				y(i)=y(i)+va(j)*x(ja(j))
+			enddo
+		enddo
+	end subroutine
+	subroutine crs(v,va,ja,ia)
+		integer :: n
+		complex(8) :: va(:),v(:,:)
+		integer :: ja(:),ia(size(v,1)+1)
+		integer ::  i,j
+		ia(1)=1
+		n=1
+		do i=1,size(v,1)
+			do j=1,size(v,2)
+				if((real(v(i,j))**2+imag(v(i,j))**2)>1d-18) then
+					va(n)=v(i,j)
+					ja(n)=j
+					n=n+1
+				endif
+			enddo
+			ia(i+1)=n
 		enddo
 	end subroutine
 end module
