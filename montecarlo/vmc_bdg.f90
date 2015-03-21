@@ -20,9 +20,34 @@ end module
 module M_wf
 	use M_pmt
 	use M_matrix
+	use lapack95, only: heevd,heevr
+	implicit none
 contains
+	subroutine self_n(var)
+		complex(8) :: H(Ns2*2,Ns2*2)
+		real(8) :: n,var(:),eg(Ns2*2),step,pn
+		integer :: sg,i
+		pn=0d0
+		step=0.01d0
+		do
+			call bdg((/0d0,var(2),0d0,0d0,0d0,0d0/),H)
+			call heevd(H,eg,"V")
+			n=0d0
+			do i=1,Ns2
+				n=n+dot_product(H(i,1:Ns2),H(i,1:Ns2))
+				n=n+1d0-dot_product(H(i+Ns2,1:Ns2),H(i+Ns2,1:Ns2))
+			enddo
+			if(abs(n-ne)<0.1d0) then
+				exit
+			endif
+			call find_cross(pn,n-ne,sg)
+			if(sg/=0) then
+				step=step*0.5d0
+			endif
+			var(2)=var(2)+step*sign(1d0,ne-n)
+		enddo
+	end subroutine
 	subroutine wf_r(var,wf,dwf)
-		use lapack95, only: heevd,heevr
 		complex(8) :: H(Ns2*2,Ns2*2),dH(Ns2*2,Ns2*2,vn),wf(:,:),dtmp(size(wf,1),size(wf,2)),D(Ns2*2,Ns2*2,vn)
 		complex(8), optional :: dwf(:,:,:)
 		real(8) :: eg(Ns2*2),var(vn),nvar(vn),r
@@ -78,12 +103,14 @@ contains
 		enddo
 	end subroutine
 	subroutine bdg(var,H,D)
-		complex(8) :: H(Ns2*2,Ns2*2),D(:,:,:)
+		complex(8) :: H(Ns2*2,Ns2*2)
+		complex(8), optional :: D(:,:,:)
 		real(8) :: eg(Ns2*2),var(vn)
 		integer :: i,j,n,ix(2),bc
 		H=0d0
-		wf=0d0
-		D=0d0
+		if(present(D)) then
+			D=0d0
+		endif
 		do i=1,Ns2
 			call latt_one2two(i,Ns,ix)
 			do j=1,4
@@ -101,22 +128,26 @@ contains
 				H(i+Ns2,neb(i,j,3)+Ns2)=-H(i,neb(i,j,3))
 				H(i,neb(i,j,1)+Ns2)=var(1)*(-1)**mod(j,2)*bc
 				H(i+Ns2,neb(i,j,1))=conjg(H(i,neb(i,j,1)+Ns2))
-				D(i,neb(i,j,1),4)=(img*(-1)**mod(sum(ix),2)*(-1)**mod(j,2))*bc
-				D(i+Ns2,neb(i,j,1)+Ns2,4)=(img*(-1)**mod(sum(ix),2)*(-1)**mod(j,2))*bc
-				D(i,neb(i,j,2),5)=-bc
-				D(i+Ns2,neb(i,j,2)+Ns2,5)=-D(i,neb(i,j,2),5)
-				D(i,neb(i,j,3),6)=-bc
-				D(i+Ns2,neb(i,j,3)+Ns2,6)=-D(i,neb(i,j,3),6)
-				D(i,neb(i,j,1)+Ns2,1)=(-1)**mod(j,2)*bc
-				D(i+Ns2,neb(i,j,1),1)=conjg(D(i,neb(i,j,1)+Ns2,1))
+				if(present(D)) then
+					D(i,neb(i,j,1),4)=(img*(-1)**mod(sum(ix),2)*(-1)**mod(j,2))*bc
+					D(i+Ns2,neb(i,j,1)+Ns2,4)=(img*(-1)**mod(sum(ix),2)*(-1)**mod(j,2))*bc
+					D(i,neb(i,j,2),5)=-bc
+					D(i+Ns2,neb(i,j,2)+Ns2,5)=-D(i,neb(i,j,2),5)
+					D(i,neb(i,j,3),6)=-bc
+					D(i+Ns2,neb(i,j,3)+Ns2,6)=-D(i,neb(i,j,3),6)
+					D(i,neb(i,j,1)+Ns2,1)=(-1)**mod(j,2)*bc
+					D(i+Ns2,neb(i,j,1),1)=conjg(D(i,neb(i,j,1)+Ns2,1))
+				endif
 			enddo
 			! on site
 			H(i,i)=var(3)*(-1)**mod(sum(ix),2)-var(2)
 			H(i+Ns2,i+Ns2)=var(3)*(-1)**mod(sum(ix),2)+var(2)
-			D(i,i,3)=(-1)**mod(sum(ix),2)
-			D(i+Ns2,i+Ns2,3)=(-1)**mod(sum(ix),2)
-			D(i,i,2)=-1d0
-			D(i+Ns2,i+Ns2,2)=1d0
+			if(present(D)) then
+				D(i,i,3)=(-1)**mod(sum(ix),2)
+				D(i+Ns2,i+Ns2,3)=(-1)**mod(sum(ix),2)
+				D(i,i,2)=-1d0
+				D(i+Ns2,i+Ns2,2)=1d0
+			endif
 		enddo
 	end subroutine
 end module
@@ -367,7 +398,8 @@ module M_tJ
 	use M_rd
 	use M_mc_matrix
 	implicit none
-	real(8), parameter :: DJ=1d0/3d0,V=DJ*4d0
+	real(8), parameter :: DJ=1d0/3d0,V=0d0!DJ*4d0
+	!real(8), parameter :: DJ=0.3d0,V=DJ*4d0
 contains
 	subroutine two(i,j,nd,sg)
 		integer :: i,j,sg,n,n1,n0,nd
@@ -836,9 +868,9 @@ contains
 	subroutine variational(var,Nmc,cfg,nd)
 		use lapack95, only: heevd,heevr
 		use M_wf, iniwf => wf_r
-		real(8) :: var(:),dvar(size(var)),pvar(size(var)),eg(size(var)),dt=0.05d0,er(1),Ev,allE(200),scv
+		real(8) :: var(:),dvar(size(var)),pvar(size(var)),eg(size(var)),dt=0.1d0,er(1),Ev,allE(200),scv,var_av(size(var))
 		complex(8) :: wf(Ns2*2,Ns2),dwf(Ns2*2,Ns2,vn),O(size(var)),S(size(O),size(O)),g(size(O)),Ov(size(O)),Sv(size(O),size(O)),gv(size(O))
-		integer :: n,i,j,k,info,Nmc(:),nm,l
+		integer :: n,i,j,k,info,Nmc(:),nm,l,nav
 		integer :: cfg(Ns2),nd,cfg_omp(Ns2),nd_omp
 		real(8) :: phyval(1)
 		real(8), allocatable :: sga(:,:)
@@ -850,11 +882,17 @@ contains
 		scv=0d0
 		flag=.true.
 		pvar=var
+		nav=0
+		var_av=0d0
 		do
 			l=l+1
 			write(*,"(I3$)")ne
 			write(*,"(es9.2$)")var
 			call iniwf(var(:vn),wf,dwf)
+			do i=1,Ns2
+				cfg(i)=i
+			enddo
+			call fisher_yates_shuffle(cfg,Ns2)
 			Ev=0d0
 			Sv=0d0
 			gv=0d0
@@ -883,19 +921,10 @@ contains
 			!write(*,*)real(gv)
 			!stop
 			er=sqrt(abs(er/n-abs(Ev)**2))
-			Sv=Sv+diag(2d-1,size(Sv,1))
-			Sv(:,5:6)=0d0
-			Sv(5:6,:)=0d0
-			!Sv(:,1)=0d0
-			!Sv(1,:)=0d0
-			!Sv(:,3)=0d0
-			!Sv(3,:)=0d0
-			!Sv(:,2:5)=0d0
-			!Sv(2:5,:)=0d0
+			!Sv=Sv+diag(2d-1,size(Sv,1))
+			Sv=Sv+diag(1d-2,size(Sv,1))
+			!call zero(Sv,gv,(/1,2,5,6/))
 			call heevd(Sv,eg,"V")
-			!gv(1)=0d0
-			!gv(3)=0d0
-			gv(5:6)=0d0
 			do i=1,size(O)
 				dvar(i)=0d0
 				do j=1,size(O)
@@ -936,18 +965,32 @@ contains
 				endif
 			enddo
 			write(*,"(es9.2$)")scv/(min(l*max(l-1,1),40*39))
-			if(l>40.and.abs(scv)/(min(l*max(l-1,1),40*39))<1d-2.and.scv<0.or.l==size(allE)) then
-				write(*,*)"variational finish",l
+			if(l>40.and.abs(scv)/(min(l*max(l-1,1),40*39))<1d-2.and.scv<0.or.l==size(allE).or.nav>0) then
+				nav=nav+1
+				var_av=var_av+var
+				write(*,*)"variational finish",l,nav
 				write(20,"(x)")
-				write(10,"(I4$)")ne
-				write(10,"(es13.5$)")var,Ev,er
-				write(10,"(x)")
-				exit
+				!write(10,"(I4$)")ne
+				!write(10,"(es13.5$)")var,Ev,er
+				!write(10,"(x)")
+				if(nav>100) then
+					var=var_av/nav
+					exit
+				endif
 			endif
 			pvar=var
 			var=var-dvar*dt
 			write(*,"(x)")
-			Nmc(1)=500
+			!Nmc(1)=500
+		enddo
+	end subroutine
+	subroutine zero(Sv,gv,o)
+		integer :: o(:),i
+		complex(8) :: Sv(:,:),gv(:)
+		do i=1,size(o)
+			Sv(:,o(i))=0d0
+			Sv(o(i),:)=0d0
+			gv(o(i))=0d0
 		enddo
 	end subroutine
 end module
@@ -955,6 +998,7 @@ end module
 program main
 	use M_vmc
 	use M_wf, iniwf => wf_r
+	implicit none
 	integer :: n,i,j,Nmc(3),Nvar(3),nm,cfg(Ns2),nd
 	complex(8) :: wf(Ns2*2,Ns2)
 	real(8) :: var(vn+1)
@@ -963,26 +1007,22 @@ program main
 	logical :: f
 	!open(10,file="../data/2d.dat")
 	f=openfile(20,"../data/var.dat")
-	f=openfile(40,"../data/2d.dat")
-	f=openfile(10,"../data/err.dat")
+	!f=openfile(40,"../data/2d.dat")
+	!f=openfile(10,"../data/err.dat")
 	!f=openfile(30,"../data/phyvar.dat",access="direct",recl=226)
 	f=openfile(30,"../data/phyvar.dat")
 	Nmc(3)=1024*4
 	Nvar(3)=128
 	nm=log(real(Nmc(3)))/log(2d0)
 	allocate(sga((nm+1)*2,size(phyval)))
-	call init_random_seed()
 	call latt(Ns,Tx,Ty,neb)
-	do i=1,Ns2
-		cfg(i)=i
-	enddo
-	call fisher_yates_shuffle(cfg,Ns2)
+	call init_random_seed()
 	nd=0
 	n=32
 	!var=(/1d-1,1d-1,1d-1,1d-1,1d-1,1d-1/)
-	!var=(/1d-1,0d0,1d-1,0d0,0d0,0d0,1d-1/)
-	var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0,1d-1/)
-	do i=0,16,1
+	!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0,1d-1/)
+	var=(/1.09E-01,-8.23E-02,-1.84E-03,-1.74E-02,1.84E-01,1.28E-01,1.00E-01/)
+	do i=10,16,1
 		!var(7)=var(7)+0.1
 		!var=(/1d-2,0d0,1d-2,1d-2,0d0,0d0/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
@@ -990,20 +1030,21 @@ program main
 		ne=ne+mod(ne,2)
 		!read(30,rec=i+1,fmt="(i4,7es13.5)")ne,var
 		ne2=ne/2
+		!call self_n(var)
 		!Nmc(1:2)=(/5000*Ns2,5*Ns2/)*(i+1)
 		!Nvar(1:2)=(/500*Ns2,5*Ns2/)*(i+1)
 		!Nvar(1:2)=(/500,5/)*Ns2
-		Nvar(1:2)=(/500,5/)*100
-		Nmc(1:2)=(/500,5/)*100
+		Nvar(1:2)=(/1000,5/)*100
+		Nmc(1:2)=(/1000,5/)*100
 		call variational(var,Nvar,cfg,nd)
 		write(*,"(i4$)")ne
 		write(*,"(es9.2$)")var
 		call iniwf(var(:vn),wf)
 		call mc(wf,var(vn+1:),Nmc,cfg,nd,phyval,sga)
-		do j=1,size(sga,1)/2-1
-			write(10,"(es13.5$)")(sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)),sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)*sqrt(2d0/(2**(nm-j+1)-1))),k=1,size(sga,2))
-			write(10,"(x)")
-		enddo
+		!do j=1,size(sga,1)/2-1
+			!write(10,"(es13.5$)")(sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)),sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)*sqrt(2d0/(2**(nm-j+1)-1))),k=1,size(sga,2))
+			!write(10,"(x)")
+		!enddo
 		!write(*,"(es9.2$)")phyval(1),sqrt((sga(nm-5,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-5)+1)-1))
 		write(*,"(es9.2$)")phyval
 		write(*,"(1x)")
