@@ -202,6 +202,12 @@ contains
 					S=S/Nmc(3)
 					g=g/Nmc(3)
 					O=O/Nmc(3)
+					do ti=1,size(O)
+						do tj=1,size(O)
+							S(ti,tj)=S(ti,tj)-dconjg(O(ti))*O(tj)
+						enddo
+					enddo
+					g=2d0*(g-real(phyval(1)*O))*Ns2
 				endif
 				exit
 			endif
@@ -445,7 +451,7 @@ contains
 		complex(8) :: wf(Ns2*2,Ns2),dwf(Ns2*2,Ns2,vn),O(vn),S(vn,vn),g(vn),Ov(vn),Sv(vn,vn),gv(vn)
 		complex(8) :: tmp(vn,vn)
 		integer :: n,i,j,k,info,sg(vn),cs,Nmc(:),nm,l
-		real(8) :: var(vn),dvar(vn),pvar(vn),eg(vn),dt=1d0,er(1),Ev,allE(400),scv
+		real(8) :: var(vn),dvar(vn),pvar(vn),eg(vn),dt=0.1d0,er(1),Ev,allE(400),scv
 		complex(8) :: phyval(1)
 		real(8), allocatable :: sga(:,:)
 		logical :: flag
@@ -471,18 +477,14 @@ contains
 			do k=1,n
 				call mc(wf,Nmc,phyval,sga,dwf,O,S,g)
 				Ev=Ev+real(phyval(1))
-				do i=1,vn
-					do j=1,vn
-						Sv(i,j)=Sv(i,j)+S(i,j)-dconjg(O(i))*O(j)
-					enddo
-				enddo
-				gv=gv+g-real(phyval(1)*O)
+				Sv=Sv+S
+				gv=gv+g
 				er=er+abs(phyval)**2
 			enddo
 			!$OMP END PARALLEL DO
 			Ev=Ev/n
 			Sv=Sv/n
-			gv=2d0*gv/n
+			gv=gv/n
 			er=sqrt(abs(er/n-abs(Ev)**2))
 			Sv=Sv+diag(1d-2,size(Sv,1))
 			!Sv(:,5:6)=0d0
@@ -511,7 +513,9 @@ contains
 			if(n<5) then
 				er=sqrt((sga(nm-3,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-3)+1)-1))
 			endif
-			write(*,"(es9.2$)")real(gv),Ev,er
+			write(*,"(es9.2$)")real(gv)
+			write(*,"(es11.4$)")Ev
+			write(*,"(es9.2$)")er
 			write(20,"(I4$)")ne
 			write(20,"(es13.5$)")var,real(gv),Ev,er
 			write(20,"(x)")
@@ -582,8 +586,9 @@ program main
 	!var=1d-10
 	!var(2)=1d0
 	!var=(/0.18764E-01,-4.24821E-02,2.34273E-02,4.23654E-04,5.68984E-02,8.57877E-02/)
-	var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
 	do i=0,40,1
+		var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
+		var=(/2.03095d-01,-3.84317d-18,2.49592d-01,2.03095d-01,1.12936d-16,-1.76192d-16/)
 		!var(1)=1d-1
 		!var=(/1d-2,0d0,1d-2,1d-2,0d0,0d0/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
@@ -599,7 +604,7 @@ program main
 		Nmc(1:2)=(/5000*Ns2,5*Ns2/)
 		Nvar(1:2)=(/500*Ns2,5*Ns2/)
 		!write(30,"(i4$)")ne
-		call variational(var,Nvar)
+		!call variational(var,Nvar)
 		write(*,"(i4$)")ne
 		write(*,"(es9.2$)")var
 		!write(30,"(es13.5$)")var

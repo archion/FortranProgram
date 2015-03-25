@@ -2,17 +2,17 @@ module M_pmt
 	use M_const
 	use M_utility
 	use M_latt, only : &
-		 latt         =>  square_tilda         ,& 
-		 latt_bc      =>  square_tilda_bc      ,& 
-		 latt_one2two =>  square_tilda_one2two ,& 
-		 latt_two2one =>  square_tilda_two2one 
-		 !latt         =>  square         ,& 
-		 !latt_bc      =>  square_bc      ,& 
-		 !latt_one2two =>  square_one2two ,& 
-		 !latt_two2one =>  square_two2one 
+		 !latt         =>  square_tilda         ,& 
+		 !latt_bc      =>  square_tilda_bc      ,& 
+		 !latt_one2two =>  square_tilda_one2two ,& 
+		 !latt_two2one =>  square_tilda_two2one 
+		 latt         =>  square         ,& 
+		 latt_bc      =>  square_bc      ,& 
+		 latt_one2two =>  square_one2two ,& 
+		 latt_two2one =>  square_two2one 
 	implicit none
-	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),vn=6
-	!integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
+	!integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),vn=6
+	integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
 	integer :: neb(Ns2,4,3),ne=Ns2,ne2=Ns2/2
 	real(8), parameter :: t(1)=(/1d0/)
 end module
@@ -23,30 +23,6 @@ module M_wf
 	use lapack95, only: heevd,heevr
 	implicit none
 contains
-	subroutine self_n(var)
-		complex(8) :: H(Ns2*2,Ns2*2)
-		real(8) :: n,var(:),eg(Ns2*2),step,pn
-		integer :: sg,i
-		pn=0d0
-		step=0.01d0
-		do
-			call bdg((/0d0,var(2),0d0,0d0,0d0,0d0/),H)
-			call heevd(H,eg,"V")
-			n=0d0
-			do i=1,Ns2
-				n=n+dot_product(H(i,1:Ns2),H(i,1:Ns2))
-				n=n+1d0-dot_product(H(i+Ns2,1:Ns2),H(i+Ns2,1:Ns2))
-			enddo
-			if(abs(n-ne)<0.1d0) then
-				exit
-			endif
-			call find_cross(pn,n-ne,sg)
-			if(sg/=0) then
-				step=step*0.5d0
-			endif
-			var(2)=var(2)+step*sign(1d0,ne-n)
-		enddo
-	end subroutine
 	subroutine wf_r(var,wf,dwf)
 		complex(8) :: H(Ns2*2,Ns2*2),dH(Ns2*2,Ns2*2,vn),wf(:,:),dtmp(size(wf,1),size(wf,2)),D(Ns2*2,Ns2*2,vn)
 		complex(8), optional :: dwf(:,:,:)
@@ -117,7 +93,7 @@ contains
 				!call random_number(r)
 				!r=(r-0.5d0)*1d-8
 				bc=1
-				!if(abs(neb(i,j,1)-i)>Ns(1)+3) then
+				!if(abs(neb(i,j,1)-i)>Ns(1)*3) then
 					!bc=-1
 				!endif
 				H(i,neb(i,j,1))=(-t(1)+var(4)*img*(-1)**mod(sum(ix),2)*(-1)**mod(j,2))*bc
@@ -355,18 +331,21 @@ contains
 			sg=-1
 		endif
 	end subroutine
-	function jast(ri,rj,cfg,icfg,nd,ja)
+	function jast(ri,rj,cfg,icfg,sg,nd,ja)
 		integer :: ri,rj,icfg(:),cfg(:),sg,i,nd
 		real(8) :: jast,ja(:)
 		jast=1d0
-		if(cs(icfg(ri),nd)==2) then
-			jast=jast*exp(ja(1))
-		endif
-		if(cs(icfg(rj),nd)/=4) then
-			jast=jast*exp(-ja(1))
-		endif
-		do i=2,size(ja)
-		enddo
+		select case(sg)
+		case(1:8)
+			if(cs(icfg(ri),nd)==2) then
+				jast=jast*exp(ja(1))
+			endif
+			if(cs(icfg(rj),nd)/=4) then
+				jast=jast*exp(-ja(1))
+			endif
+		end select
+		!do i=2,size(ja)
+		!enddo
 	end function
 	subroutine checkcfg(icfg,nd,s)
 		integer :: i,s,icfg(:),r0(2),nd
@@ -398,8 +377,8 @@ module M_tJ
 	use M_rd
 	use M_mc_matrix
 	implicit none
-	real(8), parameter :: DJ=1d0/3d0,V=0d0!DJ*4d0
-	!real(8), parameter :: DJ=0.3d0,V=DJ*4d0
+	!real(8), parameter :: DJ=1d0/3d0,V=DJ*4d0
+	real(8), parameter :: DJ=0.3d0,V=0d0
 contains
 	subroutine two(i,j,nd,sg)
 		integer :: i,j,sg,n,n1,n0,nd
@@ -437,30 +416,37 @@ contains
 					case(1) 
 						call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 						call det(vu,cr,A,iA,Y,pb)
+						!if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
+							!pb=-pb
+						!endif
 						El=El-real(t(inb)*conjg(pb))
 					case(5) 
 						call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 						call det(vu,cr,A,iA,Y,pb)
+						!if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
+							!pb=-pb
+						!endif
 						El=El+real(t(inb)*conjg(pb))
 					case(0)
 						if(inb==1.and.i<=ne2) then
 							call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 							call det(vu,cr,A,iA,Y,pb)
 							El=El+real(0.5d0*DJ*conjg(pb)-0.25d0*DJ&
-								-0.25d0*DJ&
+								!-0.25d0*DJ&
 								+V)
 						endif
 					case default
 						if(inb==1.and.ii<3) then
 							El=El+real(0.25d0*DJ&
-								-0.25d0*DJ&
+								!-0.25d0*DJ&
 								+V)
 						endif
 					end select
 				enddo
 			enddo
 		enddo
-		El=(El-(4d0*V-DJ)*(ne-Ns2/2))/Ns2
+		!El=(El-(4d0*V-DJ)*(ne-Ns2/2))/Ns2
+		El=El/Ns2
 	end subroutine
 	subroutine spin_order(cfg,nd,lphy)
 		real(8) :: lphy
@@ -633,11 +619,11 @@ contains
 					case(1:4)
 						call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 						call det(vu,cr,A,iA,Y,pb)
-						El=El-real(t(inb)*conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,nd,ja))
+						El=El-real(t(inb)*conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))
 					case(5:8)
 						call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 						call det(vu,cr,A,iA,Y,pb)
-						El=El+real(t(inb)*conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,nd,ja))
+						El=El+real(t(inb)*conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))
 					end select
 				enddo
 			enddo
@@ -680,12 +666,12 @@ contains
 				case(1:4)
 					call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 					call det(vu,cr,A,iA,Y,pb)
-					lphy=lphy+imag(conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,nd,ja))*&
+					lphy=lphy+imag(conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))*&
 						(0.5d0-mod(inb,2))*(0.5d0-mod(sum(x1),2))
 				case(5:8)
 					call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 					call det(vu,cr,A,iA,Y,pb)
-					lphy=lphy-imag(conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,nd,ja))*&
+					lphy=lphy-imag(conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))*&
 						(0.5d0-mod(inb,2))*(0.5d0-mod(sum(x1),2))
 				end select
 			enddo
@@ -736,7 +722,7 @@ contains
 							vu(:,1)=wf(cfg(i)+Ns2,:)
 							vu(:,2)=wf(cfg(jj),:)
 							call det(vu,cr,A,iA,Y,pb)
-							lphy=lphy+real(dconjg(pb)*jast(cfg(i),cfg(ii),cfg,icfg,nd,ja)*jast(cfg(j),cfg(jj),cfg,icfg,nd,ja))*&
+							lphy=lphy+real(dconjg(pb)*jast(cfg(i),cfg(ii),cfg,icfg,1,nd,ja)*jast(cfg(j),cfg(jj),cfg,icfg,1,nd,ja))*&
 								(0.5d0-mod(inb1+inb2,2))
 						enddo
 					enddo
@@ -750,18 +736,25 @@ end module
 module M_vmc
 	use M_tJ
 	!use M_hubbard
+	use M_wf, iniwf => wf_r
 	implicit none
 contains
-	subroutine mc(wf,ja,Nmc,cfg,nd,phyval,sga,dwf,O,S,g)
+	subroutine mc(wf,ja,Nmc,cfg,nd,phyval,sga,dwf,S,g)
 		complex(8) :: pb,A(Ns2,Ns2),iA(Ns2,Ns2),dA(Ns2,Ns2,vn),vu(Ns2,2),dvu(Ns2,2,vn),wf(:,:),Y(2,2)
-		complex(8), optional :: O(:),S(:,:),g(:),dwf(:,:,:)
-		real(8) :: rpb,sga(:,:),ja(:)
-		complex(8) :: lO(vn+size(ja)),lS(size(lO),size(lO)),lg(size(lO))
+		complex(8), optional :: S(:,:),g(:),dwf(:,:,:)
+		real(8) :: rpb,ja(:)
+		real(8) :: sga(:,:)
+		complex(8) :: lO(vn+size(ja)),lS(size(lO),size(lO)),lg(size(lO)),O(size(lO))
 		real(8) :: phyval(:),lphy(size(phyval))
 		integer :: icfg(Ns2),i,j,ti,tj,l,sg,n,Nmc(:),cr(2),acp,bi,bj,ii,jj
 		integer :: cfg(Ns2),nd
 		logical :: flag
-		flag=present(O)
+		!do i=1,Ns2
+			!cfg(i)=i
+		!enddo
+		!nd=0
+		!call fisher_yates_shuffle(cfg,Ns2)
+		flag=present(S)
 		!write(*,"(A)")"start monte carlo"
 		if(mod(Ns2,2)/=0) then
 			write(*,*)"Number of site is not even, exit!!"
@@ -770,12 +763,11 @@ contains
 		bj=size(sga,1)/2+1
 		sga=0d0
 		n=0
-		phyval=0d0
 		acp=0
-		nd=0
 		do i=1,Ns2
 			icfg(cfg(i))=i
 		enddo
+		phyval=0d0
 		if(flag) then
 			O=0d0
 			S=0d0
@@ -810,7 +802,7 @@ contains
 			call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr,flag,dwf,dvu)
 			call det(vu,cr,A,iA,Y,pb)
 			call random_number(rpb)
-			if(rpb<real(pb*conjg(pb))*(jast(cfg(i),cfg(j),cfg,icfg,nd,ja))**2) then
+			if(rpb<real(pb*conjg(pb))*(jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))**2) then
 				acp=acp+1
 				call update_matrix(vu,cr,Y,pb,A,iA,flag,dvu,dA)
 				!write(*,*)sum(abs(matmul(A,iA)-diag(1d0,size(A,1))))
@@ -859,6 +851,12 @@ contains
 					S=S/Nmc(3)
 					g=g/Nmc(3)
 					O=O/Nmc(3)
+					do ti=1,size(O)
+						do tj=1,size(O)
+							S(ti,tj)=S(ti,tj)-dconjg(O(ti))*O(tj)
+						enddo
+					enddo
+					g=2d0*(g-real(phyval(1)*O))*Ns2
 				endif
 				exit
 			endif
@@ -867,84 +865,76 @@ contains
 	end subroutine
 	subroutine variational(var,Nmc,cfg,nd)
 		use lapack95, only: heevd,heevr
-		use M_wf, iniwf => wf_r
-		real(8) :: var(:),dvar(size(var)),pvar(size(var)),eg(size(var)),dt=0.1d0,er(1),Ev,allE(200),scv,var_av(size(var))
-		complex(8) :: wf(Ns2*2,Ns2),dwf(Ns2*2,Ns2,vn),O(size(var)),S(size(O),size(O)),g(size(O)),Ov(size(O)),Sv(size(O),size(O)),gv(size(O))
+		real(8) :: var(:),dvar(size(var)),pvar(size(var)),eg(size(var)),dt=0.1d0,allE(200),scv,var_av(size(var))
+		complex(8) :: wf(Ns2*2,Ns2),dwf(Ns2*2,Ns2,vn),g(size(var)),S(size(g),size(g)),S_omp(size(g),size(g)),g_omp(size(g))
 		integer :: n,i,j,k,info,Nmc(:),nm,l,nav
 		integer :: cfg(Ns2),nd,cfg_omp(Ns2),nd_omp
-		real(8) :: phyval(1)
+		real(8) :: phyval(5),phyval_omp(5),er(5)
 		real(8), allocatable :: sga(:,:)
 		logical :: flag
 		nm=log(real(Nmc(3)))/log(2d0)
 		allocate(sga((nm+1)*2,1))
 		n=24
-		l=0
+		l=1
 		scv=0d0
 		flag=.true.
 		pvar=var
 		nav=0
 		var_av=0d0
 		do
-			l=l+1
 			write(*,"(I3$)")ne
 			write(*,"(es9.2$)")var
 			call iniwf(var(:vn),wf,dwf)
-			do i=1,Ns2
-				cfg(i)=i
-			enddo
-			call fisher_yates_shuffle(cfg,Ns2)
-			Ev=0d0
-			Sv=0d0
-			gv=0d0
-			er=0d0 
-			!$OMP PARALLEL DO REDUCTION(+:Ev,Sv,gv,er) PRIVATE(phyval,O,S,g) LASTPRIVATE(sga,cfg_omp,nd_omp) SCHEDULE(GUIDED)
+			S=0d0
+			g=0d0
+			er=0d0
+			phyval=0d0
+			!$OMP PARALLEL DO REDUCTION(+:phyval,S,g,er) PRIVATE(phyval_omp,S_omp,g_omp) LASTPRIVATE(sga,cfg_omp,nd_omp) SCHEDULE(GUIDED)
 			do k=1,n
 				cfg_omp=cfg
 				nd_omp=nd
-				call mc(wf,var(vn+1:),Nmc,cfg_omp,nd_omp,phyval,sga,dwf,O,S,g)
-				Ev=Ev+phyval(1)
-				do i=1,size(O)
-					do j=1,size(O)
-						Sv(i,j)=Sv(i,j)+S(i,j)-dconjg(O(i))*O(j)
-					enddo
-				enddo
-				gv=gv+g-real(phyval(1)*O)
-				er=er+abs(phyval)**2
+				call mc(wf,var(vn+1:),Nmc,cfg_omp,nd_omp,phyval_omp,sga,dwf,S_omp,g_omp)
+				phyval(1)=phyval(1)+phyval_omp(1)
+				phyval(2:)=phyval(2:)+abs(phyval_omp(2:))
+				S=S+S_omp
+				g=g+g_omp
+				er=er+phyval_omp**2
 			enddo
 			!$OMP END PARALLEL DO
 			cfg=cfg_omp
 			nd=nd_omp
-			Ev=Ev/n
-			Sv=Sv/n
-			gv=2d0*gv/n*Ns2
-			!call mwrite(10,real(Sv))
-			!write(*,*)real(gv)
-			!stop
-			er=sqrt(abs(er/n-abs(Ev)**2))
-			!Sv=Sv+diag(2d-1,size(Sv,1))
-			Sv=Sv+diag(1d-2,size(Sv,1))
-			!call zero(Sv,gv,(/1,2,5,6/))
-			call heevd(Sv,eg,"V")
-			do i=1,size(O)
+			phyval=phyval/n
+			S=S/n
+			g=g/n
+			if(n<5) then
+				er=sqrt((sga(nm-3,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-3)+1)-1))
+			else
+				er=sqrt(abs(er/n-phyval**2))
+			endif
+			S=S+diag(1d-2,size(S,1))
+			call zero(S,g,(/6/))
+			call heevd(S,eg,"V")
+			!eg=eg+1d-1
+			!write(*,*)eg
+			do i=1,size(g)
 				dvar(i)=0d0
-				do j=1,size(O)
-					do k=1,size(dvar)
-						if(eg(k)/eg(size(O))<1d-3) then
+				do j=1,size(g)
+					do k=1,size(g)
+						if(eg(k)/eg(size(g))<1d-3) then
 							cycle
 						endif
-						dvar(i)=dvar(i)+real(Sv(i,k)*dconjg(Sv(j,k))*gv(j)/eg(k))
+						dvar(i)=dvar(i)+real(S(i,k)*dconjg(S(j,k))*g(j)/eg(k))
 					enddo
 				enddo
 			enddo
-			if(n<5) then
-				er=sqrt((sga(nm-3,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-3)+1)-1))
-			endif
-			write(*,"(es9.2$)")real(gv),Ev,er
+			write(*,"(es9.2$)")real(g)
+			write(*,"(es11.4$)")phyval(1)
+			write(*,"(es9.2$)")er(1)
 			write(20,"(I4$)")ne
-			write(20,"(es13.5$)")var,real(gv),Ev,er
+			write(20,"(es13.5$)")var,real(g),phyval(1),er(1)
 			write(20,"(x)")
-			allE(l)=Ev
-			if(allE(max(l-1,1))<(Ev-2d0*er(1))) then
+			allE(l)=phyval(1)
+			if(allE(max(l-1,1))<(phyval(1)-2d0*er(1))) then
 				write(*,"(x)")
 				if(flag) then
 					l=0
@@ -959,7 +949,7 @@ contains
 				endif
 			endif
 			do i=max(l-39,1),l-1
-				scv=scv+sign(1d0,Ev-allE(i))
+				scv=scv+sign(1d0,phyval(1)-allE(i))
 				if(max(l-39,1)>1) then
 					scv=scv+sign(1d0,allE(max(l-39,1)-1)-allE(i))
 				endif
@@ -969,19 +959,21 @@ contains
 				nav=nav+1
 				var_av=var_av+var
 				write(*,*)"variational finish",l,nav
-				write(20,"(x)")
 				!write(10,"(I4$)")ne
 				!write(10,"(es13.5$)")var,Ev,er
 				!write(10,"(x)")
-				if(nav>100) then
+				if(nav>=20) then
 					var=var_av/nav
+					write(20,"(x)")
 					exit
 				endif
+			else
+				l=l+1
 			endif
 			pvar=var
 			var=var-dvar*dt
 			write(*,"(x)")
-			!Nmc(1)=500
+			Nmc(1)=500
 		enddo
 	end subroutine
 	subroutine zero(Sv,gv,o)
@@ -997,12 +989,11 @@ end module
 
 program main
 	use M_vmc
-	use M_wf, iniwf => wf_r
 	implicit none
-	integer :: n,i,j,Nmc(3),Nvar(3),nm,cfg(Ns2),nd
+	integer :: n,i,j,Nmc(3),Nvar(3),nm,cfg(Ns2),nd,cfg_omp(size(cfg)),nd_omp
 	complex(8) :: wf(Ns2*2,Ns2)
 	real(8) :: var(vn+1)
-	real(8) :: er(5),phyval(5)
+	real(8) :: er(5),phyval(5),phyval_omp(size(phyval))
 	real(8), allocatable :: sga(:,:)
 	logical :: f
 	!open(10,file="../data/2d.dat")
@@ -1017,12 +1008,16 @@ program main
 	allocate(sga((nm+1)*2,size(phyval)))
 	call latt(Ns,Tx,Ty,neb)
 	call init_random_seed()
+	n=24
+	do i=1,Ns2
+		cfg(i)=i
+	enddo
 	nd=0
-	n=32
-	!var=(/1d-1,1d-1,1d-1,1d-1,1d-1,1d-1/)
+	call fisher_yates_shuffle(cfg,Ns2)
 	!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0,1d-1/)
-	var=(/1.09E-01,-8.23E-02,-1.84E-03,-1.74E-02,1.84E-01,1.28E-01,1.00E-01/)
-	do i=10,16,1
+	!var=(/1.10E-03,-1.25E-01,1.75E-01,2.60E-01,2.01E-01,1.90E-01,1.00E-01/)
+	do i=0,16,1
+		var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0,1d-1/)
 		!var(7)=var(7)+0.1
 		!var=(/1d-2,0d0,1d-2,1d-2,0d0,0d0/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
@@ -1034,13 +1029,30 @@ program main
 		!Nmc(1:2)=(/5000*Ns2,5*Ns2/)*(i+1)
 		!Nvar(1:2)=(/500*Ns2,5*Ns2/)*(i+1)
 		!Nvar(1:2)=(/500,5/)*Ns2
-		Nvar(1:2)=(/1000,5/)*100
-		Nmc(1:2)=(/1000,5/)*100
+		Nmc(1:2)=(/5000*Ns2,5*Ns2/)
+		Nvar(1:2)=(/500*Ns2,5*Ns2/)
+		!Nvar(1:2)=(/1000,5/)*100
+		!Nmc(1:2)=(/1000,5/)*100
 		call variational(var,Nvar,cfg,nd)
 		write(*,"(i4$)")ne
 		write(*,"(es9.2$)")var
 		call iniwf(var(:vn),wf)
-		call mc(wf,var(vn+1:),Nmc,cfg,nd,phyval,sga)
+		er=0d0
+		phyval=0d0
+		!$OMP PARALLEL DO REDUCTION(+:phyval,er) PRIVATE(phyval_omp) LASTPRIVATE(sga,cfg_omp,nd_omp) SCHEDULE(GUIDED)
+		do j=1,n
+			cfg_omp=cfg
+			nd_omp=nd
+			call mc(wf,var(vn+1:),Nmc,cfg_omp,nd_omp,phyval_omp,sga)
+			phyval(1)=phyval(1)+phyval_omp(1)
+			phyval(2:)=phyval(2:)+abs(phyval_omp(2:))
+			er=er+phyval_omp**2
+		enddo
+		!$OMP END PARALLEL DO
+		cfg=cfg_omp
+		nd=nd_omp
+		phyval=phyval/n
+		er=sqrt(abs(er/n-phyval**2))
 		!do j=1,size(sga,1)/2-1
 			!write(10,"(es13.5$)")(sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)),sqrt((sga(j,k)-sga(size(sga,1)/2,k))/(2**(nm-j+1)-1)*sqrt(2d0/(2**(nm-j+1)-1))),k=1,size(sga,2))
 			!write(10,"(x)")
@@ -1049,7 +1061,8 @@ program main
 		write(*,"(es9.2$)")phyval
 		write(*,"(1x)")
 		!write(30,rec=i+1,fmt="(i4,17es13.5,A)")ne,var,(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=1,5),char(10)
-		write(30,"(es13.5$)")real(Ns2-ne)/Ns2,var,(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=1,5)
+		!write(30,"(es13.5$)")real(Ns2-ne)/Ns2,var,(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=1,5)
+		write(30,"(es13.5$)")real(Ns2-ne)/Ns2,var,(phyval(j),er(j),j=1,size(phyval))
 		write(30,"(1x)")
 	enddo
 end program

@@ -1,19 +1,25 @@
 module M_pmt
 	use M_const
 	implicit none
-	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),r0(2)=(/Ns(1)/2,0/),vn=6
+	!integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),r0(2)=(/Ns(1)/2,0/),vn=6
+	integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
 	integer :: neb(Ns2,4,3),ne=Ns2,ne2=Ns2/2
-	real(8), parameter :: t(1)=(/1d0/),DJ=0.5d0,V=0d0
+	real(8), parameter :: t(1)=(/1d0/),DJ=0.3d0,V=0d0
 	real(8) :: ncfg(Ns2),scfg(Ns2),e2=0d0
 end module
 module M_wf
 	use M_pmt
 	use M_matrix
 	use M_latt, only : &
-         latt         =>  square_tilda         ,& 
-         latt_bc      =>  square_tilda_bc      ,& 
-         latt_one2two =>  square_tilda_one2two ,& 
-         latt_two2one =>  square_tilda_two2one 
+         !latt         =>  square_tilda         ,& 
+         !latt_bc      =>  square_tilda_bc      ,& 
+         !latt_one2two =>  square_tilda_one2two ,& 
+         !latt_two2one =>  square_tilda_two2one 
+		 latt         =>  square         ,& 
+		 latt_bc      =>  square_bc      ,& 
+		 latt_one2two =>  square_one2two ,& 
+		 latt_two2one =>  square_two2one 
+	implicit none
 contains
 	subroutine wf_k(var,wf,dwf)
 		complex(8) :: wf(:,:),dwf(:,:,:),uv,duv(2),tmp(2),dtmp(2,2)
@@ -25,11 +31,12 @@ contains
 		!var(1)=abs(var(1))
 		!var(3)=abs(var(3))
 		!var(4)=abs(var(4))
-		do n=-(Ns(1)-1)/2,(Ns(1)-1)/2
-			do m=-(Ns(1)-1)/2,(Ns(1)+1)/2
-				!call square_one2two(j,Ns,ik)
-				!k=(/2d0*pi/Ns(1)*ik(1),2*pi/Ns(2)*ik(2)+pi/Ns(2)/)-pi
-				k=2d0*pi*(/real(n*Ns(1)+m)/Ns2,real(-n+m*Ns(1))/Ns2/)
+		!do n=-(Ns(1)-1)/2,(Ns(1)-1)/2
+			!do m=-(Ns(1)-1)/2,(Ns(1)+1)/2
+			do n=1,Ns2
+				call latt_one2two(n,Ns,ik)
+				k=(/2d0*pi/Ns(1)*ik(1),2*pi/Ns(2)*ik(2)+pi/Ns(2)/)-pi
+				!k=2d0*pi*(/real(n*Ns(1)+m)/Ns2,real(-n+m*Ns(1))/Ns2/)
 				if(abs(k(1))+abs(k(2))>pi) then
 					cycle
 				endif
@@ -108,7 +115,7 @@ contains
 				!write(10,"(es10.2$)")k,a
 				!write(10,"(1x)")
 			enddo
-		enddo
+		!enddo
 		dwf=dwf/Ns2
 		wf=wf/Ns2
 		!do i=1,Ns2
@@ -516,6 +523,9 @@ contains
 							enddo
 						endif
 						call det(vu,cr,A,iA,Y,pb,sg)
+						if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
+							pb=-pb
+						endif
 						!El=El-t(inb)*real(dconjg(pb))
 						El=El-t(inb)*dconjg(pb)
 						cycle
@@ -545,34 +555,34 @@ contains
 		enddo
 		El=El/Ns2
 	end subroutine
-	subroutine checkcfg(icfg,s)
-		integer :: i,s,icfg(:)
-		call latt_one2two(1,Ns,r0)
-		write(*,"(1X)")
-		do i=1,r0(1)
-			write(*,"('  '$)")
-		enddo
-		do i=1,Ns2
-			if(icfg(i)<=ne2) then
-				write(*,"(' ●'$)")
-			elseif(icfg(i)<=ne) then
-				write(*,"(' ○'$)")
-			else
-				write(*,"('  '$)")
-			endif
-			if(mod(i+r0(1),Ns(1))==0) then
-				write(*,"(1X)")
-			endif
-		enddo
-		call sleepqq(s)
-		write(*,"(1X)")
-	end subroutine
+	!subroutine checkcfg(icfg,s)
+		!integer :: i,s,icfg(:)
+		!call latt_one2two(1,Ns,r0)
+		!write(*,"(1X)")
+		!do i=1,r0(1)
+			!write(*,"('  '$)")
+		!enddo
+		!do i=1,Ns2
+			!if(icfg(i)<=ne2) then
+				!write(*,"(' ●'$)")
+			!elseif(icfg(i)<=ne) then
+				!write(*,"(' ○'$)")
+			!else
+				!write(*,"('  '$)")
+			!endif
+			!if(mod(i+r0(1),Ns(1))==0) then
+				!write(*,"(1X)")
+			!endif
+		!enddo
+		!call sleepqq(s)
+		!write(*,"(1X)")
+	!end subroutine
 	subroutine variational(var,Nmc)
 		use lapack95, only: heevd,heevr
 		complex(8) :: wf(Ns2,Ns2),dwf(Ns2,Ns2,vn),O(vn),S(vn,vn),g(vn),Ov(vn),Sv(vn,vn),gv(vn)
 		complex(8) :: tmp(vn,vn)
 		integer :: n,i,j,k,info,sg(vn),cs,Nmc(:),nm,l
-		real(8) :: var(vn),dvar(vn),pdvar(vn),eg(vn),dt=3d0,er(1),Ev,mEv,allE(400),scv
+		real(8) :: var(vn),dvar(vn),pdvar(vn),eg(vn),dt=8d0,er(1),Ev,mEv,allE(400),scv
 		complex(8) :: phyval(1)
 		real(8), allocatable :: sga(:,:)
 		logical :: flag
@@ -615,18 +625,18 @@ contains
 			Sv=Sv/n
 			gv=2d0*gv/n
 			er=sqrt(abs(er/n-abs(Ev)**2))
-			!Sv(:,3)=0d0
-			!Sv(3,:)=0d0
-			!Sv(:,2:5)=0d0
-			!Sv(2:5,:)=0d0
-			Sv=Sv+diag((/1d0,1d0,1d0,1d0,1d0,1d0/)*1d-2)
+			Sv(:,3:4)=0d0
+			Sv(3:4,:)=0d0
+			Sv(:,6)=0d0
+			Sv(6,:)=0d0
+			Sv=Sv+diag(1d-2,size(Sv,1))
 			call heevd(Sv,eg,"V")
 			!write(*,*)sum(abs(matmul(matmul(Sv,diag(eg)),dconjg(transpose(Sv)))-tmp)),eg(vn)/eg(1)
 			!if(eg(1)<=0d0) then
 			!write(*,*)"S matrix is not positive define or singular"
 			!endif
-			!gv(3)=0d0
-			!gv(2:5)=0d0
+			gv(3:4)=0d0
+			gv(6)=0d0
 			!dvar=real(matmul(matmul(matmul(Sv,diag(1d0/eg)),dconjg(transpose(Sv))),gv))
 			do i=1,vn
 				dvar(i)=0d0
@@ -708,7 +718,7 @@ program main
 	call latt(Ns,Tx,Ty,neb)
 	n=32
 	do i=0,20,1
-		var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
+		var=(/1d-1,0d0,0d0,0d0,0d0,0d0/)
 		!var=(/1d-2,0d0,1d-2,1d-2,0d0,0d0/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
 		!var(4)=1d-2*10**(i/10d0)
