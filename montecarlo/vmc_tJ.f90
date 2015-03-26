@@ -1,24 +1,24 @@
 module M_pmt
 	use M_const
 	implicit none
-	!integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),r0(2)=(/Ns(1)/2,0/),vn=6
-	integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
+	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),r0(2)=(/Ns(1)/2,0/),vn=6
+	!integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
 	integer :: neb(Ns2,4,3),ne=Ns2,ne2=Ns2/2
-	real(8), parameter :: t(1)=(/1d0/),DJ=0.3d0,V=0d0
+	real(8), parameter :: t(1)=(/1d0/),DJ=1/3d0,V=4d0/3d0
 	real(8) :: ncfg(Ns2),scfg(Ns2),e2=0d0
 end module
 module M_wf
 	use M_pmt
 	use M_matrix
 	use M_latt, only : &
-         !latt         =>  square_tilda         ,& 
-         !latt_bc      =>  square_tilda_bc      ,& 
-         !latt_one2two =>  square_tilda_one2two ,& 
-         !latt_two2one =>  square_tilda_two2one 
-		 latt         =>  square         ,& 
-		 latt_bc      =>  square_bc      ,& 
-		 latt_one2two =>  square_one2two ,& 
-		 latt_two2one =>  square_two2one 
+		 latt         =>  square_tilda         ,& 
+		 latt_bc      =>  square_tilda_bc      ,& 
+		 latt_one2two =>  square_tilda_one2two ,& 
+		 latt_two2one =>  square_tilda_two2one 
+		 !latt         =>  square         ,& 
+		 !latt_bc      =>  square_bc      ,& 
+		 !latt_one2two =>  square_one2two ,& 
+		 !latt_two2one =>  square_two2one 
 	implicit none
 contains
 	subroutine wf_k(var,wf,dwf)
@@ -31,12 +31,12 @@ contains
 		!var(1)=abs(var(1))
 		!var(3)=abs(var(3))
 		!var(4)=abs(var(4))
-		!do n=-(Ns(1)-1)/2,(Ns(1)-1)/2
-			!do m=-(Ns(1)-1)/2,(Ns(1)+1)/2
-			do n=1,Ns2
-				call latt_one2two(n,Ns,ik)
-				k=(/2d0*pi/Ns(1)*ik(1),2*pi/Ns(2)*ik(2)+pi/Ns(2)/)-pi
-				!k=2d0*pi*(/real(n*Ns(1)+m)/Ns2,real(-n+m*Ns(1))/Ns2/)
+		do n=-(Ns(1)-1)/2,(Ns(1)-1)/2
+			do m=-(Ns(1)-1)/2,(Ns(1)+1)/2
+			!do n=1,Ns2
+				!call latt_one2two(n,Ns,ik)
+				!k=(/2d0*pi/Ns(1)*ik(1),2*pi/Ns(2)*ik(2)+pi/Ns(2)/)-pi
+				k=2d0*pi*(/real(n*Ns(1)+m)/Ns2,real(-n+m*Ns(1))/Ns2/)
 				if(abs(k(1))+abs(k(2))>pi) then
 					cycle
 				endif
@@ -115,7 +115,7 @@ contains
 				!write(10,"(es10.2$)")k,a
 				!write(10,"(1x)")
 			enddo
-		!enddo
+		enddo
 		dwf=dwf/Ns2
 		wf=wf/Ns2
 		!do i=1,Ns2
@@ -523,9 +523,9 @@ contains
 							enddo
 						endif
 						call det(vu,cr,A,iA,Y,pb,sg)
-						if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
-							pb=-pb
-						endif
+						!if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
+							!pb=-pb
+						!endif
 						!El=El-t(inb)*real(dconjg(pb))
 						El=El-t(inb)*dconjg(pb)
 						cycle
@@ -582,7 +582,7 @@ contains
 		complex(8) :: wf(Ns2,Ns2),dwf(Ns2,Ns2,vn),O(vn),S(vn,vn),g(vn),Ov(vn),Sv(vn,vn),gv(vn)
 		complex(8) :: tmp(vn,vn)
 		integer :: n,i,j,k,info,sg(vn),cs,Nmc(:),nm,l
-		real(8) :: var(vn),dvar(vn),pdvar(vn),eg(vn),dt=8d0,er(1),Ev,mEv,allE(400),scv
+		real(8) :: var(vn),dvar(vn),pdvar(vn),eg(vn),dt=1d0,er(1),Ev,mEv,allE(400),scv
 		complex(8) :: phyval(1)
 		real(8), allocatable :: sga(:,:)
 		logical :: flag
@@ -625,18 +625,18 @@ contains
 			Sv=Sv/n
 			gv=2d0*gv/n
 			er=sqrt(abs(er/n-abs(Ev)**2))
-			Sv(:,3:4)=0d0
-			Sv(3:4,:)=0d0
-			Sv(:,6)=0d0
-			Sv(6,:)=0d0
+			!Sv(:,3:4)=0d0
+			!Sv(3:4,:)=0d0
+			!Sv(:,6)=0d0
+			!Sv(6,:)=0d0
 			Sv=Sv+diag(1d-2,size(Sv,1))
 			call heevd(Sv,eg,"V")
 			!write(*,*)sum(abs(matmul(matmul(Sv,diag(eg)),dconjg(transpose(Sv)))-tmp)),eg(vn)/eg(1)
 			!if(eg(1)<=0d0) then
 			!write(*,*)"S matrix is not positive define or singular"
 			!endif
-			gv(3:4)=0d0
-			gv(6)=0d0
+			!gv(3:4)=0d0
+			!gv(6)=0d0
 			!dvar=real(matmul(matmul(matmul(Sv,diag(1d0/eg)),dconjg(transpose(Sv))),gv))
 			do i=1,vn
 				dvar(i)=0d0
@@ -664,7 +664,7 @@ contains
 				endif
 			enddo
 			write(*,"(es9.2$)")scv/(min(l*max(l-1,1),50*49))
-			if(l>50.and.abs(scv)/(min(l*max(l-1,1),50*49))<1d-2.or.l==size(allE)) then
+			if(l>50.and.abs(scv)/(min(l*max(l-1,1),50*49))<1d-8.or.l==size(allE)) then
 				write(*,*)"variational finish",sum(abs(dvar))
 				write(20,"(x)")
 				write(10,"(I4$)")ne
@@ -717,9 +717,9 @@ program main
 	call init_random_seed()
 	call latt(Ns,Tx,Ty,neb)
 	n=32
-	do i=0,20,1
+	do i=4,20,1
 		var=(/1d-1,0d0,0d0,0d0,0d0,0d0/)
-		!var=(/1d-2,0d0,1d-2,1d-2,0d0,0d0/)
+		var=(/6.72658E-02,-4.57858E-02,7.89528E-02,1.99349E-01,2.38169E-02,1.50484E-01/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
 		!var(4)=1d-2*10**(i/10d0)
 		!var(4)=0d0

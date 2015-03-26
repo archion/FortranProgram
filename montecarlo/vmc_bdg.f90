@@ -2,17 +2,17 @@ module M_pmt
 	use M_const
 	use M_utility
 	use M_latt, only : &
-		 !latt         =>  square_tilda         ,& 
-		 !latt_bc      =>  square_tilda_bc      ,& 
-		 !latt_one2two =>  square_tilda_one2two ,& 
-		 !latt_two2one =>  square_tilda_two2one 
-		 latt         =>  square         ,& 
-		 latt_bc      =>  square_bc      ,& 
-		 latt_one2two =>  square_one2two ,& 
-		 latt_two2one =>  square_two2one 
+		 latt         =>  square_tilda         ,& 
+		 latt_bc      =>  square_tilda_bc      ,& 
+		 latt_one2two =>  square_tilda_one2two ,& 
+		 latt_two2one =>  square_tilda_two2one 
+		 !latt         =>  square         ,& 
+		 !latt_bc      =>  square_bc      ,& 
+		 !latt_one2two =>  square_one2two ,& 
+		 !latt_two2one =>  square_two2one 
 	implicit none
-	!integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),vn=6
-	integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
+	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),vn=6
+	!integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
 	integer :: neb(Ns2,4,3),ne=Ns2,ne2=Ns2/2
 	real(8), parameter :: t(1)=(/1d0/)
 end module
@@ -377,8 +377,8 @@ module M_tJ
 	use M_rd
 	use M_mc_matrix
 	implicit none
-	!real(8), parameter :: DJ=1d0/3d0,V=DJ*4d0
-	real(8), parameter :: DJ=0.3d0,V=0d0
+	real(8), parameter :: DJ=1d0/3d0,V=0d0!DJ*4d0
+	!real(8), parameter :: DJ=0.3d0,V=0d0
 contains
 	subroutine two(i,j,nd,sg)
 		integer :: i,j,sg,n,n1,n0,nd
@@ -403,7 +403,7 @@ contains
 	end subroutine
 	subroutine energy(cfg,icfg,nd,wf,ja,A,iA,El)
 		complex(8) :: A(:,:),iA(:,:),vu(size(A,1),2),Y(2,2),pb,wf(:,:)
-		real(8) :: El
+		complex(8) :: El
 		real(8) :: ja(:)
 		integer :: cfg(:),icfg(:),i,ii,j,l,inb,sg,cr(2),nd
 		El=0d0
@@ -419,34 +419,34 @@ contains
 						!if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
 							!pb=-pb
 						!endif
-						El=El-real(t(inb)*conjg(pb))
+						El=El-(t(inb)*conjg(pb))
 					case(5) 
 						call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 						call det(vu,cr,A,iA,Y,pb)
 						!if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
 							!pb=-pb
 						!endif
-						El=El+real(t(inb)*conjg(pb))
+						El=El+(t(inb)*conjg(pb))
 					case(0)
 						if(inb==1.and.i<=ne2) then
 							call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 							call det(vu,cr,A,iA,Y,pb)
-							El=El+real(0.5d0*DJ*conjg(pb)-0.25d0*DJ&
-								!-0.25d0*DJ&
+							El=El+(0.5d0*DJ*conjg(pb)-0.25d0*DJ&
+								-0.25d0*DJ&
 								+V)
 						endif
 					case default
 						if(inb==1.and.ii<3) then
-							El=El+real(0.25d0*DJ&
-								!-0.25d0*DJ&
+							El=El+(0.25d0*DJ&
+								-0.25d0*DJ&
 								+V)
 						endif
 					end select
 				enddo
 			enddo
 		enddo
-		!El=(El-(4d0*V-DJ)*(ne-Ns2/2))/Ns2
-		El=El/Ns2
+		El=(El-(4d0*V-DJ)*(ne-Ns2/2))/Ns2
+		!El=El/Ns2
 	end subroutine
 	subroutine spin_order(cfg,nd,lphy)
 		real(8) :: lphy
@@ -601,7 +601,7 @@ contains
 	end subroutine
 	subroutine energy(cfg,icfg,nd,wf,ja,A,iA,El)
 		complex(8) :: A(:,:),iA(:,:),vu(size(A,1),2),Y(2,2),pb,wf(:,:)
-		real(8) :: El
+		complex(8) :: El
 		real(8) :: ja(:)
 		integer :: cfg(:),icfg(:),i,ii,j,l,inb,sg,cr(2),nd,n,ud
 		El=0d0
@@ -619,11 +619,11 @@ contains
 					case(1:4)
 						call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 						call det(vu,cr,A,iA,Y,pb)
-						El=El-real(t(inb)*conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))
+						El=El-(t(inb)*conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))
 					case(5:8)
 						call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 						call det(vu,cr,A,iA,Y,pb)
-						El=El+real(t(inb)*conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))
+						El=El+(t(inb)*conjg(pb)*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))
 					end select
 				enddo
 			enddo
@@ -744,7 +744,7 @@ contains
 		complex(8), optional :: S(:,:),g(:),dwf(:,:,:)
 		real(8) :: rpb,ja(:)
 		real(8) :: sga(:,:)
-		complex(8) :: lO(vn+size(ja)),lS(size(lO),size(lO)),lg(size(lO)),O(size(lO))
+		complex(8) :: lO(vn+size(ja)),lS(size(lO),size(lO)),lg(size(lO)),O(size(lO)),El,E
 		real(8) :: phyval(:),lphy(size(phyval))
 		integer :: icfg(Ns2),i,j,ti,tj,l,sg,n,Nmc(:),cr(2),acp,bi,bj,ii,jj
 		integer :: cfg(Ns2),nd
@@ -767,7 +767,9 @@ contains
 		do i=1,Ns2
 			icfg(cfg(i))=i
 		enddo
+		E=0
 		phyval=0d0
+		lphy=0d0
 		if(flag) then
 			O=0d0
 			S=0d0
@@ -820,7 +822,7 @@ contains
 				!endif
 			endif
 			if(n>Nmc(1).and.mod(n-Nmc(1),Nmc(2))==0) then
-				call energy(cfg,icfg,nd,wf,ja,A,iA,lphy(1))
+				call energy(cfg,icfg,nd,wf,ja,A,iA,El)
 				if(flag) then
 					do ti=1,vn
 						lO(ti)=Tr(iA,dA(:,:,ti))
@@ -833,7 +835,7 @@ contains
 							lS(ti,tj)=dconjg(lO(ti))*lO(tj)
 						enddo
 					enddo
-					lg=real(lphy(1)*lO)
+					lg=real(El*lO)
 					S=S+lS
 					g=g+lg
 					O=O+lO
@@ -843,10 +845,13 @@ contains
 					call dsc_corelation(cfg,icfg,nd,wf,A,iA,ja,lphy(4))
 				endif
 				call binning(bi,bj,sga,lphy)
+				E=E+El
 				phyval=phyval+lphy
 			endif
 			if(n>=(Nmc(1)+Nmc(2)*Nmc(3))) then
+				E=E/Nmc(3)
 				phyval=phyval/Nmc(3)
+				phyval(1)=real(E)
 				if(flag) then
 					S=S/Nmc(3)
 					g=g/Nmc(3)
@@ -856,7 +861,7 @@ contains
 							S(ti,tj)=S(ti,tj)-dconjg(O(ti))*O(tj)
 						enddo
 					enddo
-					g=2d0*(g-real(phyval(1)*O))*Ns2
+					g=2d0*(g-real(E*O))*Ns2
 				endif
 				exit
 			endif
@@ -865,7 +870,7 @@ contains
 	end subroutine
 	subroutine variational(var,Nmc,cfg,nd)
 		use lapack95, only: heevd,heevr
-		real(8) :: var(:),dvar(size(var)),pvar(size(var)),eg(size(var)),dt=0.1d0,allE(200),scv,var_av(size(var))
+		real(8) :: var(:),dvar(size(var)),pvar(size(var)),eg(size(var)),dt=0.03d0,allE(300),scv,var_av(size(var))
 		complex(8) :: wf(Ns2*2,Ns2),dwf(Ns2*2,Ns2,vn),g(size(var)),S(size(g),size(g)),S_omp(size(g),size(g)),g_omp(size(g))
 		integer :: n,i,j,k,info,Nmc(:),nm,l,nav
 		integer :: cfg(Ns2),nd,cfg_omp(Ns2),nd_omp
@@ -912,7 +917,7 @@ contains
 				er=sqrt(abs(er/n-phyval**2))
 			endif
 			S=S+diag(1d-2,size(S,1))
-			call zero(S,g,(/6/))
+			!call zero(S,g,(/6/))
 			call heevd(S,eg,"V")
 			!eg=eg+1d-1
 			!write(*,*)eg
@@ -948,21 +953,21 @@ contains
 					exit
 				endif
 			endif
-			do i=max(l-39,1),l-1
+			do i=max(l-49,1),l-1
 				scv=scv+sign(1d0,phyval(1)-allE(i))
-				if(max(l-39,1)>1) then
-					scv=scv+sign(1d0,allE(max(l-39,1)-1)-allE(i))
+				if(max(l-49,1)>1) then
+					scv=scv+sign(1d0,allE(max(l-49,1)-1)-allE(i))
 				endif
 			enddo
-			write(*,"(es9.2$)")scv/(min(l*max(l-1,1),40*39))
-			if(l>40.and.abs(scv)/(min(l*max(l-1,1),40*39))<1d-2.and.scv<0.or.l==size(allE).or.nav>0) then
+			write(*,"(es9.2$)")scv/(min(l*max(l-1,1),50*49))
+			if(l>50.and.abs(scv)/(min(l*max(l-1,1),50*49))<1d-2.and.scv<0.or.l==size(allE).or.nav>0) then
 				nav=nav+1
 				var_av=var_av+var
 				write(*,*)"variational finish",l,nav
 				!write(10,"(I4$)")ne
 				!write(10,"(es13.5$)")var,Ev,er
 				!write(10,"(x)")
-				if(nav>=20) then
+				if(nav>=50) then
 					var=var_av/nav
 					write(20,"(x)")
 					exit
@@ -974,6 +979,7 @@ contains
 			var=var-dvar*dt
 			write(*,"(x)")
 			Nmc(1)=500
+			stop
 		enddo
 	end subroutine
 	subroutine zero(Sv,gv,o)
@@ -1014,12 +1020,10 @@ program main
 	enddo
 	nd=0
 	call fisher_yates_shuffle(cfg,Ns2)
-	!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0,1d-1/)
-	!var=(/1.10E-03,-1.25E-01,1.75E-01,2.60E-01,2.01E-01,1.90E-01,1.00E-01/)
-	do i=0,16,1
+	do i=10,16,1
 		var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0,1d-1/)
 		!var(7)=var(7)+0.1
-		!var=(/1d-2,0d0,1d-2,1d-2,0d0,0d0/)
+		var=(/9.32994E-02,-7.91097E-02,-1.27049E-03, 8.12809E-19, 2.22984E-01, 1.64633E-01, 1.00000E-01/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
 		ne=int(Ns2*(40-i)/40d0)
 		ne=ne+mod(ne,2)
@@ -1036,9 +1040,11 @@ program main
 		call variational(var,Nvar,cfg,nd)
 		write(*,"(i4$)")ne
 		write(*,"(es9.2$)")var
+		write(*,*)"start wf"
 		call iniwf(var(:vn),wf)
 		er=0d0
 		phyval=0d0
+		write(*,*)"finish wf"
 		!$OMP PARALLEL DO REDUCTION(+:phyval,er) PRIVATE(phyval_omp) LASTPRIVATE(sga,cfg_omp,nd_omp) SCHEDULE(GUIDED)
 		do j=1,n
 			cfg_omp=cfg
@@ -1049,6 +1055,7 @@ program main
 			er=er+phyval_omp**2
 		enddo
 		!$OMP END PARALLEL DO
+		write(*,*)"finish mc"
 		cfg=cfg_omp
 		nd=nd_omp
 		phyval=phyval/n

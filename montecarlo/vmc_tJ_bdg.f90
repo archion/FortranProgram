@@ -4,7 +4,7 @@ module M_pmt
 	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),vn=6
 	!integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
 	integer :: neb(Ns2,4,3),ne=Ns2,ne2=Ns2/2
-	real(8), parameter :: t(1)=(/1d0/),DJ=0.3d0,V=0d0
+	real(8), parameter :: t(1)=(/1d0/),DJ=1/3d0,V=4d0/3d0
 end module
 module M_wf
 	use M_utility
@@ -451,7 +451,7 @@ contains
 		complex(8) :: wf(Ns2*2,Ns2),dwf(Ns2*2,Ns2,vn),O(vn),S(vn,vn),g(vn),Ov(vn),Sv(vn,vn),gv(vn)
 		complex(8) :: tmp(vn,vn)
 		integer :: n,i,j,k,info,sg(vn),cs,Nmc(:),nm,l
-		real(8) :: var(vn),dvar(vn),pvar(vn),eg(vn),dt=0.1d0,er(1),Ev,allE(400),scv
+		real(8) :: var(vn),dvar(vn),pvar(vn),eg(vn),dt=0.03d0,er(1),Ev,allE(400),scv
 		complex(8) :: phyval(1)
 		real(8), allocatable :: sga(:,:)
 		logical :: flag
@@ -586,9 +586,9 @@ program main
 	!var=1d-10
 	!var(2)=1d0
 	!var=(/0.18764E-01,-4.24821E-02,2.34273E-02,4.23654E-04,5.68984E-02,8.57877E-02/)
-	do i=0,40,1
-		var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
-		var=(/2.03095d-01,-3.84317d-18,2.49592d-01,2.03095d-01,1.12936d-16,-1.76192d-16/)
+	do i=4,20,1
+		var=(/1d-1,0d0,0d0,0d0,0d0,0d0/)
+		var=(/6.72658E-02,-4.57858E-02,7.89528E-02,1.99349E-01,2.38169E-02,1.50484E-01/)
 		!var(1)=1d-1
 		!var=(/1d-2,0d0,1d-2,1d-2,0d0,0d0/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
@@ -604,7 +604,7 @@ program main
 		Nmc(1:2)=(/5000*Ns2,5*Ns2/)
 		Nvar(1:2)=(/500*Ns2,5*Ns2/)
 		!write(30,"(i4$)")ne
-		!call variational(var,Nvar)
+		call variational(var,Nvar)
 		write(*,"(i4$)")ne
 		write(*,"(es9.2$)")var
 		!write(30,"(es13.5$)")var
