@@ -28,6 +28,9 @@ contains
 		complex(8), optional :: dwf(:,:,:)
 		real(8) :: eg(Ns2*2),var(vn),nvar(vn),r
 		integer :: i,j,n,ix(2),bc
+		if(abs(var(1))<1d-4) then
+			var(1)=1d-4*sign(1d0,var(1))
+		endif
 		call bdg(var,H,D)
 		call heevd(H,eg,"V")
 		if(present(dwf)) then
@@ -377,7 +380,7 @@ module M_tJ
 	use M_rd
 	use M_mc_matrix
 	implicit none
-	real(8), parameter :: DJ=1d0/3d0,V=0d0!DJ*4d0
+	real(8) :: DJ=0.35d0,V=0d0
 	!real(8), parameter :: DJ=0.3d0,V=0d0
 contains
 	subroutine two(i,j,nd,sg)
@@ -431,15 +434,19 @@ contains
 						if(inb==1.and.i<=ne2) then
 							call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 							call det(vu,cr,A,iA,Y,pb)
-							El=El+(0.5d0*DJ*conjg(pb)-0.25d0*DJ&
+							El=El+(&
+								0.5d0*DJ*conjg(pb)-0.25d0*DJ&
 								-0.25d0*DJ&
-								+V)
+								+V&
+								)
 						endif
 					case default
 						if(inb==1.and.ii<3) then
-							El=El+(0.25d0*DJ&
+							El=El+(&
+								0.25d0*DJ&
 								-0.25d0*DJ&
-								+V)
+								+V&
+								)
 						endif
 					end select
 				enddo
@@ -821,6 +828,9 @@ contains
 					!call checkcfg(icfg,nd,100)
 				!endif
 			endif
+			!if(n==Nmc(1)) then
+				!write(*,*)"hot finish"
+			!endif
 			if(n>Nmc(1).and.mod(n-Nmc(1),Nmc(2))==0) then
 				call energy(cfg,icfg,nd,wf,ja,A,iA,El)
 				if(flag) then
@@ -840,9 +850,9 @@ contains
 					g=g+lg
 					O=O+lO
 				else
-					call spin_order(cfg,nd,lphy(2))
-					call ddw_order(cfg,icfg,nd,wf,A,iA,ja,lphy(3))
-					call dsc_corelation(cfg,icfg,nd,wf,A,iA,ja,lphy(4))
+					!call spin_order(cfg,nd,lphy(2))
+					!call ddw_order(cfg,icfg,nd,wf,A,iA,ja,lphy(3))
+					!call dsc_corelation(cfg,icfg,nd,wf,A,iA,ja,lphy(4))
 				endif
 				call binning(bi,bj,sga,lphy)
 				E=E+El
@@ -917,7 +927,7 @@ contains
 				er=sqrt(abs(er/n-phyval**2))
 			endif
 			S=S+diag(1d-2,size(S,1))
-			!call zero(S,g,(/6/))
+			call zero(S,g,(/1,3,5,6/))
 			call heevd(S,eg,"V")
 			!eg=eg+1d-1
 			!write(*,*)eg
@@ -960,7 +970,7 @@ contains
 				endif
 			enddo
 			write(*,"(es9.2$)")scv/(min(l*max(l-1,1),50*49))
-			if(l>50.and.abs(scv)/(min(l*max(l-1,1),50*49))<1d-2.and.scv<0.or.l==size(allE).or.nav>0) then
+			if(l>50.and.abs(scv)/(min(l*max(l-1,1),50*49))<5d-3.and.scv<0.or.l==size(allE).or.nav>0) then
 				nav=nav+1
 				var_av=var_av+var
 				write(*,*)"variational finish",l,nav
@@ -979,7 +989,6 @@ contains
 			var=var-dvar*dt
 			write(*,"(x)")
 			Nmc(1)=500
-			stop
 		enddo
 	end subroutine
 	subroutine zero(Sv,gv,o)
@@ -1009,7 +1018,7 @@ program main
 	!f=openfile(30,"../data/phyvar.dat",access="direct",recl=226)
 	f=openfile(30,"../data/phyvar.dat")
 	Nmc(3)=1024*4
-	Nvar(3)=128
+	Nvar(3)=128*4
 	nm=log(real(Nmc(3)))/log(2d0)
 	allocate(sga((nm+1)*2,size(phyval)))
 	call latt(Ns,Tx,Ty,neb)
@@ -1020,42 +1029,38 @@ program main
 	enddo
 	nd=0
 	call fisher_yates_shuffle(cfg,Ns2)
-	do i=10,16,1
-		var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0,1d-1/)
-		!var(7)=var(7)+0.1
-		var=(/9.32994E-02,-7.91097E-02,-1.27049E-03, 8.12809E-19, 2.22984E-01, 1.64633E-01, 1.00000E-01/)
+	do i=0,16,2
+		var=(/0d0,0d0,1d-1,1d-1,0d0,0d0,1d-1/)
+		V=0.1*i
+		write(*,*)V
+	!do i=0,60,1
+		!var(4)=var(4)-0.02
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
-		ne=int(Ns2*(40-i)/40d0)
+		!ne=int(Ns2*(40-i)/40d0)
+		ne=int(Ns2*(40-5)/40d0)
 		ne=ne+mod(ne,2)
 		!read(30,rec=i+1,fmt="(i4,7es13.5)")ne,var
 		ne2=ne/2
 		!call self_n(var)
-		!Nmc(1:2)=(/5000*Ns2,5*Ns2/)*(i+1)
-		!Nvar(1:2)=(/500*Ns2,5*Ns2/)*(i+1)
-		!Nvar(1:2)=(/500,5/)*Ns2
-		Nmc(1:2)=(/5000*Ns2,5*Ns2/)
-		Nvar(1:2)=(/500*Ns2,5*Ns2/)
-		!Nvar(1:2)=(/1000,5/)*100
-		!Nmc(1:2)=(/1000,5/)*100
+		Nmc(1:2)=(/50000,2**6/)
+		Nvar(1:2)=(/50000,2**6/)
 		call variational(var,Nvar,cfg,nd)
 		write(*,"(i4$)")ne
 		write(*,"(es9.2$)")var
-		write(*,*)"start wf"
 		call iniwf(var(:vn),wf)
 		er=0d0
 		phyval=0d0
-		write(*,*)"finish wf"
 		!$OMP PARALLEL DO REDUCTION(+:phyval,er) PRIVATE(phyval_omp) LASTPRIVATE(sga,cfg_omp,nd_omp) SCHEDULE(GUIDED)
 		do j=1,n
 			cfg_omp=cfg
 			nd_omp=nd
 			call mc(wf,var(vn+1:),Nmc,cfg_omp,nd_omp,phyval_omp,sga)
+			!call mc(wf,var(vn+1:),Nvar,cfg_omp,nd_omp,phyval_omp,sga)
 			phyval(1)=phyval(1)+phyval_omp(1)
 			phyval(2:)=phyval(2:)+abs(phyval_omp(2:))
 			er=er+phyval_omp**2
 		enddo
 		!$OMP END PARALLEL DO
-		write(*,*)"finish mc"
 		cfg=cfg_omp
 		nd=nd_omp
 		phyval=phyval/n
@@ -1065,7 +1070,8 @@ program main
 			!write(10,"(x)")
 		!enddo
 		!write(*,"(es9.2$)")phyval(1),sqrt((sga(nm-5,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-5)+1)-1))
-		write(*,"(es9.2$)")phyval
+		write(*,"(es11.4$)")phyval(1)
+		write(*,"(es9.2$)")phyval(2:)
 		write(*,"(1x)")
 		!write(30,rec=i+1,fmt="(i4,17es13.5,A)")ne,var,(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=1,5),char(10)
 		!write(30,"(es13.5$)")real(Ns2-ne)/Ns2,var,(phyval(j),sqrt((sga(nm-5,j)-sga(size(sga,1)/2,j))/(2**(nm-(nm-5)+1)-1)),j=1,5)
