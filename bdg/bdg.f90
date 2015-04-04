@@ -3,7 +3,7 @@ module M_pmt
 	implicit none
 	integer, parameter :: Ns(2)=(/24,24/),Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(2)/),Ns2=Ns(1)*Ns(2),imp=Ns(2)/2*Ns(1)+Ns(1)/2
 	integer :: neb(Ns2,4,3)
-	real(8), parameter :: t(3)=(/1d0,-0.25d0,0d0/),nf=0.85d0,U=2.44d0,DJ=0d0,V=-1d0,Vimp=1d0,cvg=1d-5,bt=3d5
+	real(8), parameter :: t(3)=(/1d0,-0.25d0,0.1d0/),nf=0.89d0,U=0d0,DJ=0.25d0,V=0d0,Vimp=0d0,cvg=1d-4,Tk=1d-5
 end module
 module M_bdg
 	use M_latt, only : &
@@ -37,7 +37,7 @@ contains
 					step=step*0.3d0
 				endif
 				cp=cp+step*sign(1d0,nf-n1)
-				write(*,*)n1,cp
+				!write(*,*)n1,cp
 			enddo
 			if(sum(abs(dt-dtp))/Ns2<cvg.and.sum(abs(S-Sp))/Ns2<cvg.and.sum(abs(dd-ddp))/Ns2<cvg) then
 				exit
@@ -47,23 +47,25 @@ contains
 			n=np
 			ub=ubp
 			S=Sp
-			write(*,*)"*",real(dt(1,1)),S(1),dd(1,1),ub(1,1),n(1,1),n(1,2)
+			write(*,"(e12.4$)")real(dt(1,1)),S(1),dd(1,1),ub(1,1)
+			write(*,"(1X)")
 		enddo 
 	end subroutine
 	subroutine EU(dt,dd,ub,S,ne,cp,H,E)
 		complex(8) :: H(:,:),dt(:,:)
-		real(8) :: ne(:,:),cp,E(:),dd(:,:),ub(:,:),S(:)
+		real(8) :: ne(:,:),cp,E(:),dd(:,:),ub(:,:),S(:),dp
 		integer :: i,j,k,n,info
 		H=0d0
+		dp=abs(1d0-nf)
 		do i=1,Ns2
 			do n=1,2
 				do k=1,size(t)
 					j=neb(i,n,k)
 					! hopping
-					H(i,j)=H(i,j)-t(k)
-					H(j,i)=H(j,i)-t(k)
-					H(i+Ns2,j+Ns2)=H(i+Ns2,j+Ns2)+t(k)
-					H(j+Ns2,i+Ns2)=H(j+Ns2,i+Ns2)+t(k)
+					H(i,j)=H(i,j)-t(k)*dp
+					H(j,i)=H(j,i)-t(k)*dp
+					H(i+Ns2,j+Ns2)=H(i+Ns2,j+Ns2)+t(k)*dp
+					H(j+Ns2,i+Ns2)=H(j+Ns2,i+Ns2)+t(k)*dp
 					if(k>1) then
 						cycle
 					endif
@@ -85,10 +87,10 @@ contains
 				enddo
 			enddo
 			! on site Hubbard U and chemical potential
-			!H(i,i)=H(i,i)+S(i)-cp
-			!H(i+Ns2,i+Ns2)=H(i+Ns2,i+Ns2)+S(i)+cp
-			H(i,i)=H(i,i)+U*ne(i,2)-cp
-			H(i+Ns2,i+Ns2)=H(i+Ns2,i+Ns2)-U*ne(i,1)+cp
+			H(i,i)=H(i,i)+S(i)*0.5d0-cp
+			H(i+Ns2,i+Ns2)=H(i+Ns2,i+Ns2)+S(i)*0.5d0+cp
+			!H(i,i)=H(i,i)+U*ne(i,2)-cp
+			!H(i+Ns2,i+Ns2)=H(i+Ns2,i+Ns2)-U*ne(i,1)+cp
 			! impurity
 			if(i==imp) then
 				H(i,i)=H(i,i)+Vimp
@@ -106,7 +108,7 @@ contains
 		dd=0d0
 		ub=0d0
 		S=0d0
-		f=1d0/(exp(bt*E)+1d0)
+		f=1d0/(exp(E/Tk)+1d0)
 		do i=1,Ns2
 			do n=1,2*Ns2
 				ne(i,1)=ne(i,1)+conjg(H(i,n))*H(i,n)*f(n)
@@ -116,19 +118,19 @@ contains
 					dt(i,k)=dt(i,k)+(H(i,n)*conjg(H(j+Ns2,n))+H(j,n)*conjg(H(i+Ns2,n)))*(1d0-f(n))
 					!dd(i,k)=dd(i,k)+imag(conjg(H(i,n))*H(j,n)-conjg(H(j,n))*H(i,n)&
 						!+conjg(H(i+Ns2,n))*H(j+Ns2,n)-conjg(H(j+Ns2,n))*H(i+Ns2,n))*f(n)
-					!ub(i,k)=ub(i,k)+real(conjg(H(i,n))*H(j,n)+conjg(H(j,n))*H(i,n)&
-						!-conjg(H(i+Ns2,n))*H(j+Ns2,n)-conjg(H(j+Ns2,n))*H(i+Ns2,n))*f(n)
+					ub(i,k)=ub(i,k)+real(conjg(H(i,n))*H(j,n)+conjg(H(j,n))*H(i,n)&
+						-conjg(H(i+Ns2,n))*H(j+Ns2,n)-conjg(H(j+Ns2,n))*H(i+Ns2,n))*f(n)
 				enddo
 			enddo
 		enddo
 		dt=0.5d0*(DJ-V)*dt
 		!dd=0.25d0*(0.5d0*DJ+V)*dd
-		!ub=0.25d0*(0.5d0*DJ+V)*ub
+		ub=0.25d0*(0.5d0*DJ+V)*ub
 		do i=1,Ns2
 			do k=1,4
-				S(i)=S(i)+0.25d0*DJ*(ne(neb(i,k,1),1)-ne(neb(i,k,1),2))
+				S(i)=S(i)+0.5d0*DJ*(ne(neb(i,k,1),1)-ne(neb(i,k,1),2))
 			enddo
-			S(i)=S(i)-0.5d0*U*(ne(i,1)-ne(i,2))
+			S(i)=S(i)-U*(ne(i,1)-ne(i,2))
 		enddo
 	end subroutine
 end module
@@ -146,7 +148,7 @@ program main
 		call latt_one2two(i,Ns,ix)
 		dt(i,:)=(/1d0,-1d0/)*0.05d0
 		dd(i,:)=(/1d0,-1d0/)*(-1)**mod(sum(ix),2)*0d0
-		ub(i,:)=(/1d0,1d0/)*0d0
+		ub(i,:)=(/1d0,1d0/)*0.01d0
 		S(i)=(-1)**mod(sum(ix),2)*0.1d0
 		n(i,1)=(nf-S(i))/2d0
 		n(i,2)=(nf+S(i))/2d0

@@ -12,18 +12,21 @@ module selfcons
 	use pmt
 	use M_utility
 	implicit none
-	integer, parameter :: mk=512
+	integer, parameter :: mk=24
 contains
 	subroutine selfconsist_tg(nf,Tk,sc,pg,ap,sp)
 		real(8) :: Tk,nf
 		complex(8) :: Uk(4,4)
 		real(8) :: k(2),np,pnp,pg,pgp,ek(4),sp,sc,scp,cvg1,al,ap,app
 		integer :: i,j,c,sg
-		al=1d0
 		c=0
 		cvg1=0.0001
+		pg=max(pg,0.1d0)
+		sc=max(sc,0.1d0)
+		ap=max(ap,0.1d0)
 		do 
 			pnp=0d0
+			al=0.2d0
 			do 			
 				pgp=0d0
 				scp=0d0
@@ -34,7 +37,7 @@ contains
 				do i=0,mk
 					do j=0,min(i,mk-i)
 						k=(/pi/mk*i,pi/mk*j/)
-						call EU1(k,nf,pg,sc,ap,sp,ek,Uk)
+						call EU2(k,nf,pg,sc,ap,sp,ek,Uk)
 						call order(k,ek,Uk,Tk,np,pgp,scp,app)
 					enddo
 				enddo
@@ -43,14 +46,14 @@ contains
 				pgp=pgp/(mk**2)*2d0
 				scp=scp/(mk**2)*2d0
 				app=app/(mk**2)*2d0
-				if((abs(nf-np)/abs(nf-pnp))>0.8d0) then
-					al=max(al-0.05d0,0.05)
-				endif
-				if(abs(nf-np)<1d-3) then
+				if(abs(nf-np)<1d-5) then
 					exit
 				endif
-				sp=sp+al*(nf-np)
-				pnp=np
+				call find_cross(pnp,np-nf,sg)
+				if(sg/=0) then
+					al=al*0.3d0
+				endif
+				sp=sp+al*sign(1d0,nf-np)
 			enddo
 			if((abs(scp-sc)+abs(pgp-pg)+abs(app-ap))<cvg) then
 				exit
@@ -59,6 +62,9 @@ contains
 			pg=pgp
 			ap=app
 		enddo
+		write(*,"(e12.4$)")np,Tk,sp,sc,pg,ap
+		write(*,"(1X)")
+		stop
 	end subroutine
 	subroutine EU1(k,nf,pg,sc,ap,sp,ek,Uk)
 		complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
@@ -75,6 +81,9 @@ contains
 			pgk=-pg*DJ*2d0
 		end select
 		sck=sc*gk*Vs*4d0
+		if(abs(sck)<1d-8) then
+			sck=1d-8
+		endif
 		e1=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)*sign(1d0,eka)
 		e2=sqrt(e1**2+sck**2)
 		ek=(/e2*sign(1d0,e1),-e2*sign(1d0,e1)/)
@@ -111,6 +120,9 @@ contains
 			pgk=-pg*DJ*2d0
 		end select
 		sck=sc*gk*Vs*4d0
+		if(abs(sck)<1d-8) then
+			sck=1d-8
+		endif
 		e1=eks+(/1d0,-1d0/)*sqrt(pgk**2+eka**2)
 		e2=sqrt(e1**2+sck**2)
 		!ek=(/e2*sign(1d0,e1),-e2*sign(1d0,e1)/)
@@ -266,11 +278,11 @@ contains
 			write(*,*)"Tk<0"
 			stop
 		endif
-		al=0.2d0
 		pg=max(pg,0.1d0)
 		sc=max(sc,0.1d0)
 		ap=max(ap,0.1d0)
 		do 
+			al=0.2d0
 			pnp=0d0
 			do 			
 				pgp=0d0
@@ -299,11 +311,10 @@ contains
 			sc=(scp*0.4d0+sc*0.6d0)
 			pg=(pgp*0.4d0+pg*0.6d0)
 			ap=(app*0.4d0+ap*0.6d0)
-			!write(*,"(e12.4$)")np,Tk,sp,sc,pg,ap
-			!write(*,"(1X)")
 		enddo
-		!write(*,"(e12.4$)")np,Tk,sp,sc,pg,ap
-		!write(*,"(1X)")
+		write(*,"(e12.4$)")np,Tk,sp,sc,pg,ap
+		write(*,"(1X)")
+		stop
 		!call sleepqq(1000)
 	end subroutine
 end module
@@ -633,7 +644,7 @@ program main
 	implicit none
 	complex(8) :: Uk(4,4)
 	real(8) :: kf(2),sp,sc,pg,ap,gap,Tk,pk0(2),pk(2),&
-		nd(1)=(/0.13d0/),&
+		nd(1)=(/0.11d0/),&
 		!nd(3)=(/0.11d0,0.135d0,0.18d0/),&
 		!nd(7)=(/0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0/),&
 		!nd(9)=(/0.08d0,0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0/),&
@@ -656,7 +667,7 @@ program main
 	do i=1,size(nd)
 		nf=1d0-nd(i)
 		write(*,"(e12.4$)")nf
-		call findTc(nf,Tc,0)
+		!call findTc(nf,Tc,0)
 		write(*,"(1x,e12.4$)")Tc
 		!call findTc(nf,Tp,1)
 		!write(*,"(e12.4$)")Tp
@@ -668,7 +679,8 @@ program main
 			Tk=max(j*Tc/(size(Td)-1),1d-5)
 			write(*,"(e12.4$)")Tk/Tc
 			write(70,"(e12.4$)")nd(i),Tk/Tc
-			call selforder(pg,sc,ap,sp,nf,Tk,1)
+			!call selforder(pg,sc,ap,sp,nf,Tk,1)
+			call selfconsist_tg(nf,Tk,sc,pg,ap,sp)
 			if(pg<5d-3) then
 				pg=1d-15
 			endif
