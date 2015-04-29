@@ -1,40 +1,15 @@
 module global
+	use M_const
+	use M_utility
+	use M_latt, only : &
+		 latt         =>  square         ,& 
+		 latt_bc      =>  square_bc      ,& 
+		 latt_one2two =>  square_one2two ,& 
+		 latt_two2one =>  square_two2one 
 	implicit none
-	integer, parameter :: dn(2)=(/36,36/),dn2=dn(1)*dn(2),ne=dn2/3
-	integer :: latt(dn2,4,3),pbcx(-dn(1)+1:2*dn(1)),pbcy(-dn(2)+1:2*dn(2))
-	real(8), parameter :: V(3)=(/4d0,-2d0,2d0/),pi=3.14159265359d0
-	complex(8), parameter :: img=(0d0,1d0),ipi=2d0*pi*img
-	contains
-		subroutine gen_latt_square()
-!					  j
-!			 1 --  2 --  3 --  4
-!			 |     |     |     |           4      3   4
-!			 5 --  6 --  7 --  8           |       \ /
-!		i	 |     |     |     |        3--0--1     0
-!			 9 -- 10 -- 11 -- 12           |       / \
-!			 |     |     |     |           2      2   1
-!			13 -- 14 -- 15 -- 16
-			implicit none
-			integer :: ii,i,j
-			pbcx=(/(i,i=1,dn(1)),(i,i=1,dn(1)),(i,i=1,dn(1))/)
-			pbcy=(/(i,i=1,dn(2)),(i,i=1,dn(2)),(i,i=1,dn(2))/)
-			do ii=1,dn2
-				j=mod(ii-1,dn(1))+1
-				i=(ii-1)/dn(1)+1
-				latt(ii,1,1)=dn(1)*(i-1)+pbcx(j+1)
-				latt(ii,2,1)=dn(1)*(pbcy(i+1)-1)+j
-				latt(ii,3,1)=dn(1)*(i-1)+pbcx(j-1)
-				latt(ii,4,1)=dn(1)*(pbcy(i-1)-1)+j
-				latt(ii,1,2)=dn(1)*(pbcy(i+1)-1)+pbcx(j+1)
-				latt(ii,2,2)=dn(1)*(pbcy(i+1)-1)+pbcx(j-1)
-				latt(ii,3,2)=dn(1)*(pbcy(i-1)-1)+pbcx(j-1)
-				latt(ii,4,2)=dn(1)*(pbcy(i-1)-1)+pbcx(j+1)
-				latt(ii,1,3)=dn(1)*(i-1)+pbcx(j+2)
-				latt(ii,2,3)=dn(1)*(pbcy(i+2)-1)+j
-				latt(ii,3,3)=dn(1)*(i-1)+pbcx(j-2)
-				latt(ii,4,3)=dn(1)*(pbcy(i-2)-1)+j
-			enddo
-		end subroutine gen_latt_square
+	integer, parameter :: Ns(2)=(/36,36/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6,ne=Ns2/3
+	integer :: neb(Ns2,4,3)
+	real(8), parameter :: V(3)=(/4d0,-2d0,2d0/),ipi=2d0*pi*img
 end module
 module phyval
 	use global
@@ -42,21 +17,21 @@ module phyval
 	contains
 		subroutine strfact(cfg,S)
 			implicit none
-			integer :: qi,qj,i,j,cfg(dn(1),dn(2))
-			complex(8) :: S(dn(1),dn(2))
-			real(8) :: idn(2)
+			integer :: qi,qj,i,j,cfg(Ns(1),Ns(2))
+			complex(8) :: S(Ns(1),Ns(2))
+			real(8) :: iNs(2)
 			S=0d0
-			idn=1d0/dn
-			do qi=1,dn(2)
-				do qj=1,dn(1)
-					do i=1,dn(2)
-						do j=1,dn(1)
-							S(qi,qj)=S(qi,qj)+(1-cfg(i,j))*exp(ipi*(idn(1)*qj*j+idn(2)*qi*i))
+			iNs=1d0/Ns
+			do qi=1,Ns(2)
+				do qj=1,Ns(1)
+					do i=1,Ns(2)
+						do j=1,Ns(1)
+							S(qi,qj)=S(qi,qj)+(1-cfg(i,j))*exp(ipi*(iNs(1)*qj*j+iNs(2)*qi*i))
 						enddo
 					enddo
 				enddo
 			enddo
-			S=S*dconjg(S)/(dn2-ne)
+			S=S*dconjg(S)/(Ns2-ne)
 		end subroutine
 		!subroutine strfact(cfg,S)
 			!implicit none
@@ -92,9 +67,9 @@ module MonteCarlo
 	contains
 		subroutine MC_init(A,m,cdt)
 			implicit none
-			integer :: m,A(dn2)
+			integer :: m,A(Ns2)
 			character :: cdt
-			call gen_latt_square()
+			call latt(Ns,Tx,Ty,neb)
 			select case(cdt)
 			case("r")
 				call random_init(A,m)
@@ -107,14 +82,14 @@ module MonteCarlo
 		end subroutine
 		subroutine MC_step(bt,cfg)
 			implicit none
-			integer :: i,j,tmp,cfg(dn2)
+			integer :: i,j,tmp,cfg(Ns2)
 			real(8) :: de,bt,r,rn
 			call random_number(rn)
-			i=1+int((dn2-1)*rn)
+			i=1+int((Ns2-1)*rn)
 			call random_number(rn)
-			j=1+int((dn2)*rn)
+			j=1+int((Ns2)*rn)
 			if(j==i) then
-				j=dn2
+				j=Ns2
 			endif
 			if(cfg(i)/=cfg(j)) then
 				call energydiff(cfg,de,i,j)
@@ -129,14 +104,14 @@ module MonteCarlo
 		end subroutine
 		subroutine energydiff(cfg,de,i,j)
 			implicit none
-			integer :: i,j,k,l,m,tmp,cfg(dn2)
+			integer :: i,j,k,l,m,tmp,cfg(Ns2)
 			real(8) :: de
 			de=0d0
 			m=(-1)**cfg(i)
 			do l=1,size(V)
 				tmp=0
 				do k=1,4
-					tmp=tmp+(cfg(latt(j,k,l))-cfg(latt(i,k,l)))
+					tmp=tmp+(cfg(neb(j,k,l))-cfg(neb(i,k,l)))
 				enddo
 				de=de+V(l)*tmp
 			enddo
@@ -144,10 +119,10 @@ module MonteCarlo
 		end subroutine
 		subroutine random_init(A,m)
 			implicit none
-			integer :: m,i,ir,A(dn2)
+			integer :: m,i,ir,A(Ns2)
 			real(8) :: rn
 			A=0
-			do i=dn2-m+1,dn2
+			do i=Ns2-m+1,Ns2
 				call random_number(rn)
 				ir=1+int(rn*(i))
 				if(A(ir)==0) then
@@ -159,13 +134,13 @@ module MonteCarlo
 		end subroutine
 		subroutine stripe_init(A,m)
 			implicit none
-			integer :: m,i,j,A(dn2),S(m*(dn(1)-1)/dn2+1)
-			S=(/(i,i=1,dn(1),3)/)
+			integer :: m,i,j,A(Ns2),S(m*(Ns(1)-1)/Ns2+1)
+			S=(/(i,i=1,Ns(1),3)/)
 			A=0
-			do i=1,dn(2)
+			do i=1,Ns(2)
 				do j=1,size(S)
-					S(j)=pbcx(S(j)-1)
-					A((i-1)*dn(2)+S(j))=1
+					!S(j)=pbcx(S(j)-1)
+					A((i-1)*Ns(2)+S(j))=1
 				enddo
 			enddo
 		end subroutine
@@ -185,47 +160,29 @@ program main
 	use MonteCarlo
 	use phyval
 	implicit none
-	integer :: i,j,Nmax=2000000,Nhot=10000,cfg(dn2),ret(5)=(/25000,100000,200000,500000,2000000/)
-	real(8) :: bt=1e8
-	complex(8) :: S(dn2),Savg(dn2)
-	open(unit=10,file="../data/montecarlo_i.dat")
-	open(unit=20,file="../data/pattern_i.dat")
-	write(10,"(A)")"set term pngcairo size 300,300"
-	write(10,"(A)")"set output 'montecarlo.png'"
-	write(10,"(A)")'set title "step=0"'
-	write(10,"(A)")"set pm3d map"
-	write(10,"(A)")"set pm3d interpolate 0,0"
-	write(10,"(A)")"set size square"
-	write(10,"(A)")"set palette rgbformulae 22,13,-31"
-	write(10,"(A)")"splot '-' matrix"
-	write(10,"(A)")"#data"
-	write(10,"('#beta=',e12.4,'hot step=',I7,'particl number=',I5)")bt,Nhot,ne
-	write(20,"(A)")"set term pngcairo size 300,300"
-	write(20,"(A)")"set output 'pattern.png'"
-	write(20,"(A)")"set pm3d map"
-	write(20,"(A)")"set pm3d corners2color c1"
-	write(20,"(A)")"set size square"
-	write(20,"(A)")"set palette gray"
-	write(20,"(A)")"splot '-' matrix"
-	write(20,"(A)")"#data"
+	integer :: i,j,Nmax=200000000,Nhot=10000,cfg(Ns2),ret(5)=(/25000,100000,500000,2000000,200000000/)
+	real(8) :: bt=1
+	complex(8) :: S(Ns2),Savg(Ns2)
+	open(unit=10,file="../data/montecarlo.dat")
+	open(unit=20,file="../data/pattern.dat")
 	!Initialization
 	Savg=0d0
 	call init_random_seed()
-	call MC_init(cfg,ne,"s")
+	call MC_init(cfg,ne,"r")
 	call strfact(cfg,S)
 	write(10,"(36e13.4)")real(S)
 	write(20,"(36I2)")cfg
-	stop
+	write(20,"(1X/)")
 	!Initialization finish
 	do i=1,Nmax
 		call MC_step(bt,cfg)
 		if(mod(i,1000)==0) then
 			write(*,*)"Monte Carlo Step: ",i
 		endif
-		if(i>Nhot) then
-			call strfact(cfg,S)
-			Savg=Savg+S
-		endif
+		!if(i>Nhot) then
+			!call strfact(cfg,S)
+			!Savg=Savg+S
+		!endif
 		if(any(ret==i)) then
 			write(10,"('#Monte Carlo Step: ',I8)")i
 			write(20,"('#Monte Carlo Step: ',I8)")i

@@ -66,7 +66,7 @@ contains
 				if(sg/=0) then
 					al=al*0.3d0
 				endif
-				sp=sp+al*sign(1d0,nf-np)
+				sp=sp-al*sign(1d0,np-nf)
 			enddo
 			if((abs(scp-sc)+abs(pgp-pg)+abs(app-ap))<cvg) then
 				exit

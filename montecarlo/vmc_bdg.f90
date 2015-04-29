@@ -11,8 +11,8 @@ module M_pmt
 		 !latt_one2two =>  square_one2two ,& 
 		 !latt_two2one =>  square_two2one 
 	implicit none
-	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),vn=6
-	!integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
+	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),vn=7
+	!integer, parameter :: Ns(2)=(/5,5/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
 	integer :: neb(Ns2,4,3),ne=Ns2,ne2=Ns2/2
 	real(8), parameter :: t(1)=(/1d0/)
 end module
@@ -28,8 +28,8 @@ contains
 		complex(8), optional :: dwf(:,:,:)
 		real(8) :: eg(Ns2*2),var(vn),nvar(vn),r
 		integer :: i,j,n,ix(2),bc
-		if(abs(var(1))<1d-4) then
-			var(1)=1d-4*sign(1d0,var(1))
+		if(var(1)<1d-4) then
+			var(1)=1d-4
 		endif
 		call bdg(var,H,D)
 		call heevd(H,eg,"V")
@@ -85,49 +85,81 @@ contains
 		complex(8) :: H(Ns2*2,Ns2*2)
 		complex(8), optional :: D(:,:,:)
 		real(8) :: eg(Ns2*2),var(vn)
-		integer :: i,j,n,ix(2),bc
-		H=0d0
-		if(present(D)) then
-			D=0d0
-		endif
+		real(8) :: dd(Ns2,2),m(Ns2),tvar(3),cp(Ns2)
+		complex(8) :: dt(Ns2,2)
+		integer :: i,j,k,n,ix(2)
+		tvar=(/1d0,var(6),var(7)/)
 		do i=1,Ns2
 			call latt_one2two(i,Ns,ix)
-			do j=1,4
-				!call random_number(r)
-				!r=(r-0.5d0)*1d-8
-				bc=1
-				!if(abs(neb(i,j,1)-i)>Ns(1)*3) then
-					!bc=-1
-				!endif
-				H(i,neb(i,j,1))=(-t(1)+var(4)*img*(-1)**mod(sum(ix),2)*(-1)**mod(j,2))*bc
-				H(i+Ns2,neb(i,j,1)+Ns2)=(t(1)+var(4)*img*(-1)**mod(sum(ix),2)*(-1)**mod(j,2))*bc
-				H(i,neb(i,j,2))=-var(5)*bc
-				H(i+Ns2,neb(i,j,2)+Ns2)=-H(i,neb(i,j,2))
-				H(i,neb(i,j,3))=-var(6)*bc
-				H(i+Ns2,neb(i,j,3)+Ns2)=-H(i,neb(i,j,3))
-				H(i,neb(i,j,1)+Ns2)=var(1)*(-1)**mod(j,2)*bc
-				H(i+Ns2,neb(i,j,1))=conjg(H(i,neb(i,j,1)+Ns2))
-				if(present(D)) then
-					D(i,neb(i,j,1),4)=(img*(-1)**mod(sum(ix),2)*(-1)**mod(j,2))*bc
-					D(i+Ns2,neb(i,j,1)+Ns2,4)=(img*(-1)**mod(sum(ix),2)*(-1)**mod(j,2))*bc
-					D(i,neb(i,j,2),5)=-bc
-					D(i+Ns2,neb(i,j,2)+Ns2,5)=-D(i,neb(i,j,2),5)
-					D(i,neb(i,j,3),6)=-bc
-					D(i+Ns2,neb(i,j,3)+Ns2,6)=-D(i,neb(i,j,3),6)
-					D(i,neb(i,j,1)+Ns2,1)=(-1)**mod(j,2)*bc
-					D(i+Ns2,neb(i,j,1),1)=conjg(D(i,neb(i,j,1)+Ns2,1))
-				endif
-			enddo
-			! on site
-			H(i,i)=var(3)*(-1)**mod(sum(ix),2)-var(2)
-			H(i+Ns2,i+Ns2)=var(3)*(-1)**mod(sum(ix),2)+var(2)
-			if(present(D)) then
-				D(i,i,3)=(-1)**mod(sum(ix),2)
-				D(i+Ns2,i+Ns2,3)=(-1)**mod(sum(ix),2)
-				D(i,i,2)=-1d0
-				D(i+Ns2,i+Ns2,2)=1d0
-			endif
+			dt(i,:)=(/1d0,-1d0/)*var(1)
+			dd(i,:)=(/1d0,-1d0/)*(-1)**mod(sum(ix),2)*var(5)
+			!dd(i,:)=(/1d0,-1d0/)*var(4)
+			!dd(i,:)=(/2d0,0d0/)*(-1)**mod(sum(ix),2)*var(4)
+			m(i)=(-1)**mod(sum(ix),2)*var(4)
+			cp(i)=var(2)+(-1)**mod(sum(ix),2)*var(3)
 		enddo
+		H=0d0
+		do i=1,Ns2
+			do n=1,2
+				do k=1,size(tvar)
+					j=neb(i,n,k)
+					! hopping
+					H(i,j)=H(i,j)-tvar(k)
+					H(j,i)=H(j,i)-tvar(k)
+					H(i+Ns2,j+Ns2)=H(i+Ns2,j+Ns2)+tvar(k)
+					H(j+Ns2,i+Ns2)=H(j+Ns2,i+Ns2)+tvar(k)
+					if(k>1) then
+						cycle
+					endif
+					! d-wave pairs
+					H(i,j+Ns2)=H(i,j+Ns2)+dt(i,n)
+					H(j,i+Ns2)=H(j,i+Ns2)+dt(i,n)
+					H(i+Ns2,j)=H(i+Ns2,j)+conjg(dt(i,n))
+					H(j+Ns2,i)=H(j+Ns2,i)+conjg(dt(i,n))
+					! DDW
+					H(i,j)=H(i,j)+dd(i,n)*img
+					H(j,i)=H(j,i)-dd(i,n)*img
+					H(i+Ns2,j+Ns2)=H(i+Ns2,j+Ns2)+dd(i,n)*img
+					H(j+Ns2,i+Ns2)=H(j+Ns2,i+Ns2)-dd(i,n)*img
+				enddo
+			enddo
+			H(i,i)=H(i,i)+m(i)*0.5d0-cp(i)
+			H(i+Ns2,i+Ns2)=H(i+Ns2,i+Ns2)+m(i)*0.5d0+cp(i)
+		enddo
+		if(present(D)) then
+			D=0d0
+			do i=1,Ns2
+				do n=1,2
+					do k=1,size(tvar)
+						j=neb(i,n,k)
+						! hopping
+						if(k>1) then
+							D(i,j,k+4)=D(i,j,k+4)-1d0
+							D(j,i,k+4)=D(j,i,k+4)-1d0
+							D(i+Ns2,j+Ns2,k+4)=D(i+Ns2,j+Ns2,k+4)+1d0
+							D(j+Ns2,i+Ns2,k+4)=D(j+Ns2,i+Ns2,k+4)+1d0
+						else
+							! d-wave pairs
+							D(i,j+Ns2,1)=D(i,j+Ns2,1)+dt(i,n)/var(1)
+							D(j,i+Ns2,1)=D(j,i+Ns2,1)+dt(i,n)/var(1)
+							D(i+Ns2,j,1)=D(i+Ns2,j,1)+conjg(dt(i,n))/var(1)
+							D(j+Ns2,i,1)=D(j+Ns2,i,1)+conjg(dt(i,n))/var(1)
+							! DDW
+							D(i,j,5)=D(i,j,5)+dd(i,n)*img/var(5)
+							D(j,i,5)=D(j,i,5)-dd(i,n)*img/var(5)
+							D(i+Ns2,j+Ns2,5)=D(i+Ns2,j+Ns2,5)+dd(i,n)*img/var(5)
+							D(j+Ns2,i+Ns2,5)=D(j+Ns2,i+Ns2,5)-dd(i,n)*img/var(5)
+						endif
+					enddo
+				enddo
+				D(i,i,4)=D(i,i,4)+m(i)*0.5d0/var(4)
+				D(i+Ns2,i+Ns2,4)=D(i+Ns2,i+Ns2,4)+m(i)*0.5d0/var(4)
+				D(i,i,2)=D(i,i,2)-1d0
+				D(i+Ns2,i+Ns2,2)=D(i+Ns2,i+Ns2,2)+1d0
+				D(i,i,3)=D(i,i,3)-(cp(i)-var(2))/var(3)
+				D(i+Ns2,i+Ns2,3)=D(i+Ns2,i+Ns2,3)+(cp(i)-var(2))/var(3)
+			enddo
+		endif
 	end subroutine
 end module
 
@@ -334,21 +366,62 @@ contains
 			sg=-1
 		endif
 	end subroutine
-	function jast(ri,rj,cfg,icfg,sg,nd,ja)
-		integer :: ri,rj,icfg(:),cfg(:),sg,i,nd
-		real(8) :: jast,ja(:)
-		jast=1d0
+	function ee_number(cfg,icfg,nd)
+		integer :: icfg(:),cfg(:),i,j,ee_number,ii,nd
+		ee_number=0
+		do i=1,ne-nd
+			do ii=1,2
+				select case(cs(icfg(neb(cfg(i),ii,1)),nd))
+				case(1,3)
+					ee_number=ee_number+1*(2-mod(cs(i,nd),2))
+				case(2)
+					ee_number=ee_number+2*(2-mod(cs(i,nd),2))
+				end select
+			enddo
+		enddo
+	end function
+	function ee_diff(ri,rj,cfg,icfg,sg,nd)
+		integer :: ri,rj,icfg(:),cfg(:),sg,i,j,ii,nd,ee_diff
+		ee_diff=0
+		select case(sg)
+		case(1:8)
+			do ii=1,4
+				select case(cs(icfg(neb(ri,ii,1)),nd))
+				case(1,3)
+					ee_diff=ee_diff-1
+				case(2)
+					ee_diff=ee_diff-2
+				end select
+				select case(cs(icfg(neb(rj,ii,1)),nd))
+				case(1,3)
+					ee_diff=ee_diff+1
+				case(2)
+					ee_diff=ee_diff+2
+				end select
+			enddo
+			if(any(neb(rj,:,1)==ri)) then
+				ee_diff=ee_diff-1
+			endif
+		end select
+	end function
+	function nd_diff(ri,rj,cfg,icfg,sg,nd)
+		integer :: ri,rj,icfg(:),cfg(:),sg,nd,nd_diff
+		nd_diff=0
 		select case(sg)
 		case(1:8)
 			if(cs(icfg(ri),nd)==2) then
-				jast=jast*exp(ja(1))
+				nd_diff=nd_diff-1
 			endif
 			if(cs(icfg(rj),nd)/=4) then
-				jast=jast*exp(-ja(1))
+				nd_diff=nd_diff+1
 			endif
 		end select
-		!do i=2,size(ja)
-		!enddo
+	end function
+	function jast(ri,rj,cfg,icfg,sg,nd,ja)
+		integer :: ri,rj,icfg(:),cfg(:),sg,nd
+		real(8) :: jast,ja(:)
+		jast=exp(-ja(1)*nd_diff(ri,rj,cfg,icfg,sg,nd))&
+			*exp(-ja(2)*ee_diff(ri,rj,cfg,icfg,sg,nd))
 	end function
 	subroutine checkcfg(icfg,nd,s)
 		integer :: i,s,icfg(:),r0(2),nd
@@ -365,7 +438,7 @@ contains
 			elseif(icfg(i)<=ne-nd) then
 				write(*,"(' ○'$)")
 			else
-				write(*,"('  '$)")
+				write(*,"(' ·'$)")
 			endif
 			if(mod(i+r0(1),Ns(1))==0) then
 				write(*,"(1X)")
@@ -380,7 +453,7 @@ module M_tJ
 	use M_rd
 	use M_mc_matrix
 	implicit none
-	real(8) :: DJ=0.35d0,V=0d0
+	real(8) :: DJ=1d0/3d0,V=0d0
 	!real(8), parameter :: DJ=0.3d0,V=0d0
 contains
 	subroutine two(i,j,nd,sg)
@@ -404,11 +477,11 @@ contains
 			j=ne-nd+mod(n-1,n0)+1
 		endif
 	end subroutine
-	subroutine energy(cfg,icfg,nd,wf,ja,A,iA,El)
+	subroutine energy(cfg,icfg,nd,nee,wf,ja,A,iA,El)
 		complex(8) :: A(:,:),iA(:,:),vu(size(A,1),2),Y(2,2),pb,wf(:,:)
 		complex(8) :: El
 		real(8) :: ja(:)
-		integer :: cfg(:),icfg(:),i,ii,j,l,inb,sg,cr(2),nd
+		integer :: cfg(:),icfg(:),i,ii,j,l,inb,sg,cr(2),nd,nee
 		El=0d0
 		do i=1,ne
 			do ii=1,4
@@ -422,37 +495,33 @@ contains
 						!if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
 							!pb=-pb
 						!endif
-						El=El-(t(inb)*conjg(pb))
+						El=El-(t(inb)*conjg(pb))*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja)
 					case(5) 
 						call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 						call det(vu,cr,A,iA,Y,pb)
 						!if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
 							!pb=-pb
 						!endif
-						El=El+(t(inb)*conjg(pb))
+						El=El+(t(inb)*conjg(pb))*jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja)
 					case(0)
 						if(inb==1.and.i<=ne2) then
 							call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 							call det(vu,cr,A,iA,Y,pb)
-							El=El+(&
-								0.5d0*DJ*conjg(pb)-0.25d0*DJ&
-								-0.25d0*DJ&
-								+V&
-								)
+							El=El+0.5d0*DJ*conjg(pb)-0.25d0*DJ
 						endif
-					case default
+					case(-1)
 						if(inb==1.and.ii<3) then
-							El=El+(&
-								0.25d0*DJ&
-								-0.25d0*DJ&
-								+V&
-								)
+							El=El+0.25d0*DJ
 						endif
 					end select
 				enddo
 			enddo
 		enddo
+		El=El+(V-0.25*DJ)*nee
+		!call checkcfg(icfg,nd,100)
+		!write(*,*)El
 		El=(El-(4d0*V-DJ)*(ne-Ns2/2))/Ns2
+		!El=(El-(4d0*V)*(ne-Ns2/2))/Ns2
 		!El=El/Ns2
 	end subroutine
 	subroutine spin_order(cfg,nd,lphy)
@@ -606,11 +675,11 @@ contains
 			i=ne2+(n-1)/n1+1
 		endif
 	end subroutine
-	subroutine energy(cfg,icfg,nd,wf,ja,A,iA,El)
+	subroutine energy(cfg,icfg,nd,nee,wf,ja,A,iA,El)
 		complex(8) :: A(:,:),iA(:,:),vu(size(A,1),2),Y(2,2),pb,wf(:,:)
 		complex(8) :: El
 		real(8) :: ja(:)
-		integer :: cfg(:),icfg(:),i,ii,j,l,inb,sg,cr(2),nd,n,ud
+		integer :: cfg(:),icfg(:),i,ii,j,l,inb,sg,cr(2),nd,n,ud,nee
 		El=0d0
 		do n=1,ne
 			ud=1-(n-1)/ne2*2
@@ -635,8 +704,9 @@ contains
 				enddo
 			enddo
 		enddo
-		El=El+U*nd
+		El=El+U*nd+V*nee
 		El=El/Ns2
+		!call checkcfg(icfg,nd,100)
 		!stop
 	end subroutine
 	subroutine spin_order(cfg,nd,lphy)
@@ -754,7 +824,7 @@ contains
 		complex(8) :: lO(vn+size(ja)),lS(size(lO),size(lO)),lg(size(lO)),O(size(lO)),El,E
 		real(8) :: phyval(:),lphy(size(phyval))
 		integer :: icfg(Ns2),i,j,ti,tj,l,sg,n,Nmc(:),cr(2),acp,bi,bj,ii,jj
-		integer :: cfg(Ns2),nd
+		integer :: cfg(Ns2),nd,nee,needif
 		logical :: flag
 		!do i=1,Ns2
 			!cfg(i)=i
@@ -774,6 +844,7 @@ contains
 		do i=1,Ns2
 			icfg(cfg(i))=i
 		enddo
+		nee=ee_number(cfg,icfg,nd)
 		E=0
 		phyval=0d0
 		lphy=0d0
@@ -810,12 +881,14 @@ contains
 			!write(*,*)i,j,nd,sg
 			call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr,flag,dwf,dvu)
 			call det(vu,cr,A,iA,Y,pb)
+			needif=ee_diff(cfg(i),cfg(j),cfg,icfg,sg,nd)
 			call random_number(rpb)
 			if(rpb<real(pb*conjg(pb))*(jast(cfg(i),cfg(j),cfg,icfg,sg,nd,ja))**2) then
 				acp=acp+1
 				call update_matrix(vu,cr,Y,pb,A,iA,flag,dvu,dA)
 				!write(*,*)sum(abs(matmul(A,iA)-diag(1d0,size(A,1))))
 				call update_swap(i,j,nd,cfg,icfg,A,iA,dA,sg)
+				nee=nee+needif
 				!if(sum(abs(matmul(A,iA)-diag(1d0,size(A,1))))>1d-5) then
 					!write(*,*)i,j,sg,nd,sum(abs(matmul(A,iA)-diag(1d0,size(A,1))))
 					!stop
@@ -824,22 +897,21 @@ contains
 					iA=A
 					call matrix_inv(iA)
 				endif
-				!if(n>Nmc(1)) then
-					!call checkcfg(icfg,nd,100)
-				!endif
+				if(n>Nmc(1)) then
+					call checkcfg(icfg,nd,100)
+				endif
 			endif
 			!if(n==Nmc(1)) then
 				!write(*,*)"hot finish"
 			!endif
 			if(n>Nmc(1).and.mod(n-Nmc(1),Nmc(2))==0) then
-				call energy(cfg,icfg,nd,wf,ja,A,iA,El)
+				call energy(cfg,icfg,nd,nee,wf,ja,A,iA,El)
 				if(flag) then
 					do ti=1,vn
 						lO(ti)=Tr(iA,dA(:,:,ti))
 					enddo
-					do ti=vn+1,size(lO)
-						lO(ti)=-nd
-					enddo
+					lO(vn+1)=-nd
+					lO(vn+2)=-nee
 					do ti=1,size(lO)
 						do tj=1,size(lO)
 							lS(ti,tj)=dconjg(lO(ti))*lO(tj)
@@ -921,13 +993,13 @@ contains
 			phyval=phyval/n
 			S=S/n
 			g=g/n
-			if(n<5) then
-				er=sqrt((sga(nm-3,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-3)+1)-1))
-			else
+			!if(n<5) then
+				!er=sqrt((sga(nm-3,1)-sga(size(sga,1)/2,1))/(2**(nm-(nm-3)+1)-1))
+			!else
 				er=sqrt(abs(er/n-phyval**2))
-			endif
+			!endif
 			S=S+diag(1d-2,size(S,1))
-			call zero(S,g,(/1,3,5,6/))
+			call zero(S,g,(/1,3,5,6,7,9/))
 			call heevd(S,eg,"V")
 			!eg=eg+1d-1
 			!write(*,*)eg
@@ -1007,7 +1079,7 @@ program main
 	implicit none
 	integer :: n,i,j,Nmc(3),Nvar(3),nm,cfg(Ns2),nd,cfg_omp(size(cfg)),nd_omp
 	complex(8) :: wf(Ns2*2,Ns2)
-	real(8) :: var(vn+1)
+	real(8) :: var(vn+2)
 	real(8) :: er(5),phyval(5),phyval_omp(size(phyval))
 	real(8), allocatable :: sga(:,:)
 	logical :: f
@@ -1029,15 +1101,16 @@ program main
 	enddo
 	nd=0
 	call fisher_yates_shuffle(cfg,Ns2)
-	do i=0,16,2
-		var=(/0d0,0d0,1d-1,1d-1,0d0,0d0,1d-1/)
-		V=0.1*i
-		write(*,*)V
-	!do i=0,60,1
-		!var(4)=var(4)-0.02
-		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
+	!var=(/1d-1,1d0,0d0,0d0,0d0,0d0,1d-1/)
+	var=(/0d0,-0.5d-1,0d0,1d-1,0d0,0d0,0d0,0d0,0d0/)
+	do i=0,200,1
+		var(2:)=(/-0.5d-1,0d0,1d-1,0d0,0d0,0d0,0d0,0d0/)
+		!V=V+0.5
+		!write(*,*)V
+	!do i=5,16,1
+		var(1)=var(1)+0.02
 		!ne=int(Ns2*(40-i)/40d0)
-		ne=int(Ns2*(40-5)/40d0)
+		ne=int(Ns2*(40-7)/40d0)
 		ne=ne+mod(ne,2)
 		!read(30,rec=i+1,fmt="(i4,7es13.5)")ne,var
 		ne2=ne/2

@@ -1,25 +1,28 @@
 module pmt
 	use M_const
 	implicit none
-	real(8), parameter :: t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),cvg=1e-6,&
-		!V=0.12d0,DJ=0.35d0,&
-		V=0.d0,DJ=0.25d0,&
+	real(8), parameter :: t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),&
+	!real(8), parameter :: t(5)=(/1d0,0d0,0d0,0d0,0d0/),&
+		cvg=1e-6,&
+		V=0.12d0,DJ=0.35d0,&
+		!V=0.d0,DJ=0.25d0,&
 	Vs=DJ-V,Vd=0.5d0*DJ+V
-	!character(3) :: pgflag="ddw"
-	character(3) :: pgflag="sdw"
+	character(3) :: pgflag="ddw"
+	!character(3) :: pgflag="sdw"
 end module
 module selfcons
 	use pmt
 	use M_utility
+	use M_matrix
+	use lapack95, only: heevd
 	implicit none
-	integer, parameter :: mk=24
+	integer, parameter :: mk=512
 contains
-	subroutine selfconsist_tg(nf,Tk,sc,pg,ap,sp)
+	subroutine selfconsist_tg(nf,Tk,sc,pg,ap,cp)
 		real(8) :: Tk,nf
 		complex(8) :: Uk(4,4)
-		real(8) :: k(2),np,pnp,pg,pgp,ek(4),sp,sc,scp,cvg1,al,ap,app
+		real(8) :: k(2),np,pnp,pg,pgp,ek(4),cp,sc,scp,cvg1,al,ap,app
 		integer :: i,j,c,sg
-		c=0
 		cvg1=0.0001
 		pg=max(pg,0.1d0)
 		sc=max(sc,0.1d0)
@@ -32,20 +35,29 @@ contains
 				scp=0d0
 				app=0d0
 				np=0d0
-				c=c+1
-				!$OMP PARALLEL DO REDUCTION(+:np,pgp,scp,app) PRIVATE(k,ek,Uk) SCHEDULE(GUIDED)
-				do i=0,mk
-					do j=0,min(i,mk-i)
-						k=(/pi/mk*i,pi/mk*j/)
-						call EU2(k,nf,pg,sc,ap,sp,ek,Uk)
+				c=0
+				!$OMP PARALLEL DO REDUCTION(+:np,pgp,scp,app,c) PRIVATE(k,ek,Uk)
+				!do i=0,mk
+					!do j=0,min(i,mk-i)
+						!k=(/pi/mk*i,pi/mk*j/)
+				do i=-mk/2,mk/2-1
+					do j=-mk/2+abs(i),mk/2-1-abs(i)
+						c=c+1
+						k=2d0*pi/mk*(/i,j/)
+						call EU2(k,nf,pg,sc,ap,cp,ek,Uk)
 						call order(k,ek,Uk,Tk,np,pgp,scp,app)
 					enddo
 				enddo
 				!$OMP END PARALLEL DO
-				np=np/(mk**2)*2d0
-				pgp=pgp/(mk**2)*2d0
-				scp=scp/(mk**2)*2d0
-				app=app/(mk**2)*2d0
+				c=c*2
+				!np=np/(mk**2)*2d0
+				!pgp=pgp/(mk**2)*2d0
+				!scp=scp/(mk**2)*2d0
+				!app=app/(mk**2)*2d0
+				np=np/c
+				pgp=pgp/c
+				scp=scp/c
+				app=app/c
 				if(abs(nf-np)<1d-5) then
 					exit
 				endif
@@ -53,7 +65,7 @@ contains
 				if(sg/=0) then
 					al=al*0.3d0
 				endif
-				sp=sp+al*sign(1d0,nf-np)
+				cp=cp-al*sign(1d0,np-nf)
 			enddo
 			if((abs(scp-sc)+abs(pgp-pg)+abs(app-ap))<cvg) then
 				exit
@@ -62,16 +74,15 @@ contains
 			pg=pgp
 			ap=app
 		enddo
-		write(*,"(e12.4$)")np,Tk,sp,sc,pg,ap
-		write(*,"(1X)")
-		stop
+		!write(*,"(e12.4$)")np,Tk,cp,sc,pg,ap
+		!write(*,"(1X)")
 	end subroutine
-	subroutine EU1(k,nf,pg,sc,ap,sp,ek,Uk)
+	subroutine EU1(k,nf,pg,sc,ap,cp,ek,Uk)
 		complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
-		real(8) :: eka,eks,e1(2),e2(2),ek(4),k(2),pg,pgk,sp,sck,sc,gk,th,fy(2),cos2th,sin2th,cos2fy(2),sin2fy(2),ap,dp,nf
+		real(8) :: eka,eks,e1(2),e2(2),ek(4),k(2),pg,pgk,cp,sck,sc,gk,th,fy(2),cos2th,sin2th,cos2fy(2),sin2fy(2),ap,dp,nf
 		dp=abs(1d0-nf)
 		!dp=abs(1d0)
-		eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-sp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
+		eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-cp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
 		eka=-2d0*(dp*t(1)+ap*Vd)*(cos(k(1))+cos(k(2)))
 		gk=0.5d0*(cos(k(1))-cos(k(2)))
 		select case(pgflag)
@@ -105,12 +116,36 @@ contains
 			-cth*sfy(1) , -dconjg(sth)*sfy(1) ,  cth*cfy(1) , -dconjg(sth)*cfy(1) ,   & 
 			-sth*sfy(2) ,          cth*sfy(2) ,  sth*cfy(2) ,   cth*cfy(2)     /) , (/4 , 4/))
 	end subroutine
-	subroutine EU2(k,nf,pg,sc,ap,sp,ek,Uk)
+	subroutine EU_lapack(k,nf,pg,sc,ap,cp,ek,Uk)
+		complex(8) :: Uk(4,4),pgk,sck,eka,eks,Hk(4,4)
+		real(8) :: ek(4),k(2),pg,cp,sc,gk,ap,dp,nf
+		integer :: info
+		dp=abs(1d0-nf)
+		eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-cp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
+		eka=-2d0*(dp*t(1)+ap*Vd)*(cos(k(1))+cos(k(2)))
+		gk=0.5d0*(cos(k(1))-cos(k(2)))
+		select case(pgflag)
+		case("ddw")
+			pgk=pg*gk*4d0*Vd*img
+		case("sdw")
+			pgk=-pg*DJ*2d0
+		end select
+		sck=sc*gk*Vs*4d0
+		Uk=reshape((/ eks+eka,conjg(pgk) , sck , dcmplx(0d0) ,   & 
+					 pgk , eks-eka , dcmplx(0d0)  , -sck, & 
+					 sck, dcmplx(0d0) , -eks-eka , conjg(pgk) , & 
+					 dcmplx(0d0), -sck , pgk , -eks+eka /) , (/4 , 4/))
+		!Hk=Uk
+		!call EU2(k,nf,pg,sc,ap,cp,ek,Uk)
+		call heevd(Uk,ek,"V","U",info)
+		!write(40,*)sum(abs(matmul(conjg(transpose(Uk)),matmul(Hk,Uk))-diag(ek)))
+	end subroutine
+	subroutine EU2(k,nf,pg,sc,ap,cp,ek,Uk)
 		complex(8) :: Uk(4,4),cth,sth,cfy(2),sfy(2)
-		real(8) :: eka,eks,e1(2),e2(2),ek(4),k(2),pg,pgk,sp,sck,sc,gk,th,fy(2),cos2th,sin2th,cos2fy(2),sin2fy(2),ap,dp,nf
+		real(8) :: eka,eks,e1(2),e2(2),ek(4),k(2),pg,pgk,cp,sck,sc,gk,th,fy(2),cos2th,sin2th,cos2fy(2),sin2fy(2),ap,dp,nf
 		dp=abs(1d0-nf)
 		!dp=abs(1d0)
-		eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-sp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
+		eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-cp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
 		eka=-2d0*(dp*t(1)+ap*Vd)*(cos(k(1))+cos(k(2)))
 		gk=0.5d0*(cos(k(1))-cos(k(2)))
 		select case(pgflag)
@@ -169,19 +204,19 @@ contains
 		sc=sc+dot_product(-Uk(1,:)*dconjg(Uk(3,:))+Uk(2,:)*dconjg(Uk(4,:)),fk)*gk
 		ap=ap+dot_product(Uk(1,:)*dconjg(Uk(1,:))-Uk(2,:)*dconjg(Uk(2,:)),fk)*0.5d0*(cos(k(1))+cos(k(2)))
 	end subroutine
-	subroutine freeenergy(pg,sc,ap,sp,nf,Tk,feg,ddf)
-		real(8) :: k(2),eka,eks,e1,e2(2),E(2),Tk,bt,dp,feg,pg,sc,ap,sp,gk,pgk,sck,ddf(2),tmp(2),s,nf
+	subroutine freeenergy(pg,sc,ap,cp,nf,Tk,feg,ddf)
+		real(8) :: k(2),eka,eks,e1,e2(2),E(2),Tk,bt,dp,feg,pg,sc,ap,cp,gk,pgk,sck,ddf(2),tmp(2),s,nf
 		integer :: i,j,l,Ns
 		dp=abs(1d0-nf)
 		bt=1d0/Tk
 		feg=0d0
 		ddf=0d0
 		Ns=0
-		!$OMP PARALLEL DO REDUCTION(+:feg,ddf,Ns) PRIVATE(k,eks,eka,gk,sck,pgk,e1,e2,E,tmp,s) SCHEDULE(GUIDED)
+		!$OMP PARALLEL DO REDUCTION(+:feg,ddf,Ns) PRIVATE(k,eks,eka,gk,sck,pgk,e1,e2,E,tmp,s)
 		do i=1,mk
 			do j=0,min(i,mk-i)
 				k=(/pi/mk*i,pi/mk*j/)
-				eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-sp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
+				eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-cp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
 				eka=-2d0*(dp*t(1)+ap*Vd)*(cos(k(1))+cos(k(2)))
 				gk=(cos(k(1))-cos(k(2)))
 				select case(pgflag)
@@ -218,23 +253,23 @@ contains
 		!$OMP END PARALLEL DO
 		select case(pgflag)
 		case("ddw")
-			feg=feg/Ns+(4d0*(Vd*(pg**2+ap**2)+Vs*sc**2)-sp)+sp*nf
+			feg=feg/Ns+(4d0*(Vd*(pg**2+ap**2)+Vs*sc**2)-cp)+cp*nf
 		case("sdw")
-			feg=feg/Ns+(4d0*(DJ*pg**2+Vd*ap**2+Vs*sc**2)-sp)+sp*nf
+			feg=feg/Ns+(4d0*(DJ*pg**2+Vd*ap**2+Vs*sc**2)-cp)+cp*nf
 		end select
 		ddf=sign(1d0,ddf)
 	end subroutine
-	subroutine freeorder(nf,Tk,pg,sc,ap,sp,np,pgp,scp,app)
-		real(8) :: k(2),eka,eks,e1,e2(2),E(2),Tk,bt,dp,tmp,pg,sc,ap,sp,np,pgp,scp,app,pgk,sck,gk,s,nf
+	subroutine freeorder(nf,Tk,pg,sc,ap,cp,np,pgp,scp,app)
+		real(8) :: k(2),eka,eks,e1,e2(2),E(2),Tk,bt,dp,tmp,pg,sc,ap,cp,np,pgp,scp,app,pgk,sck,gk,s,nf
 		integer :: i,j,l,Ns
 		dp=abs(1d0-nf)
 		bt=1d0/Tk
 		Ns=0
-		!$OMP PARALLEL DO REDUCTION(+:np,pgp,scp,app,Ns) PRIVATE(k,eks,eka,gk,sck,pgk,e1,e2,E,tmp,s) SCHEDULE(GUIDED)
+		!$OMP PARALLEL DO REDUCTION(+:np,pgp,scp,app,Ns) PRIVATE(k,eks,eka,gk,sck,pgk,e1,e2,E,tmp,s)
 		do i=1,mk
 			do j=0,min(i,mk-i)
 				k=(/pi/mk*i,pi/mk*j/)
-				eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-sp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
+				eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-cp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
 				eka=-2d0*(dp*t(1)+ap*Vd)*(cos(k(1))+cos(k(2)))
 				gk=(cos(k(1))-cos(k(2)))
 				select case(pgflag)
@@ -249,6 +284,12 @@ contains
 				E=sqrt(e2**2+sck**2)
 				do l=1,2
 					s=-(-1)**l
+					if(abs(e1)<1d-8) then
+						e1=1d-8
+					endif
+					if(abs(E(l))<1d-8) then
+						E(l)=1d-8
+					endif
 					tmp=tanh(bt*E(l)/2d0)/E(l)
 					scp=scp+tmp*sck*gk*0.25d0
 					tmp=tmp*e2(l)
@@ -271,8 +312,8 @@ contains
 		scp=scp/Ns
 		app=app/Ns
 	end subroutine
-	subroutine selforder(pg,sc,ap,sp,nf,Tk,sig)
-		real(8) :: k(2),pg,sc,ap,sp,pgp,scp,app,np,pnp,al,Tk,nf
+	subroutine selforder(pg,sc,ap,cp,nf,Tk,sig)
+		real(8) :: k(2),pg,sc,ap,cp,pgp,scp,app,np,pnp,al,Tk,nf
 		integer :: c,sig,sg
 		if(Tk<0d0) then
 			write(*,*)"Tk<0"
@@ -290,8 +331,14 @@ contains
 				app=0d0
 				np=0d0
 				c=c+1
-				call freeorder(nf,Tk,pg,sc,ap,sp,np,pgp,scp,app)
-				!write(*,"(3(a6,e12.4))")"sp=",sp,"n=",np,"al=",al
+				call freeorder(nf,Tk,pg,sc,ap,cp,np,pgp,scp,app)
+				!call freeorder(0d0,Tk,pg,sc,0d0,cp,np,pgp,scp,app)
+				!app=0d0
+				if(isnan(np)) then
+					write(*,*)"NAN"
+					exit
+				endif
+				!write(*,"(3(a6,e12.4))")"cp=",cp,"n=",np,"al=",al
 				if(abs(nf-np)<1d-5) then
 					exit
 				endif
@@ -299,7 +346,7 @@ contains
 				if(sg/=0) then
 					al=al*0.3d0
 				endif
-				sp=sp+al*sign(1d0,nf-np)
+				cp=cp-al*sign(1d0,np-nf)
 			enddo
 			if(sig==0) then
 				scp=sc
@@ -312,22 +359,81 @@ contains
 			pg=(pgp*0.4d0+pg*0.6d0)
 			ap=(app*0.4d0+ap*0.6d0)
 		enddo
-		write(*,"(e12.4$)")np,Tk,sp,sc,pg,ap
-		write(*,"(1X)")
-		stop
+		!write(*,"(e12.4$)")np,Tk,cp,sc,pg,ap
+		!write(*,"(1X)")
 		!call sleepqq(1000)
 	end subroutine
 end module
 module phys
 	use pmt
 	use M_utility
+	use M_matrix
 	use selfcons
 	implicit none
 contains
-	subroutine raman(pg,sc,ap,sp,nf,Tk,omgr,pk)
+	function superfluid(pg,sc,ap,cp,nf,Tk)
+		integer :: i,j,l,m1,m2,psg(2),sg,mr
+		complex(8) :: Uk(4,4),Upk(4,4),tmp,id,gm(4,4),mm(4,4)
+		real(8) :: k(2),cp,bt,sc,pg,ek(4),dfk(4),fk(4),omg,domg,Tk,DJp,ap,dp,nf,&
+			Rs,superfluid,eka,eks
+		superfluid=0d0
+		mr=512
+		bt=1d0/Tk
+		dp=abs(1d0-nf)
+		!dp=1d0
+		!$OMP PARALLEL DO REDUCTION(+:superfluid) PRIVATE(k,gm,ek,Uk,fk,Upk,dfk,mm)
+		!do i=-mr/2,mr/2-1
+			!do j=-mr/2+abs(i),mr/2-1-abs(i)
+				!k=2d0*pi/mr*(/i,j/)
+		do i=0,mr
+			k(1)=pi/mr*i
+			do j=0,mr-i
+				k(2)=pi/mr*j
+				gm=0d0
+				mm=0d0
+				gm(1,1)=(4d0*t(2)*dp*cos(k(1))*sin(k(2))+4d0*t(3)*dp*sin(2d0*k(2))+2d0*(t(1)*dp+ap*Vd)*sin(k(2)))
+				gm(2,2)=(4d0*t(2)*dp*cos(k(1))*sin(k(2))+4d0*t(3)*dp*sin(2d0*k(2))-2d0*(t(1)*dp+ap*Vd)*sin(k(2)))
+				mm(1,1)=(4d0*t(2)*dp*cos(k(1))*cos(k(2))+8d0*t(3)*dp*cos(2d0*k(2))+2d0*(t(1)*dp+ap*Vd)*cos(k(2)))
+				mm(2,2)=(4d0*t(2)*dp*cos(k(1))*cos(k(2))+8d0*t(3)*dp*cos(2d0*k(2))-2d0*(t(1)*dp+ap*Vd)*cos(k(2)))
+				!superfluid=superfluid+real(mm(1,1)+mm(2,2))
+				if(pgflag=="ddw") then
+					gm(1,2)=img*pg*2d0*Vd*sin(k(2))
+					mm(1,2)=img*pg*2d0*Vd*cos(k(2))
+					gm(2,1)=-gm(1,2)
+					gm(3,4)=-gm(1,2)
+					gm(4,3)=-gm(3,4)
+					mm(2,1)=-mm(1,2)
+					mm(3,4)=mm(1,2)
+					mm(4,3)=-mm(3,4)
+				endif
+				gm(3,3)=gm(1,1)
+				gm(4,4)=gm(2,2)
+				mm(3,3)=-mm(1,1)
+				mm(4,4)=-mm(2,2)
+				call EU2(k,1-dp,pg,sc,ap,cp,ek,Uk)
+				!call EU_lapack(k,1-dp,pg,sc,ap,cp,ek,Uk)
+				fk=1d0/(1d0+exp(bt*ek))
+				dfk=-bt/((1d0+cosh(bt*ek))*2)
+				gm=matmul(transpose(conjg(Uk)),matmul(gm,Uk))
+				mm=matmul(transpose(conjg(Uk)),matmul(mm,Uk))
+				do m1=1,4
+					do m2=1,4
+						if(m1==m2.or.abs(ek(m1)-ek(m2))<1d-20) then
+							cycle
+						endif
+						superfluid=superfluid+real(gm(m1,m2)*conjg(gm(m1,m2))*(fk(m1)-fk(m2))/(ek(m1)-ek(m2)))
+					enddo
+					superfluid=superfluid+real(gm(m1,m1)*conjg(gm(m1,m1))*dfk(m1)+mm(m1,m1)*fk(m1))
+				enddo
+			enddo
+		enddo
+		!$END OMP PARALLEL DO
+		superfluid=superfluid/(mr**2)
+	end function
+	subroutine raman(pg,sc,ap,cp,nf,Tk,omgr,pk)
 		integer :: i,j,l,m1,m2,psg(2),sg,mr
 		complex(8) :: Uk(4,4),tmp,id
-		real(8) :: k(2),sp,bt,sc,pg,ek(4),gm(4,2),Tr(2),fk(4),omg,omgr(:),domg,Tk,peak(3,2),R_rpa,pk(2),DJp,ap,dp,R(2),pR(2,2),nf,&
+		real(8) :: k(2),cp,bt,sc,pg,ek(4),gm(4,2),Tr(2),fk(4),omg,omgr(:),domg,Tk,peak(3,2),R_rpa,pk(2),DJp,ap,dp,R(2),pR(2,2),nf,&
 			Rs(4,2),pRs(2,4,2)
 		id=(0d0,0.003d0)
 		!id=(0d0,0.04d0)
@@ -341,7 +447,7 @@ contains
 		DJp=DJ/(dp*t(1)+DJ*ap)**2
 		do while(omg<omgr(2))
 			Rs=0d0
-			!$OMP PARALLEL DO REDUCTION(+:Rs) PRIVATE(k,gm,ek,Uk,fk,Tr,tmp) SCHEDULE(GUIDED)
+			!$OMP PARALLEL DO REDUCTION(+:Rs) PRIVATE(k,gm,ek,Uk,fk,Tr,tmp)
 			do i=0,mr
 				k(1)=pi/mr*i
 				do j=0,mr-i
@@ -350,7 +456,7 @@ contains
 						4d0*t(3)*dp*(cos(2d0*k(1))-cos(2d0*k(2)))
 					gm(1:2,2)=sin(k(1))*sin(k(2))*dp*t(2)*(/-4d0,-4d0/)
 					gm(3:4,:)=-gm(1:2,:)
-					call EU2(k,nf,pg,sc,ap,sp,ek,Uk)
+					call EU2(k,nf,pg,sc,ap,cp,ek,Uk)
 					fk=1d0/(1d0+exp(bt*ek))
 					!do m1=1,4
 						!do m2=1,4
@@ -418,16 +524,16 @@ contains
 		enddo
 		write(50,"(1X)")
 	end subroutine
-	subroutine fermisurface(nf,pg,sc,ap,sp,omg)
+	subroutine fermisurface(nf,pg,sc,ap,cp,omg)
 		integer :: i,j,l,m
 		complex(8) :: Uk(4,4)
-		real(8) :: k(2),ek(4),sp,pg,sc,ap,omg,A,nf
+		real(8) :: k(2),ek(4),cp,pg,sc,ap,omg,A,nf
 		open(unit=20,file="../data/fermi.dat")
 		m=256
 		do i=0,m
 			do j=0,m
 				k=(/pi/m*i,pi/m*j/)
-				call EU1(k,nf,pg,sc,ap,sp,ek,Uk)
+				call EU1(k,nf,pg,sc,ap,cp,ek,Uk)
 				A=0d0
 				do l=1,4
 					A=A-dimag(abs(Uk(1,l))**2/(omg+img*0.01d0-ek(l)))
@@ -438,10 +544,10 @@ contains
 		enddo
 		write(20,"(1X/)")
 	end subroutine
-	subroutine DOS(nf,pg,sc,ap,sp,Tk,omgr)
+	subroutine DOS(nf,pg,sc,ap,cp,Tk,omgr)
 		integer :: i,j,sg
 		complex(8) :: Uk(4,4),id
-		real(8) :: k(2),sp,bt,sc,pg,ek(4),fk(4),A(4),pA(2,4),omg,omgr(2),domg,Tk,ap,nf
+		real(8) :: k(2),cp,bt,sc,pg,ek(4),fk(4),A(4),pA(2,4),omg,omgr(2),domg,Tk,ap,nf
 		open(unit=90,file="../data/DOS.dat")
 		bt=1d0/Tk
 		id=(0d0,0.003d0)
@@ -451,11 +557,11 @@ contains
 		do while(omg<omgr(2))
 			A=0d0
 			omg=omg+domg
-			!$OMP PARALLEL DO REDUCTION(+:A) PRIVATE(k,ek,Uk,fk) SCHEDULE(STATIC)
+			!$OMP PARALLEL DO REDUCTION(+:A) PRIVATE(k,ek,Uk,fk)
 			do i=1,mk
 				do j=1,mk
 					k=(/pi/mk*i,pi/mk*j/)
-					call EU2(k,nf,pg,sc,ap,sp,ek,Uk)
+					call EU2(k,nf,pg,sc,ap,cp,ek,Uk)
 					!fk=1d0/(1d0+exp(bt*ek))
 					A=A-DIMAG(Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+id))
 				enddo
@@ -473,17 +579,16 @@ contains
 		enddo
 		write(90,"(1X)")
 	end subroutine
-	subroutine EDC(k,pg,sc,ap,sp,nf,Tk,omgr)
+	subroutine EDC(k,pg,sc,ap,cp,nf,Tk,omgr)
 		integer :: sg
 		complex(8) :: Uk(4,4)
-		real(8) :: k(2),sp,bt,sc,pg,ap,Tk,ek(4),fk(4),A,omg,omgr(:),domg,pA(2),nf
-		open(unit=30,file="../data/EDC.dat")
+		real(8) :: k(2),cp,bt,sc,pg,ap,Tk,ek(4),fk(4),A,omg,omgr(:),domg,pA(2),nf
 		pA=0d0
 		bt=1d0/Tk
 		omg=omgr(1)
 		domg=omgr(3)
-		call EU1(k,nf,pg,sc,ap,sp,ek,Uk)
-		!call EU2(k,nf,pg,sc,ap,sp,ek,Uk)
+		call EU1(k,nf,pg,sc,ap,cp,ek,Uk)
+		!call EU2(k,nf,pg,sc,ap,cp,ek,Uk)
 		fk=1d0/(1d0+exp(bt*ek))
 		do while(omg<omgr(2))
 			omg=omg+domg
@@ -494,12 +599,11 @@ contains
 			write(30,"(i2$)")sg
 			write(30,"(1X)")
 		enddo
-		write(30,"(1X)")
 	end subroutine
-	subroutine band(pg,sc,ap,sp,nf,Tk,ki,kf)
+	subroutine band(pg,sc,ap,cp,nf,Tk,ki,kf)
 		integer :: i,j,l,bd(1),sg,m
 		complex(8) :: Uk(4,4)
-		real(8) :: ki(:),kf(:),km(2),kn(2),ek(4),pek(2,4),sp,pg,sc,gap,Tk,peak(2),pk(4),eks,eka,ap,nf
+		real(8) :: ki(:),kf(:),km(2),kn(2),ek(4),pek(2,4),cp,pg,sc,gap,Tk,peak(2),pk(4),eks,eka,ap,nf
 		open(unit=10,file="../data/band.dat")
 		pek=0d0
 		m=256
@@ -508,7 +612,7 @@ contains
 			kn=ki(j:j+1)
 			do while(all((kn-kf(j:j+1))*(kf(j:j+1)-ki(j:j+1))<=0d0))
 				kn=kn+(kf(j:j+1)-ki(j:j+1))/m
-				call EU2(kn,nf,pg,sc,ap,sp,ek,Uk)
+				call EU2(kn,nf,pg,sc,ap,cp,ek,Uk)
 				!write(10,"(i4$)")j
 				write(10,"(e16.8$)")(ek(l),abs(Uk(1,l)),l=1,4)
 				do i=1,4
@@ -516,7 +620,7 @@ contains
 					write(10,"(i3$)")sg
 				enddo
 				write(10,"(e16.8$)")&
-					-0.5d0*(cos(kn(1))-cos(kn(2)))*sc*Vs*4d0,-0.5d0*(cos(kn(1))-cos(kn(2)))*pg*Vd*4d0
+					-0.5d0*(cos(kn(1))-cos(kn(2)))*sc*Vs*4d0,-0.5d0*(cos(kn(1))-cos(kn(2)))*pg*Vd*4d0,kn
 				!-0.5d0*(cos(kn(1))-cos(kn(2)))*sc*Vs*4d0,pg*Vd*4d0
 				write(10,"(1X)")
 				!j=j+1
@@ -549,27 +653,51 @@ contains
 		write(*,*)"*******phase diagram finish********"
 	end subroutine
 	subroutine findTc(nf,Tc,sg)
-		real(8) :: pg,sc,ap,sp,Tk,dTk,psc,ppg,Tc,nf,zo,mTk
+		real(8) :: pg,sc,ap,cp,Tk,dTk,psc,ppg,Tc,nf,zo,mTk
 		integer :: sg,isg
+		write(*,"(x)")
+		write(*,*)"*******findTc********"
 		mTk=5d-4
-		zo=cvg*300d0
+		zo=1d-4
+		Tc=max(Tc,0.01d0)
 		dTk=Tc*0.2d0
 		Tk=Tc*0.5d0
 		psc=0d0
 		ppg=0d0
 		do
-			call selforder(pg,sc,ap,sp,nf,Tk,1)
+			call selforder(pg,sc,ap,cp,nf,Tk,1)
+			write(*,"(e12.4$)")sc,pg,Tk
 			if(sg==0) then
-				Tk=Tk+sign(1d0,sc-zo)*dTk
 				call find_cross(psc,sc-zo,isg)
+				if(isg/=0) then
+					if(dTk<mTk) then
+						Tc=Tk
+						exit
+					endif
+					dTk=dTk*0.5d0
+				endif
+				Tk=Tk+dTk*sign(1d0,sc-zo)
 			elseif(sg==1) then
-				Tk=Tk+sign(1d0,pg-zo)*dTk
 				call find_cross(ppg,pg-zo,isg)
+				if(isg/=0) then
+					if(dTk<mTk) then
+						Tc=Tk
+						exit
+					endif
+					dTk=dTk*0.5d0
+				endif
+				Tk=Tk+dTk*sign(1d0,pg-zo)
 			else
-				Tk=Tk-sign(1d0,pg-zo)*dTk
 				call find_cross(ppg,pg-zo,isg)
+				if(isg/=0) then
+					if(dTk<mTk) then
+						Tc=Tk
+						exit
+					endif
+					dTk=dTk*0.5d0
+				endif
+				Tk=Tk+dTk*sign(1d0,pg-zo)
 			endif
-			!write(*,"(i2,4e12.4)")sg,sc,pg,Tk,dTk
 			if(Tk<0d0) then
 				if(dTk>mTk) then
 					dTk=mTk
@@ -580,19 +708,13 @@ contains
 					exit
 				endif
 			endif
-			if(isg/=0) then
-				if(dTk<mTk) then
-					Tc=Tk
-					exit
-				endif
-				dTk=dTk*0.3d0
-			endif
+			write(*,"(e12.4)")dTk
 		enddo
 	end subroutine
-	subroutine rpainstable(pg,sc,ap,sp,nf,Tk,den)
+	subroutine rpainstable(pg,sc,ap,cp,nf,Tk,den)
 		integer :: i,j,l,m,n,mr
 		complex(8) :: Uk(4,4),Ukq(4,4)
-		real(8) :: k(2),q(2),sp,bt,pg,sc,ek(4),ekq(4),fk(4),fkq(4),Tk,DJq,Xq(2),den(2),Vrpa(2),tran(2),ap,nf
+		real(8) :: k(2),q(2),cp,bt,pg,sc,ek(4),ekq(4),fk(4),fkq(4),Tk,DJq,Xq(2),den(2),Vrpa(2),tran(2),ap,nf
 		mr=512
 		bt=1d0/Tk
 		Xq=0d0
@@ -602,13 +724,13 @@ contains
 		case("sdw")
 			Vrpa=(/DJ,Vs/)
 		end select
-		!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(k,ek,Uk,fk,ekq,Ukq,fkq,tran) SCHEDULE(GUIDED)
+		!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(k,ek,Uk,fk,ekq,Ukq,fkq,tran)
 		do i=0,mr
 			k(1)=pi/mr*i
 			do j=0,mr
 				k(2)=pi/mr*j
-				call EU1(k,nf,pg,sc,ap,sp,ek,Uk)
-				call EU1(k+(/pi,pi/),nf,pg,sc,ap,sp,ekq,Ukq)
+				call EU1(k,nf,pg,sc,ap,cp,ek,Uk)
+				call EU1(k+(/pi,pi/),nf,pg,sc,ap,cp,ekq,Ukq)
 				fk=1d0/(1d0+exp(bt*ek))
 				fkq=1d0/(1d0+exp(bt*ekq))
 				do n=1,4
@@ -639,72 +761,98 @@ contains
 end module
 program main
 	use pmt
+	use M_utility
 	use selfcons
 	use phys
 	implicit none
 	complex(8) :: Uk(4,4)
-	real(8) :: kf(2),sp,sc,pg,ap,gap,Tk,pk0(2),pk(2),&
-		nd(1)=(/0.11d0/),&
-		!nd(3)=(/0.11d0,0.135d0,0.18d0/),&
-		!nd(7)=(/0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0/),&
+	real(8) :: kf(2),cp,sc,pg,ap,gap,Tk,pk0(2),pk(2),&
+		nd(1)=(/0.135/),&
+		!nd(12)=(/0.05d0,0.07d0,0.09d0,0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0,0.25d0/),&
+		!nd(8)=(/0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0,0.2d0/),&
 		!nd(9)=(/0.08d0,0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0/),&
-		Td(12),nf,Tc,Tp
+		Td(20),nf,Tc,Tp
 	integer :: i,j,l
+	logical :: f
 	if(pgflag=="ddw".or.pgflag=="sdw") then
 		write(*,*)"calculate for: ",pgflag
 	else
 		write(*,*)"the pg must be ddw or sdw"
 		stop
 	endif
-	open(unit=40,file="../data/gaptemp.dat")
-	open(unit=50,file="../data/sraman.dat")
-	open(unit=60,file="../data/gaptheta.dat")
-	open(unit=70,file="../data/ssum.dat")
-	sp=0d0
+	f=openfile(30,"../data/EDC.dat")
+	f=openfile(40,"../data/gaptemp.dat")
+	f=openfile(50,"../data/sraman.dat")
+	f=openfile(60,"../data/gaptheta.dat")
+	f=openfile(70,"../data/ssum.dat")
+	f=openfile(80,"../data/superfluid.dat")
+	cp=0d0
 	Tc=5d-2
 	Tp=5d-2
+	!write(*,"(e12.4$)")Tk,superfluid(1d0,1d0,0d0,-0.7d0,0.8d0,0.002d0)
+	!stop
 	!call phasediagram((/0.9d0,0.83d0,-0.01d0/))
 	do i=1,size(nd)
 		nf=1d0-nd(i)
 		write(*,"(e12.4$)")nf
+		!pg=0.049d0*(1d0-(1d0-nf)/0.2d0)
+		!sc=sqrt(0.037d0**2-pg**2)
+		!cp=-(1-nf)**2
+		!write(30,"(e12.4$)")nd(i),superfluid(pg,sc,0d0,cp,0d0,1d-4)
+		!write(30,"(x)")
+		!cycle
 		!call findTc(nf,Tc,0)
+		Tc=0.5937E-02
+		write(*,*)"*******findTc finish********"
 		write(*,"(1x,e12.4$)")Tc
-		!call findTc(nf,Tp,1)
-		!write(*,"(e12.4$)")Tp
+		call findTc(nf,Tp,1)
+		write(*,"(e12.4$)")Tp
+		!call selforder(pg,sc,ap,cp,nf,Tp,1)
+		!call band(pg,sc,ap,cp,nf,Tp,(/pi,pi/2d0/),(/pi,0d0/))
 		do j=0,size(Td)-1
+			if(Tc<1d-10) then
+				cycle
+			endif
 			!if(j/=0.and.j/=6.and.j/=9) then
 				!cycle
 			!endif
-			!Tk=max(j*max(Tc,Tp)/(size(Td)-1),1d-5)
-			Tk=max(j*Tc/(size(Td)-1),1d-5)
-			write(*,"(e12.4$)")Tk/Tc
-			write(70,"(e12.4$)")nd(i),Tk/Tc
-			!call selforder(pg,sc,ap,sp,nf,Tk,1)
-			call selfconsist_tg(nf,Tk,sc,pg,ap,sp)
+			Tk=max(j*max(Tc,Tp)/(size(Td)-1),1d-5)
+			!Tk=max(j*Tc/(size(Td)-1),1d-5)
+			!write(*,"(e12.4$)")Tk/Tc
+			!write(70,"(e12.4$)")nd(i),Tk/Tc
+			write(*,"(e12.4$)")Tk
+			write(70,"(e12.4$)")nd(i),Tk
+			call selforder(pg,sc,ap,cp,nf,Tk,1)
+			call EDC((/pi,0.42951462d+00/),pg,sc,ap,cp,nf,Tk,(/-0.5d0,0.01d0,0.0001d0/))
+			!call selfconsist_tg(nf,Tk,sc,pg,ap,cp)
 			if(pg<5d-3) then
-				pg=1d-15
+				pg=1d-10
 			endif
-			write(*,"(e12.4$)")pg,sc,sp
-			write(40,"(e12.4$)")nf,Tk/Tc,pg,sc,sp
-			call raman(pg,sc,ap,sp,nf,Tk,(/0d0,0.4d0,0.0002d0/),pk)
+			write(*,"(e12.4$)")pg,sc,cp
+			write(40,"(e12.4$)")nf,Tk/Tc,pg,sc,cp
+			!call raman(pg,sc,ap,cp,nf,Tk,(/0d0,0.4d0,0.0002d0/),pk)
+			!write(30,"(e12.4$)")Tk,superfluid(pg,sc,ap,cp,nf,Tk)
+			!write(30,"(e12.4$)")Tk,superfluid(pg,sc,ap,cp,nf,Tk),superfluid(0d0,sc,ap,cp,nf,Tk),superfluid(pg,sc,ap,0d0,nf,Tk),superfluid(0d0,sc,ap,0d0,nf,Tk)
+			!write(30,"(e12.4$)")Tk,superfluid(pg,sc,0d0,cp,0d0,Tk)
 			!if(j==0) then
 				!pk0=pk
 			!endif
 			!write(70,"(e12.4$)")pk/pk0
 			!sc=0d0
-			!call band(pg,sc,ap,sp,nf,Tk,(/pi,pi/2d0,pi,0d0,pi,0d0/),(/pi,0d0,pi/2d0,pi/2d0,pi/2d0,0d0/))
-			!call DOS(nf,pg,sc,ap,sp,Tk,(/-0.4d0,0.4d0,0.0002d0/))
+			!call band(pg,sc,ap,cp,nf,Tk,(/pi,pi/2d0,pi,0d0,pi,0d0/),(/pi,0d0,pi/2d0,pi/2d0,pi/2d0,0d0/))
+			!call DOS(nf,pg,sc,ap,cp,Tk,(/-0.4d0,0.4d0,0.0002d0/))
 			!write(*,"(e12.4$)")nf,Tk,Tk/Tc,gap
 			!do l=0,10
-				!call EDC((/pi,pi/20d0*l/),pg,sc,ap,sp,Tk,(/-0.5d0,0.7d0,0.0001d0/))
+				!call EDC((/pi,pi/20d0*l/),pg,sc,ap,cp,Tk,(/-0.5d0,0.7d0,0.0001d0/))
 			!enddo
 			write(40,"(1X)")
 			write(70,"(1X)")
 			write(*,"(1X)")
 			write(30,"(1X)")
+			write(80,"(1X)")
 		enddo
-		write(10,"(1X)")
-		write(30,"(1X/)")
+		!write(10,"(1X)")
+		write(30,"(1X)")
 		write(50,"(1X/)")
 		write(40,"(1X)")
 		write(70,"(1X/)")
