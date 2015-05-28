@@ -9,29 +9,35 @@ module global
 	implicit none
 	integer, parameter :: Ns(2)=(/36,36/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6,ne=Ns2/3
 	integer :: neb(Ns2,4,3)
-	real(8), parameter :: V(3)=(/4d0,-2d0,2d0/),ipi=2d0*pi*img
+	real(8), parameter :: V(3)=(/4d0,-2d0,2d0/)
+	complex(8), parameter :: ipiN=2d0*pi*img/Ns(1)
 end module
 module phyval
+	use M_fft
 	use global
 	implicit none
 	contains
 		subroutine strfact(cfg,S)
-			implicit none
 			integer :: qi,qj,i,j,cfg(Ns(1),Ns(2))
-			complex(8) :: S(Ns(1),Ns(2))
+			complex(8) :: S(0:Ns(1)-1,0:Ns(2)-1),ipi=2d0*pi*img,q(2)
 			real(8) :: iNs(2)
 			S=0d0
-			iNs=1d0/Ns
-			do qi=1,Ns(2)
-				do qj=1,Ns(1)
+			!S=1d0-cfg
+			!call fft2d(S,1)
+			!$OMP PARALLEL DO REDUCTION(+:S) PRIVATE(q)
+			do qi=0,Ns(2)-1
+				do qj=0,Ns(1)-1
+					q=ipiN*(/qi,qj/)
 					do i=1,Ns(2)
 						do j=1,Ns(1)
-							S(qi,qj)=S(qi,qj)+(1-cfg(i,j))*exp(ipi*(iNs(1)*qj*j+iNs(2)*qi*i))
+							S(qi,qj)=S(qi,qj)+(1-cfg(i,j))*exp(sum(q*(/j,i/)))
 						enddo
 					enddo
 				enddo
 			enddo
-			S=S*dconjg(S)/(Ns2-ne)
+			!$OMP END PARALLEL DO
+			S=S*conjg(S)/(Ns2-ne)
+			S(0,0)=0d0
 		end subroutine
 		!subroutine strfact(cfg,S)
 			!implicit none
@@ -39,7 +45,7 @@ module phyval
 			!complex(8) :: S(dn(1),dn(2)),e
 			!S=0d0
 			!n=0
-			!do i=1,dn(2)
+			!do i=1,Nn(2)
 				!do j=1,dn(1)
 					!do ip=1,dn(2)
 						!do jp=1,dn(1)
@@ -58,7 +64,7 @@ module phyval
 					!enddo
 				!enddo
 			!enddo
-			!S=S/(dn2-ne)
+			!S=S/(Ns2-ne)
 		!end subroutine
 end module
 module MonteCarlo
@@ -172,6 +178,7 @@ program main
 	call strfact(cfg,S)
 	write(10,"(36e13.4)")real(S)
 	write(20,"(36I2)")cfg
+	write(10,"(1X/)")
 	write(20,"(1X/)")
 	!Initialization finish
 	do i=1,Nmax
@@ -179,17 +186,20 @@ program main
 		if(mod(i,1000)==0) then
 			write(*,*)"Monte Carlo Step: ",i
 		endif
-		!if(i>Nhot) then
-			!call strfact(cfg,S)
-			!Savg=Savg+S
-		!endif
+		if(any((i+1000)>ret.and.i<ret)) then
+			call strfact(cfg,S)
+			Savg=Savg+S
+		endif
 		if(any(ret==i)) then
 			write(10,"('#Monte Carlo Step: ',I8)")i
 			write(20,"('#Monte Carlo Step: ',I8)")i
-			write(10,"(36e13.4)")real(Savg/(i-Nhot))
+			write(10,"(36e13.4)")real(Savg/1000)
 			write(20,"(36I2)")cfg
+			!write(10,"(32e13.4)")real(Savg/(i-Nhot))
+			!write(20,"(32I2)")cfg
 			write(10,"(1X/)")
 			write(20,"(1X/)")
+			Savg=0d0
 		endif
 	enddo
 end

@@ -1,4 +1,5 @@
 module M_latt
+	use M_utility
 	implicit none
 contains
 	subroutine square_one2two(n,Ns,i)

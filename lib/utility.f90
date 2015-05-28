@@ -1,4 +1,5 @@
 module M_utility
+	use M_rd
 	implicit none
 	interface mwrite
 		module procedure cmwrite,rmwrite,imwrite
@@ -7,7 +8,7 @@ module M_utility
 		module procedure carth,rarth,iarth
 	end interface
 	interface swap
-		module procedure siswap,vcswap
+		module procedure siswap,srswap,vcswap,viswap,vrswap
 	end interface
 contains
 	subroutine cmwrite(f,A)
@@ -44,8 +45,26 @@ contains
 		a=b
 		b=tmp
 	end subroutine
+	subroutine srswap(a,b)
+		real(8) :: a,b,tmp
+		tmp=a
+		a=b
+		b=tmp
+	end subroutine
+	subroutine vrswap(a,b)
+		real(8) :: a(:),b(:),tmp(size(a))
+		tmp=a
+		a=b
+		b=tmp
+	end subroutine
 	subroutine vcswap(a,b)
 		complex(8) :: a(:),b(:),tmp(size(a))
+		tmp=a
+		a=b
+		b=tmp
+	end subroutine
+	subroutine viswap(a,b)
+		integer :: a(:),b(:),tmp(size(a))
 		tmp=a
 		a=b
 		b=tmp

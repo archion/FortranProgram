@@ -3,6 +3,9 @@ module M_rd
 	interface random_number
 		module procedure ncrandom,mcrandom,irandom
 	end interface
+	interface init_random_seed
+		module procedure init_random_seed_time
+	end interface
 	interface binning
 		module procedure nbinning,vbinning
 	end interface
@@ -10,7 +13,7 @@ module M_rd
 		module procedure sfisher_yates_shuffle,vfisher_yates_shuffle
 	end interface
 contains
-	subroutine init_random_seed()
+	subroutine init_random_seed_time()
 		integer :: i, n, clock
 		integer, dimension(:), allocatable :: seed
 		call random_seed(size = n)

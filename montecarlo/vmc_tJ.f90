@@ -1,24 +1,24 @@
 module M_pmt
 	use M_const
 	implicit none
-	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),r0(2)=(/Ns(1)/2,0/),vn=6
-	!integer, parameter :: Ns(2)=(/10,10/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
+	!integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),r0(2)=(/Ns(1)/2,0/),vn=6
+	integer, parameter :: Ns(2)=(/8,8/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=6
 	integer :: neb(Ns2,4,3),ne=Ns2,ne2=Ns2/2
-	real(8), parameter :: t(1)=(/1d0/),DJ=1/3d0,V=4d0/3d0
+	real(8), parameter :: t(1)=(/1d0/),DJ=1d0/3d0,V=0d0
 	real(8) :: ncfg(Ns2),scfg(Ns2),e2=0d0
 end module
 module M_wf
 	use M_pmt
 	use M_matrix
 	use M_latt, only : &
-		 latt         =>  square_tilda         ,& 
-		 latt_bc      =>  square_tilda_bc      ,& 
-		 latt_one2two =>  square_tilda_one2two ,& 
-		 latt_two2one =>  square_tilda_two2one 
-		 !latt         =>  square         ,& 
-		 !latt_bc      =>  square_bc      ,& 
-		 !latt_one2two =>  square_one2two ,& 
-		 !latt_two2one =>  square_two2one 
+		 !latt         =>  square_tilda         ,& 
+		 !latt_bc      =>  square_tilda_bc      ,& 
+		 !latt_one2two =>  square_tilda_one2two ,& 
+		 !latt_two2one =>  square_tilda_two2one 
+		 latt         =>  square         ,& 
+		 latt_bc      =>  square_bc      ,& 
+		 latt_one2two =>  square_one2two ,& 
+		 latt_two2one =>  square_two2one 
 	implicit none
 contains
 	subroutine wf_k(var,wf,dwf)
@@ -31,12 +31,12 @@ contains
 		!var(1)=abs(var(1))
 		!var(3)=abs(var(3))
 		!var(4)=abs(var(4))
-		do n=-(Ns(1)-1)/2,(Ns(1)-1)/2
-			do m=-(Ns(1)-1)/2,(Ns(1)+1)/2
-			!do n=1,Ns2
-				!call latt_one2two(n,Ns,ik)
-				!k=(/2d0*pi/Ns(1)*ik(1),2*pi/Ns(2)*ik(2)+pi/Ns(2)/)-pi
-				k=2d0*pi*(/real(n*Ns(1)+m)/Ns2,real(-n+m*Ns(1))/Ns2/)
+		!do n=-(Ns(1)-1)/2,(Ns(1)-1)/2
+			!do m=-(Ns(1)-1)/2,(Ns(1)+1)/2
+			do n=1,Ns2
+				call latt_one2two(n,Ns,ik)
+				k=(/2d0*pi/Ns(1)*ik(1),2*pi/Ns(2)*ik(2)+pi/Ns(2)/)-pi
+				!k=2d0*pi*(/real(n*Ns(1)+m)/Ns2,real(-n+m*Ns(1))/Ns2/)
 				if(abs(k(1))+abs(k(2))>pi) then
 					cycle
 				endif
@@ -115,7 +115,7 @@ contains
 				!write(10,"(es10.2$)")k,a
 				!write(10,"(1x)")
 			enddo
-		enddo
+		!enddo
 		dwf=dwf/Ns2
 		wf=wf/Ns2
 		!do i=1,Ns2
@@ -153,8 +153,8 @@ contains
 		D(Ns2+1:2*Ns2,1:Ns2)=-transpose((H(Ns2+1:2*Ns2,1:Ns2)))
 		D(1:Ns2,Ns2+1:Ns2*2)=transpose(conjg(H(Ns2+1:2*Ns2,Ns2+1:2*Ns2)))
 		D(Ns2+1:2*Ns2,Ns2+1:Ns2*2)=transpose(H(1:Ns2,1:Ns2))
-		call matrix_inv(D(1:Ns2,1:Ns2))
-		call matrix_inv(D(Ns2+1:2*Ns2,1:Ns2))
+		call mat_inv(D(1:Ns2,1:Ns2))
+		call mat_inv(D(Ns2+1:2*Ns2,1:Ns2))
 		do i=1,Ns2
 			do j=1,Ns2
 				!do n=1,Ns2*2
@@ -198,8 +198,8 @@ contains
 			D(Ns2+1:2*Ns2,1:Ns2)=-transpose((H(Ns2+1:2*Ns2,1:Ns2)))
 			D(1:Ns2,Ns2+1:Ns2*2)=transpose(conjg(H(Ns2+1:2*Ns2,Ns2+1:2*Ns2)))
 			D(Ns2+1:2*Ns2,Ns2+1:Ns2*2)=transpose(H(1:Ns2,1:Ns2))
-			call matrix_inv(D(1:Ns2,1:Ns2))
-			call matrix_inv(D(Ns2+1:2*Ns2,1:Ns2))
+			call mat_inv(D(1:Ns2,1:Ns2))
+			call mat_inv(D(Ns2+1:2*Ns2,1:Ns2))
 			do i=1,Ns2
 				do j=1,Ns2
 					dwf(i,j,n)=dwf(i,j,n)+sum(&
@@ -265,7 +265,7 @@ contains
 			enddo
 		enddo
 		iA=A
-		call matrix_inv(iA)
+		call mat_inv(iA)
 		do
 			n=n+1
 			call rtwosite(i,j,sg)
@@ -313,7 +313,7 @@ contains
 				if(mod(n,500)==0) then
 					!write(*,"(I9,E14.3$)")n,rpb
 					iA=A
-					call matrix_inv(iA)
+					call mat_inv(iA)
 					!write(*,"(E14.3)")rpb
 				endif
 			endif
@@ -523,9 +523,9 @@ contains
 							enddo
 						endif
 						call det(vu,cr,A,iA,Y,pb,sg)
-						!if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
-							!pb=-pb
-						!endif
+						if(abs(cfg(i)-cfg(j))>Ns(1)*3) then
+							pb=-pb
+						endif
 						!El=El-t(inb)*real(dconjg(pb))
 						El=El-t(inb)*dconjg(pb)
 						cycle
@@ -534,7 +534,7 @@ contains
 						cycle
 					endif
 					El=El+0.5d0*V
-					!El=El+0.125d0*DJ
+					El=El+0.125d0*DJ
 					if(j>ne2.and.i<=ne2) then
 						!diagnal
 						El=El-0.5d0*DJ
@@ -625,18 +625,21 @@ contains
 			Sv=Sv/n
 			gv=2d0*gv/n
 			er=sqrt(abs(er/n-abs(Ev)**2))
-			!Sv(:,3:4)=0d0
-			!Sv(3:4,:)=0d0
-			!Sv(:,6)=0d0
-			!Sv(6,:)=0d0
+			Sv(:,5:6)=0d0
+			Sv(5:6,:)=0d0
+			Sv(:,3)=0d0
+			Sv(3,:)=0d0
+			Sv(:,1)=0d0
+			Sv(1,:)=0d0
 			Sv=Sv+diag(1d-2,size(Sv,1))
 			call heevd(Sv,eg,"V")
 			!write(*,*)sum(abs(matmul(matmul(Sv,diag(eg)),dconjg(transpose(Sv)))-tmp)),eg(vn)/eg(1)
 			!if(eg(1)<=0d0) then
 			!write(*,*)"S matrix is not positive define or singular"
 			!endif
-			!gv(3:4)=0d0
-			!gv(6)=0d0
+			gv(5:6)=0d0
+			gv(3)=0d0
+			gv(1)=0d0
 			!dvar=real(matmul(matmul(matmul(Sv,diag(1d0/eg)),dconjg(transpose(Sv))),gv))
 			do i=1,vn
 				dvar(i)=0d0
@@ -718,12 +721,13 @@ program main
 	call latt(Ns,Tx,Ty,neb)
 	n=32
 	do i=4,20,1
-		var=(/1d-1,0d0,0d0,0d0,0d0,0d0/)
-		var=(/6.72658E-02,-4.57858E-02,7.89528E-02,1.99349E-01,2.38169E-02,1.50484E-01/)
+		var=(/1d-4,0d0,0d0,1d-1,0d0,0d0/)
+		!var=(/6.72658E-02,-4.57858E-02,7.89528E-02,1.99349E-01,2.38169E-02,1.50484E-01/)
 		!var=(/1d-1,0d0,1d-1,1d-1,0d0,0d0/)
 		!var(4)=1d-2*10**(i/10d0)
 		!var(4)=0d0
 		ne=Ns2-i*2
+		ne=Ns2*7/8
 		!read(21,rec=i+1,fmt="(I4,5e16.8)")ne,var
 		ne2=ne/2
 		!Nmc(1:2)=(/5000*Ns2,5*Ns2/)*(i+1)

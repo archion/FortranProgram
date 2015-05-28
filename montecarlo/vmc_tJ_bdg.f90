@@ -154,7 +154,7 @@ contains
 			call getmat(wf,i,cfg,A(i,:),flag,dwf,dA(i,:,:))
 		enddo
 		iA=A
-		call matrix_inv(iA)
+		call mat_inv(iA)
 		do
 			n=n+1
 			call two(i,j)
@@ -169,7 +169,7 @@ contains
 				!write(*,"(es9.2)")sum(abs(matmul(A,iA)-diag(1d0,size(A,1))))
 				if(mod(n,500)==0) then
 					iA=A
-					call matrix_inv(iA)
+					call mat_inv(iA)
 				endif
 				!if(n>Nmc(1)) then
 					!call checkcfg(icfg,100)

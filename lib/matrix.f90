@@ -14,9 +14,11 @@ contains
 		pb=0d0
 		n=size(A,1)
 		c=c-A(ci,:)
+		!!$OMP PARALLEL DO REDUCTION(+:pb)
 		do i=1,n
 			pb=pb+c(i)*iA(i,ci)
 		enddo
+		!!$OMP END PARALLEL DO
 		pb=pb+1d0
 	end subroutine
 	subroutine det_ratio_col(c,cj,A,iA,pb)
@@ -25,9 +27,11 @@ contains
 		pb=0d0
 		n=size(A,1)
 		c=c-A(:,cj)
+		!!$OMP PARALLEL DO REDUCTION(+:pb)
 		do i=1,n
 			pb=pb+iA(cj,i)*c(i)
 		enddo
+		!!$OMP END PARALLEL DO
 		pb=pb+1
 	end subroutine
 	subroutine det_ratio_rowcol(c,ij,A,iA,iY,pb)
@@ -39,6 +43,7 @@ contains
 		c(ij(2),1)=0d0
 		c(:,2)=c(:,2)-A(:,ij(2))
 		iY(2,1)=-iA(ij(2),ij(1))
+		!!$OMP PARALLEL DO REDUCTION(+:iY)
 		do i=1,n
 			iY(1,1)=iY(1,1)+iA(ij(2),i)*c(i,2)
 			iY(2,2)=iY(2,2)+c(i,1)*iA(i,ij(1))
@@ -46,6 +51,7 @@ contains
 				iY(1,2)=iY(1,2)-c(i,1)*iA(i,j)*c(j,2)
 			enddo
 		enddo
+		!!$OMP END PARALLEL DO
 		iY(1,1)=iY(1,1)+1d0
 		iY(2,2)=iY(2,2)+1d0
 		pb=iY(1,1)*iY(2,2)-iY(1,2)*iY(2,1)
@@ -58,12 +64,14 @@ contains
 		n=size(A,1)
 		c(:,1)=c(:,1)-A(ij(1),:)
 		c(:,2)=c(:,2)-A(ij(2),:)
+		!!$OMP PARALLEL DO REDUCTION(+:iY)
 		do i=1,n
 			iY(1,1)=iY(1,1)+iA(i,ij(2))*c(i,2)
 			iY(2,2)=iY(2,2)+c(i,1)*iA(i,ij(1))
 			iY(1,2)=iY(1,2)-c(i,1)*iA(i,ij(2))
 			iY(2,1)=iY(2,1)-c(i,2)*iA(i,ij(1))
 		enddo
+		!!$OMP END PARALLEL DO
 		iY(1,1)=iY(1,1)+1d0
 		iY(2,2)=iY(2,2)+1d0
 		pb=iY(1,1)*iY(2,2)-iY(1,2)*iY(2,1)
@@ -78,16 +86,20 @@ contains
 		allocate(tmp1(n),tmp2(n,n))
 		tmp1=0d0
 		A(ci,:)=A(ci,:)+c
+		!!$OMP PARALLEL DO REDUCTION(+:tmp1)
 		do i=1,n
 			do j=1,n
 				tmp1(i)=tmp1(i)+c(j)*iA(j,i)
 			enddo
 		enddo
+		!!$OMP END PARALLEL DO
+		!!$OMP PARALLEL DO REDUCTION(+:tmp2)
 		do i=1,n
 			do j=1,n
 				tmp2(i,j)=iA(i,j)-ipb*iA(i,ci)*tmp1(j)
 			enddo
 		enddo
+		!!$OMP END PARALLEL DO
 		iA=tmp2
 	end subroutine
 	subroutine inv_update_col(c,cj,pb,A,iA)
@@ -99,16 +111,20 @@ contains
 		allocate(tmp1(n),tmp2(n,n))
 		tmp1=0d0
 		A(:,cj)=A(:,cj)+c
+		!!$OMP PARALLEL DO REDUCTION(+:tmp1)
 		do i=1,n
 			do j=1,n
 				tmp1(i)=tmp1(i)+iA(i,j)*c(j)
 			enddo
 		enddo
+		!!$OMP END PARALLEL DO
+		!!$OMP PARALLEL DO REDUCTION(+:tmp2)
 		do i=1,n
 			do j=1,n
 				tmp2(i,j)=iA(i,j)-ipb*tmp1(i)*iA(cj,j)
 			enddo
 		enddo
+		!!$OMP END PARALLEL DO
 		iA=tmp2
 	end subroutine
 	subroutine inv_update_rowcol(c,ij,iY,A,iA)
@@ -120,18 +136,22 @@ contains
 		tmp1=0d0
 		A(ij(1),:)=A(ij(1),:)+c(:,1)
 		A(:,ij(2))=A(:,ij(2))+c(:,2)
+		!!$OMP PARALLEL DO REDUCTION(+:tmp1)
 		do i=1,n
 			do j=1,n
 				tmp1(i,1)=tmp1(i,1)+c(j,1)*iA(j,i)
 				tmp1(i,2)=tmp1(i,2)+iA(i,j)*c(j,2)
 			enddo
 		enddo
+		!!$OMP END PARALLEL DO
+		!!$OMP PARALLEL DO REDUCTION(+:tmp2)
 		do i=1,n
 			do j=1,n
 				tmp2(i,j)=iA(i,j)-((iA(i,ij(1))*iY(1,1)+tmp1(i,2)*iY(2,1))*tmp1(j,1)+&
 					(iA(i,ij(1))*iY(1,2)+tmp1(i,2)*iY(2,2))*iA(ij(2),j))
 			enddo
 		enddo
+		!!$OMP END PARALLEL DO
 		iA=tmp2
 	end subroutine
 	subroutine inv_update_tworow(c,ij,iY,A,iA)
@@ -143,21 +163,25 @@ contains
 		tmp1=0d0
 		A(ij(1),:)=A(ij(1),:)+c(:,1)
 		A(ij(2),:)=A(ij(2),:)+c(:,2)
+		!!$OMP PARALLEL DO REDUCTION(+:tmp1)
 		do i=1,n
 			do j=1,n
 				tmp1(i,1)=tmp1(i,1)+c(j,1)*iA(j,i)
 				tmp1(i,2)=tmp1(i,2)+c(j,2)*iA(j,i)
 			enddo
 		enddo
+		!!$OMP END PARALLEL DO
+		!!$OMP PARALLEL DO REDUCTION(+:tmp2)
 		do i=1,n
 			do j=1,n
 				tmp2(i,j)=iA(i,j)-((iA(i,ij(1))*iY(1,1)+iA(i,ij(2))*iY(2,1))*tmp1(j,1)+&
 					(iA(i,ij(1))*iY(1,2)+iA(i,ij(2))*iY(2,2))*tmp1(j,2))
 			enddo
 		enddo
+		!!$OMP END PARALLEL DO
 		iA=tmp2
 	end subroutine
-	subroutine matrix_inv(A)
+	subroutine mat_inv(A)
 		complex(8) :: A(:,:)
 		integer :: ipiv(size(A,1)),info
 		call getrf(A,ipiv,info)
@@ -201,7 +225,7 @@ contains
 			enddo
 		enddo
 	end function
-	!subroutine matrix_inv(a)
+	!subroutine mat_inv(a)
 		!writen by myself, not quite work
 		!implicit none
 		!complex(8) :: a(:,:)

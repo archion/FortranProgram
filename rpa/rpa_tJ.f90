@@ -537,7 +537,7 @@ program main
 			do j=1,mq
 				Gf(:,i,j,:,:)=G0_inv(:,i,j,:,:)-sfeg(:,i,j,:,:)
 				do l=1,mo
-					call matrix_inv(Gf(l,i,j,:,:))
+					call mat_inv(Gf(l,i,j,:,:))
 				enddo
 				call pade(iomgf(1:mo/2),Gf(1:mo/2,i,j,1,1),romg,rGf(:,i,j,1,1))
 			enddo

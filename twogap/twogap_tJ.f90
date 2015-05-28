@@ -321,6 +321,7 @@ contains
 		endif
 		pg=max(pg,0.1d0)
 		sc=max(sc,0.1d0)
+		!sc=0d0
 		ap=max(ap,0.1d0)
 		do 
 			al=0.2d0
@@ -348,10 +349,10 @@ contains
 				endif
 				cp=cp-al*sign(1d0,np-nf)
 			enddo
-			if(sig==0) then
-				scp=sc
-				pgp=pg
-			endif
+			!if(sig==0) then
+				!scp=sc
+				!pgp=pg
+			!endif
 			if((abs(scp-sc)+abs(pgp-pg)+abs(app-ap))<cvg*3d0) then
 				exit
 			endif
@@ -435,8 +436,8 @@ contains
 		complex(8) :: Uk(4,4),tmp,id
 		real(8) :: k(2),cp,bt,sc,pg,ek(4),gm(4,2),Tr(2),fk(4),omg,omgr(:),domg,Tk,peak(3,2),R_rpa,pk(2),DJp,ap,dp,R(2),pR(2,2),nf,&
 			Rs(4,2),pRs(2,4,2)
-		id=(0d0,0.003d0)
-		!id=(0d0,0.04d0)
+		!id=(0d0,0.003d0)
+		id=(0d0,0.04d0)
 		mr=512
 		pR=0d0
 		pRs=0d0
@@ -501,12 +502,12 @@ contains
 			!R_rpa=-dimag(R(1))/((1d0+DJp*dreal(R(1)))**2+(DJp*dimag(R(1)))**2)
 			!write(50,"(e16.8$)")omg,-dimag(R),R_rpa,Djp,dreal(R(1)),(1d0+DJp*dreal(R(1)))**2+(DJp*dimag(R(1)))**2
 			!write(50,"(e16.5$)")omg,R
-			write(50,"(e16.5$)")omg,Rs(:,1)
+			write(50,"(e16.5$)")nf,Tk,pg*Vd*4d0,sc*Vs*4d0,omg,Rs(:,1),Rs(:,2)
 			!do i=1,2
 				!call find_peak(pR(:,i),R(i),sg)
 				!write(50,"(i3$)")sg
 			!enddo
-			do j=1,1
+			do j=1,2
 				do i=1,4
 					call find_peak(pRs(:,i,j),Rs(i,j),sg)
 					write(50,"(i3$)")sg
@@ -657,8 +658,8 @@ contains
 		integer :: sg,isg
 		write(*,"(x)")
 		write(*,*)"*******findTc********"
-		mTk=5d-4
-		zo=1d-4
+		mTk=2d-4
+		zo=1d-3
 		Tc=max(Tc,0.01d0)
 		dTk=Tc*0.2d0
 		Tk=Tc*0.5d0
@@ -767,11 +768,11 @@ program main
 	implicit none
 	complex(8) :: Uk(4,4)
 	real(8) :: kf(2),cp,sc,pg,ap,gap,Tk,pk0(2),pk(2),&
-		nd(1)=(/0.135/),&
+		!nd(1)=(/0.13/),&
 		!nd(12)=(/0.05d0,0.07d0,0.09d0,0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0,0.25d0/),&
-		!nd(8)=(/0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0,0.2d0/),&
+		nd(8)=(/0.1d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0,0.2d0/),&
 		!nd(9)=(/0.08d0,0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0/),&
-		Td(20),nf,Tc,Tp
+		Td(14)=(/0.0d0,0.2d0,0.4d0,0.45d0,0.5d0,0.55d0,0.6d0,0.65d0,0.7d0,0.75d0,0.8d0,0.85d0,0.9d0,1d0/),nf,Tc,Tp
 	integer :: i,j,l
 	logical :: f
 	if(pgflag=="ddw".or.pgflag=="sdw") then
@@ -792,7 +793,7 @@ program main
 	!write(*,"(e12.4$)")Tk,superfluid(1d0,1d0,0d0,-0.7d0,0.8d0,0.002d0)
 	!stop
 	!call phasediagram((/0.9d0,0.83d0,-0.01d0/))
-	do i=1,size(nd)
+	do i=7,size(nd)
 		nf=1d0-nd(i)
 		write(*,"(e12.4$)")nf
 		!pg=0.049d0*(1d0-(1d0-nf)/0.2d0)
@@ -801,12 +802,11 @@ program main
 		!write(30,"(e12.4$)")nd(i),superfluid(pg,sc,0d0,cp,0d0,1d-4)
 		!write(30,"(x)")
 		!cycle
-		!call findTc(nf,Tc,0)
-		Tc=0.5937E-02
+		call findTc(nf,Tc,0)
 		write(*,*)"*******findTc finish********"
 		write(*,"(1x,e12.4$)")Tc
-		call findTc(nf,Tp,1)
-		write(*,"(e12.4$)")Tp
+		!call findTc(nf,Tp,1)
+		!write(*,"(e12.4$)")Tp
 		!call selforder(pg,sc,ap,cp,nf,Tp,1)
 		!call band(pg,sc,ap,cp,nf,Tp,(/pi,pi/2d0/),(/pi,0d0/))
 		do j=0,size(Td)-1
@@ -816,21 +816,26 @@ program main
 			!if(j/=0.and.j/=6.and.j/=9) then
 				!cycle
 			!endif
-			Tk=max(j*max(Tc,Tp)/(size(Td)-1),1d-5)
+			!Tk=max(j*max(Tc,Tp)/(size(Td)-1),1d-5)
 			!Tk=max(j*Tc/(size(Td)-1),1d-5)
+			Tk=max(Tc*Td(j+1),1d-5)
+			!Tk=max(j*Tp/(size(Td)-1),1d-5)
 			!write(*,"(e12.4$)")Tk/Tc
 			!write(70,"(e12.4$)")nd(i),Tk/Tc
 			write(*,"(e12.4$)")Tk
 			write(70,"(e12.4$)")nd(i),Tk
+			sc=0d0
 			call selforder(pg,sc,ap,cp,nf,Tk,1)
-			call EDC((/pi,0.42951462d+00/),pg,sc,ap,cp,nf,Tk,(/-0.5d0,0.01d0,0.0001d0/))
+			!call EDC((/pi,0.42951462d+00/),pg,sc,ap,cp,nf,Tk,(/-0.5d0,0.01d0,0.0001d0/))
 			!call selfconsist_tg(nf,Tk,sc,pg,ap,cp)
-			if(pg<5d-3) then
+			if(pg<1d-3) then
 				pg=1d-10
 			endif
 			write(*,"(e12.4$)")pg,sc,cp
-			write(40,"(e12.4$)")nf,Tk/Tc,pg,sc,cp
+			!write(40,"(e12.4$)")nf,Tk/Tc,pg,sc,cp
+			write(40,"(e12.4$)")Tk,pg*Vd*4d0,sc*Vs*4d0
 			!call raman(pg,sc,ap,cp,nf,Tk,(/0d0,0.4d0,0.0002d0/),pk)
+			call raman(pg,sc,ap,cp,nf,Tk,(/0d0,0.4d0,0.0002d0/),pk)
 			!write(30,"(e12.4$)")Tk,superfluid(pg,sc,ap,cp,nf,Tk)
 			!write(30,"(e12.4$)")Tk,superfluid(pg,sc,ap,cp,nf,Tk),superfluid(0d0,sc,ap,cp,nf,Tk),superfluid(pg,sc,ap,0d0,nf,Tk),superfluid(0d0,sc,ap,0d0,nf,Tk)
 			!write(30,"(e12.4$)")Tk,superfluid(pg,sc,0d0,cp,0d0,Tk)
