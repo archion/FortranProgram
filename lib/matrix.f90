@@ -181,18 +181,30 @@ contains
 		!!$OMP END PARALLEL DO
 		iA=tmp2
 	end subroutine
-	subroutine mat_inv(A)
+	subroutine mat_inv(A,info)
 		complex(8) :: A(:,:)
-		integer :: ipiv(size(A,1)),info
-		call getrf(A,ipiv,info)
-		if(info/=0) then
-			write(*,*)"error1",info
-			stop
+		integer :: ipiv(size(A,1)),info1
+		integer, optional :: info
+		if(present(info)) then
+			info=0
 		endif
-		call getri(A,ipiv,info)
-		if(info/=0) then
-			write(*,*)"error2",info
-			stop
+		call getrf(A,ipiv,info1)
+		if(info1/=0) then
+			if(present(info)) then
+				info=info1
+				return
+			else
+				stop "inverse matrix err1"
+			endif
+		endif
+		call getri(A,ipiv,info1)
+		if(info1/=0) then
+			if(present(info)) then
+				info=info1
+				return
+			else
+				stop "inverse matrix err2"
+			endif
 		endif
 	end subroutine
 	function mdiag(a)

@@ -17,7 +17,13 @@ contains
 		do i=1,size(A,1)
 			!write(f,"(sp,e16.4,e11.4'I'$)")A(i,:)
 			!write(f,"(sp,e10.2','e9.2$)")A(i,:)
-			write(f,"(e16.4$)")real(A(i,:))
+			write(f,"(es12.4$)")real(A(i,:))
+			write(f,"(1X)")
+		enddo
+		do i=1,size(A,1)
+			!write(f,"(sp,e16.4,e11.4'I'$)")A(i,:)
+			!write(f,"(sp,e10.2','e9.2$)")A(i,:)
+			write(f,"(es12.4$)")imag(A(i,:))
 			write(f,"(1X)")
 		enddo
 		write(f,"(1X)")
@@ -26,7 +32,7 @@ contains
 		real(8) :: A(:,:)
 		integer :: f,i
 		do i=1,size(A,1)
-			write(f,"(e16.4$)")A(i,:)
+			write(f,"(es12.4$)")A(i,:)
 			write(f,"(1X)")
 		enddo
 		write(f,"(1X)")

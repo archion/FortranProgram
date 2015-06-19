@@ -2,17 +2,17 @@ module M_pmt
 	use M_const
 	use M_utility
 	use M_latt, only : &
-		 latt         =>  square_tilda         ,& 
-		 latt_bc      =>  square_tilda_bc      ,& 
-		 latt_one2two =>  square_tilda_one2two ,& 
-		 latt_two2one =>  square_tilda_two2one 
-		 !latt         =>  square         ,& 
-		 !latt_bc      =>  square_bc      ,& 
-		 !latt_one2two =>  square_one2two ,& 
-		 !latt_two2one =>  square_two2one 
+		 !latt         =>  square_tilda         ,& 
+		 !latt_bc      =>  square_tilda_bc      ,& 
+		 !latt_one2two =>  square_tilda_one2two ,& 
+		 !latt_two2one =>  square_tilda_two2one 
+		 latt         =>  square         ,& 
+		 latt_bc      =>  square_bc      ,& 
+		 latt_one2two =>  square_one2two ,& 
+		 latt_two2one =>  square_two2one 
 	implicit none
-	integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),vn=7
-	!integer, parameter :: Ns(2)=(/8,8/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=7
+	!integer, parameter :: Ns(2)=(/9,10/),Ns2=Ns(1)**2+1,Tx(2)=(/Ns(1),-1/),Ty(2)=(/1,Ns(1)/),vn=7
+	integer, parameter :: Ns(2)=(/12,12/),Ns2=Ns(1)**2,Tx(2)=(/Ns(1),0/),Ty(2)=(/0,Ns(1)/),vn=7
 	integer :: neb(Ns2,4,3),ne=Ns2,ne2=Ns2/2
 	real(8), parameter :: t(1)=(/1d0/)
 end module
@@ -460,8 +460,8 @@ module M_tJ
 	use M_rd
 	use M_mc_matrix
 	implicit none
-	!real(8) :: DJ=1d0/3d0,V=0d0
-	real(8), parameter :: DJ=0.4d0,V=0d0
+	real(8) :: DJ=1d0/3d0,V=2d0
+	!real(8), parameter :: DJ=0.4d0,V=0d0
 contains
 	subroutine two(i,j,nd,sg)
 		integer :: i,j,sg,n,n1,n0,nd
@@ -818,8 +818,8 @@ contains
 end module
 
 module M_vmc
-	!use M_tJ
-	use M_hubbard
+	use M_tJ
+	!use M_hubbard
 	use M_wf, iniwf => wf_r
 	implicit none
 contains
@@ -959,7 +959,7 @@ contains
 	end subroutine
 	subroutine variational(var,Nmc,cfg,nd)
 		use lapack95, only: heevd,heevr
-		real(8) :: var(:),dvar(size(var)),pvar(size(var)),eg(size(var)),dt=0.02d0,allE(300),scv,var_av(size(var))
+		real(8) :: var(:),dvar(size(var)),pvar(size(var)),eg(size(var)),dt=0.1d0,allE(300),scv,var_av(size(var))
 		complex(8) :: wf(Ns2*2,Ns2),dwf(Ns2*2,Ns2,vn),g(size(var)),S(size(g),size(g)),S_omp(size(g),size(g)),g_omp(size(g))
 		integer :: n,i,j,k,info,Nmc(:),nm,l,nav
 		integer :: cfg(Ns2),nd,cfg_omp(Ns2),nd_omp
@@ -1007,7 +1007,7 @@ contains
 				er=sqrt(abs(er/n-phyval**2))
 			!endif
 			S=S+diag(1d-2,size(S,1))
-			call zero(S,g,(/3,5,6,7,9/))
+			call zero(S,g,(/3,6,7,9/))
 			call heevd(S,eg,"V")
 			!eg=eg+1d-1
 			!write(*,*)eg
@@ -1112,15 +1112,18 @@ program main
 	call fisher_yates_shuffle(cfg,Ns2)
 	!var=(/1.91d-01,-2.50d-01,0d0,0d0,0d0,0d0,0d0,0d0,0d0/)
 	!var=(/1d-1,0d0,0d0,0d0,1d-1,0d0,0d0,0d0,0d0/)+1d-3
-	var=(/1d-1,0d0,0d0,1d-1,0d0,0d0,0d0,1d0,0d0/)
+	var=(/1d-1,-2d-1,0d0,1d-1,1d-1,0d0,0d0,1d0,0d0/)
+	var(:5)=(/4.33265d-02,-4.95483d-01,0d0,1.07874d-02*2,1.85633d-01/)
+	var(:5)=(/1.00000d-01,-3.60555d-01,0d0,1.00000d-01*2,1.00000d-01/)
 	!do i=0,20,1
 		!V=V+0.5
 		!write(*,*)V
-	do i=0,16,1
+	do i=14,16,1
 		!var(1)=var(1)+0.02
 		!ne=int(Ns2*(40-i)/40d0)
 		!ne=int(Ns2*(40-7)/40d0)
 		!ne=Ns2*7/8
+		ne=Ns2-14
 		ne=ne+mod(ne,2)
 		!read(30,rec=i+1,fmt="(i4,7es13.5)")ne,var
 		ne2=ne/2

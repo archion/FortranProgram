@@ -322,6 +322,7 @@ contains
 		pg=max(pg,0.1d0)
 		sc=max(sc,0.1d0)
 		!sc=0d0
+		!pg=0d0
 		ap=max(ap,0.1d0)
 		do 
 			al=0.2d0
@@ -548,7 +549,7 @@ contains
 	subroutine DOS(nf,pg,sc,ap,cp,Tk,omgr)
 		integer :: i,j,sg
 		complex(8) :: Uk(4,4),id
-		real(8) :: k(2),cp,bt,sc,pg,ek(4),fk(4),A(4),pA(2,4),omg,omgr(2),domg,Tk,ap,nf
+		real(8) :: k(2),cp,bt,sc,pg,ek(4),fk(4),A(4),pA(2,4),omg,omgr(:),domg,Tk,ap,nf
 		open(unit=90,file="../data/DOS.dat")
 		bt=1d0/Tk
 		id=(0d0,0.003d0)
@@ -588,13 +589,13 @@ contains
 		bt=1d0/Tk
 		omg=omgr(1)
 		domg=omgr(3)
-		call EU1(k,nf,pg,sc,ap,cp,ek,Uk)
-		!call EU2(k,nf,pg,sc,ap,cp,ek,Uk)
+		!call EU1(k,nf,pg,sc,ap,cp,ek,Uk)
+		call EU2(k,nf,pg,sc,ap,cp,ek,Uk)
 		fk=1d0/(1d0+exp(bt*ek))
 		do while(omg<omgr(2))
 			omg=omg+domg
 			!A=-sum(DIMAG(fk*Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*400d0)))
-			A=-sum(dimag(fk*Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*40d0)))
+			A=-sum(dimag(Uk(1,:)*dconjg(Uk(1,:))/(omg-ek+img*domg*40d0)))
 			call find_peak(pA,A,sg)
 			write(30,"(e16.8$)")omg,A
 			write(30,"(i2$)")sg
@@ -615,14 +616,14 @@ contains
 				kn=kn+(kf(j:j+1)-ki(j:j+1))/m
 				call EU2(kn,nf,pg,sc,ap,cp,ek,Uk)
 				!write(10,"(i4$)")j
-				write(10,"(e16.8$)")(ek(l),abs(Uk(1,l)),l=1,4)
+				write(10,"(e16.8$)")nf,Tk,kn,(ek(l),abs(Uk(1,l)),l=1,4)
 				do i=1,4
 					call find_peak(pek(:,i),abs(ek(i)),sg)
 					write(10,"(i3$)")sg
 				enddo
 				write(10,"(e16.8$)")&
-					-0.5d0*(cos(kn(1))-cos(kn(2)))*sc*Vs*4d0,-0.5d0*(cos(kn(1))-cos(kn(2)))*pg*Vd*4d0,kn
-				!-0.5d0*(cos(kn(1))-cos(kn(2)))*sc*Vs*4d0,pg*Vd*4d0
+					!-0.5d0*(cos(kn(1))-cos(kn(2)))*sc*Vs*4d0,-0.5d0*(cos(kn(1))-cos(kn(2)))*pg*Vd*4d0,kn
+				-0.5d0*(cos(kn(1))-cos(kn(2)))*sc*Vs*4d0,pg*Vd*4d0
 				write(10,"(1X)")
 				!j=j+1
 			enddo
@@ -768,11 +769,14 @@ program main
 	implicit none
 	complex(8) :: Uk(4,4)
 	real(8) :: kf(2),cp,sc,pg,ap,gap,Tk,pk0(2),pk(2),&
-		!nd(1)=(/0.13/),&
+		!nd(3)=(/0.10d0,0.13d0,0.15d0/),&
+		nd(1)=(/0.135d0/),&
 		!nd(12)=(/0.05d0,0.07d0,0.09d0,0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0,0.25d0/),&
-		nd(8)=(/0.1d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0,0.2d0/),&
+		!nd(8)=(/0.1d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0,0.2d0/),&
 		!nd(9)=(/0.08d0,0.1d0,0.12d0,0.125d0,0.13d0,0.135d0,0.145d0,0.15d0,0.18d0/),&
-		Td(14)=(/0.0d0,0.2d0,0.4d0,0.45d0,0.5d0,0.55d0,0.6d0,0.65d0,0.7d0,0.75d0,0.8d0,0.85d0,0.9d0,1d0/),nf,Tc,Tp
+		!Td(14)=(/0.0d0,0.2d0,0.4d0,0.45d0,0.5d0,0.55d0,0.6d0,0.65d0,0.7d0,0.75d0,0.8d0,0.85d0,0.9d0,1d0/),&
+		Td(16),&
+			nf,Tc,Tp
 	integer :: i,j,l
 	logical :: f
 	if(pgflag=="ddw".or.pgflag=="sdw") then
@@ -793,7 +797,7 @@ program main
 	!write(*,"(e12.4$)")Tk,superfluid(1d0,1d0,0d0,-0.7d0,0.8d0,0.002d0)
 	!stop
 	!call phasediagram((/0.9d0,0.83d0,-0.01d0/))
-	do i=7,size(nd)
+	do i=1,size(nd)
 		nf=1d0-nd(i)
 		write(*,"(e12.4$)")nf
 		!pg=0.049d0*(1d0-(1d0-nf)/0.2d0)
@@ -802,13 +806,14 @@ program main
 		!write(30,"(e12.4$)")nd(i),superfluid(pg,sc,0d0,cp,0d0,1d-4)
 		!write(30,"(x)")
 		!cycle
-		call findTc(nf,Tc,0)
+		!call findTc(nf,Tc,0)
 		write(*,*)"*******findTc finish********"
 		write(*,"(1x,e12.4$)")Tc
 		!call findTc(nf,Tp,1)
 		!write(*,"(e12.4$)")Tp
 		!call selforder(pg,sc,ap,cp,nf,Tp,1)
 		!call band(pg,sc,ap,cp,nf,Tp,(/pi,pi/2d0/),(/pi,0d0/))
+		!stop
 		do j=0,size(Td)-1
 			if(Tc<1d-10) then
 				cycle
@@ -817,25 +822,26 @@ program main
 				!cycle
 			!endif
 			!Tk=max(j*max(Tc,Tp)/(size(Td)-1),1d-5)
+			Tk=max(j*max(0d0,Tc)/(size(Td)-1),1d-5)
 			!Tk=max(j*Tc/(size(Td)-1),1d-5)
-			Tk=max(Tc*Td(j+1),1d-5)
+			!Tk=max(Tc*Td(j+1),1d-5)
 			!Tk=max(j*Tp/(size(Td)-1),1d-5)
 			!write(*,"(e12.4$)")Tk/Tc
 			!write(70,"(e12.4$)")nd(i),Tk/Tc
 			write(*,"(e12.4$)")Tk
 			write(70,"(e12.4$)")nd(i),Tk
-			sc=0d0
+			!sc=0d0
 			call selforder(pg,sc,ap,cp,nf,Tk,1)
-			!call EDC((/pi,0.42951462d+00/),pg,sc,ap,cp,nf,Tk,(/-0.5d0,0.01d0,0.0001d0/))
+			call EDC((/pi,0.52768939d0/),pg,sc,ap,cp,nf,Tk,(/-0.5d0,0.7d0,0.0001d0/))
 			!call selfconsist_tg(nf,Tk,sc,pg,ap,cp)
 			if(pg<1d-3) then
 				pg=1d-10
 			endif
-			write(*,"(e12.4$)")pg,sc,cp
+			write(*,"(e12.4$)")pg,sc,cp,ap
 			!write(40,"(e12.4$)")nf,Tk/Tc,pg,sc,cp
-			write(40,"(e12.4$)")Tk,pg*Vd*4d0,sc*Vs*4d0
+			write(40,"(e12.4$)")Tk,pg*Vd*4d0,sc*Vs*4d0,pg,sc,cp,ap
 			!call raman(pg,sc,ap,cp,nf,Tk,(/0d0,0.4d0,0.0002d0/),pk)
-			call raman(pg,sc,ap,cp,nf,Tk,(/0d0,0.4d0,0.0002d0/),pk)
+			!call raman(pg,sc,ap,cp,nf,Tk,(/0d0,0.4d0,0.0002d0/),pk)
 			!write(30,"(e12.4$)")Tk,superfluid(pg,sc,ap,cp,nf,Tk)
 			!write(30,"(e12.4$)")Tk,superfluid(pg,sc,ap,cp,nf,Tk),superfluid(0d0,sc,ap,cp,nf,Tk),superfluid(pg,sc,ap,0d0,nf,Tk),superfluid(0d0,sc,ap,0d0,nf,Tk)
 			!write(30,"(e12.4$)")Tk,superfluid(pg,sc,0d0,cp,0d0,Tk)
@@ -845,6 +851,7 @@ program main
 			!write(70,"(e12.4$)")pk/pk0
 			!sc=0d0
 			!call band(pg,sc,ap,cp,nf,Tk,(/pi,pi/2d0,pi,0d0,pi,0d0/),(/pi,0d0,pi/2d0,pi/2d0,pi/2d0,0d0/))
+			!call band(pg,sc,ap,cp,nf,Tk,(/pi,pi/2d0/),(/pi,0d0/))
 			!call DOS(nf,pg,sc,ap,cp,Tk,(/-0.4d0,0.4d0,0.0002d0/))
 			!write(*,"(e12.4$)")nf,Tk,Tk/Tc,gap
 			!do l=0,10
@@ -856,7 +863,7 @@ program main
 			write(30,"(1X)")
 			write(80,"(1X)")
 		enddo
-		!write(10,"(1X)")
+		write(10,"(1X)")
 		write(30,"(1X)")
 		write(50,"(1X/)")
 		write(40,"(1X)")
