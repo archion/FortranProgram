@@ -1,6 +1,13 @@
 module M_utility
 	use M_rd
 	implicit none
+	type t_sort
+		real(8) :: val
+	contains
+		procedure :: swap_sort
+		procedure :: qsort
+		procedure :: collect
+	end type
 	interface mwrite
 		module procedure cmwrite,rmwrite,imwrite
 	end interface
@@ -170,4 +177,65 @@ contains
 		endif
 		openfile=.true.
 	end function
+	recursive subroutine qsort(self)
+		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
+		class(t_sort) :: self(:)
+		integer :: left,right,n
+		real(8) :: random
+		real(8) :: pivot
+		integer :: marker
+		n=size(self)
+		if(n>1) then
+			call random_number(random)
+			pivot=self(int(random*real(n-1))+1)%val   !random pivor (not best performance, but avoids worst-case)
+			left=0
+			right=n+1
+			do while (left < right)
+				right=right-1
+				do while(self(right)%val>pivot)
+					right=right-1
+				enddo
+				left=left+1
+				do while(self(left)%val<pivot)
+					left= left+1
+				enddo
+				if(left<right) then
+					call self(left)%swap_sort(self(right))
+				endif
+			end do
+			if(left==right) then
+				marker=left+1
+			else
+				marker=left
+			endif
+			call self(1:marker-1)%qsort()
+			call self(marker:n)%qsort()
+		endif
+	end subroutine
+	subroutine collect(self,a)
+		class(t_sort) :: self(:)
+		integer :: i,j,tmp(1000)
+		integer, allocatable :: a(:)
+		tmp(1)=1
+		j=1
+		do i=2,size(self)
+			if(((self(i)%val-self(i-1)%val)>1d-7)) then
+				j=j+1
+				tmp(j)=i
+			endif
+		enddo
+		j=j+1
+		tmp(j)=i
+		allocate(a(j))
+		a=tmp(:j)
+	end subroutine
+	subroutine swap_sort(self,a)
+		class(t_sort) :: self
+		class(t_sort) :: a
+		type(t_sort), allocatable :: tmp
+		allocate(tmp)
+		tmp%val=a%val
+		a%val=self%val
+		self%val=tmp%val
+	end subroutine
 end module

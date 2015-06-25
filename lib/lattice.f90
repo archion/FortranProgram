@@ -1,12 +1,14 @@
 module M_lattice
 	use M_const
+	use M_utility
 	implicit none
 	private
-	type t_sort
-		real(8) :: val
+	type, extends(t_sort) :: t_mysort
 		integer :: idx
 		real(8) :: r(2)
 		complex(8) :: bdc
+	contains
+		procedure :: swap_sort => myswap
 	end type
 	type t_nb
 		integer, allocatable :: neb(:)
@@ -16,7 +18,7 @@ module M_lattice
 	type t_neb
 		type(t_nb), allocatable :: nb(:)
 	end type
-	type t_bond
+	type ::  t_bond
 		integer :: i(2)
 		real(8) :: r(2)
 		real(8) :: dir(2)
@@ -36,6 +38,25 @@ module M_lattice
 	real(8) :: err=1d-8
 	public sub,bond,neb,i2r,T1,T2,a1,a2,Ns,bdc,gen_latt,gen_neb,gen_bond
 contains
+	subroutine myswap(self,a)
+		class(t_mysort) :: self
+		class(t_sort) :: a
+		type(t_mysort), allocatable :: tmp
+		select type(a)
+		type is (t_mysort)
+			call self%t_sort%swap_sort(a)
+			allocate(tmp)
+			tmp%idx=a%idx
+			a%idx=self%idx
+			self%idx=tmp%idx
+			tmp%r=a%r
+			a%r=self%r
+			self%r=tmp%r
+			tmp%bdc=a%bdc
+			a%bdc=self%bdc
+			self%bdc=tmp%bdc
+		end select
+	end subroutine
 	function is_in(r,T1,T2,sg)
 		logical :: is_in
 		integer, optional :: sg(2)
@@ -124,7 +145,7 @@ contains
 		Ns=Ns*nsub
 	end subroutine
 	subroutine gen_neb()
-		type(t_sort) :: tmp(Ns)
+		type(t_mysort) :: tmp(Ns)
 		real(8) :: p,dr(2)
 		integer :: i,j,k,n,sg(2),t(Ns)
 		allocate(neb(Ns))
@@ -156,14 +177,14 @@ contains
 					tmp(j)%bdc=tmp(j)%bdc*conjg(bdc(1))
 				end select
 			enddo
-			call qsort(tmp)
+			call tmp%qsort()
 			n=1
 			t(1)=1
 			do j=2,Ns
 				if((tmp(j)%val-sum(tmp(j-1)%r**2))>err) then
 					n=n+1
 					t(n)=j
-					call qsort(tmp(t(n-1):t(n)-1))
+					call tmp(t(n-1):t(n)-1)%qsort()
 				endif
 				tmp(j)%val=acos(tmp(j)%r(1)/sqrt(tmp(j)%val))
 				if(tmp(j)%r(2)<0d0) then
@@ -206,43 +227,6 @@ contains
 			allocate(bond(j)%bd(n))
 			bond(j)%bd=tmp(:n)
 		enddo
-	end subroutine
-	recursive subroutine qsort(A)
-		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
-		type(t_sort) :: A(:),tmp
-		integer :: left,right,n
-		real(8) :: random
-		real(8) :: pivot
-		integer :: marker
-		n=size(A)
-		if(n>1) then
-			call random_number(random)
-			pivot=A(int(random*real(n-1))+1)%val   !random pivor (not best performance, but avoids worst-case)
-			left=0
-			right=n+1
-			do while (left < right)
-				right=right-1
-				do while(A(right)%val>pivot)
-					right=right-1
-				enddo
-				left=left+1
-				do while(A(left)%val<pivot)
-					left= left+1
-				enddo
-				if(left<right) then
-					tmp=A(left)
-					A(left)=A(right)
-					A(right)=tmp
-				endif
-			end do
-			if(left==right) then
-				marker=left+1
-			else
-				marker=left
-			endif
-			call qsort(A(1:marker-1))
-			call qsort(A(marker:n))
-		endif
 	end subroutine
 	subroutine test()
 		integer :: i,j,n
