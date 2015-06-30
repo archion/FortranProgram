@@ -219,7 +219,7 @@ contains
 		tmp(1)=1
 		j=1
 		do i=2,size(self)
-			if(((self(i)%val-self(i-1)%val)>1d-7)) then
+			if(((self(i)%val-self(i-1)%val)>1d-6)) then
 				j=j+1
 				tmp(j)=i
 			endif

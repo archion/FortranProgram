@@ -3,7 +3,7 @@ module global
 	use M_utility
 	use M_lattice
 	implicit none
-	type t_sort
+	type t_mysort
 		real(8) :: val
 		real(8), allocatable :: var(:)
 	end type
@@ -38,16 +38,17 @@ contains
 		type(t_var) :: tmp(10)
 		call init_random_seed()
 		! lattice 
-		a1=(/1d0,0d0/)
-		a2=(/0d0,1d0/)
-		!T1=(/11d0,1d0/)
-		!T2=(/-1d0,11d0/)
-		T1=a1*16
-		T2=a2*16
+		a1=(/1d0,0d0,0d0/)
+		a2=(/0d0,1d0,0d0/)
+		T1=(/8d0,8d0,0d0/)
+		T2=(/-8d0,8d0,0d0/)
+		!T1=a1*10
+		!T2=a2*10
 		!T1=a1*10
 		!T2=a2*10
 		bdc(1)=1d0
 		bdc(2)=1d0
+		layer=1
 		allocate(sub(1,2))
 		sub(1,:)=(/0d0,0d0/)
 		call gen_latt()
@@ -74,18 +75,18 @@ contains
 		allocate(tmp(i)%bd_sg(Ns))
 		tmp(i)%bd_sg(:)=-1d0
 
-		!! d-wave sc
-		!i=i+1
-		!tmp(i)%sg=1
-		!tmp(i)%nb=1
-		!tmp(i)%val=1d-2
-		!allocate(tmp(i)%bd_sg(Nb))
-		!do k=1,Nb
-			!tmp(i)%bd_sg(k)=dwave(k)*&
-				!1d0
-			!write(101,"(2es13.2,2es13.2)")bond(1)%bd(k)%r,tmp(i)%bd_sg(k)
-		!enddo
-		!write(101,"(1x/)")
+		! d-wave sc
+		i=i+1
+		tmp(i)%sg=1
+		tmp(i)%nb=1
+		tmp(i)%val=1d-2
+		allocate(tmp(i)%bd_sg(Nb))
+		do k=1,Nb
+			tmp(i)%bd_sg(k)=dwave(k)*&
+				1d0
+			write(101,"(2es13.2,2es13.2)")bond(1)%bd(k)%r,tmp(i)%bd_sg(k)
+		enddo
+		write(101,"(1x/)")
 
 		!! stripe d-wave sc
 		!i=i+1
@@ -132,22 +133,22 @@ contains
 		!enddo
 		!write(101,"(1x/)")
 
-		! ddw
-		i=i+1
-		tmp(i)%sg=4
-		tmp(i)%nb=1
-		tmp(i)%val=3d-1
-		allocate(tmp(i)%bd_sg(Nb))
-		do k=1,Nb
-			if(is_a(bond(1)%bd(k)%i(1))) then
-				tmp(i)%bd_sg(k)=img*dwave(k)
-				write(101,"(4es13.2)")bond(1)%bd(k)%r-0.5d0*bond(1)%bd(k)%dir(:)*dwave(k),bond(1)%bd(k)%dir(:)*dwave(k)
-			else
-				tmp(i)%bd_sg(k)=-img*dwave(k)
-				write(101,"(4es13.2)")bond(1)%bd(k)%r+0.5d0*bond(1)%bd(k)%dir(:)*dwave(k),-bond(1)%bd(k)%dir(:)*dwave(k)
-			endif
-		enddo
-		write(101,"(1x/)")
+		!! ddw
+		!i=i+1
+		!tmp(i)%sg=4
+		!tmp(i)%nb=1
+		!tmp(i)%val=3d-1
+		!allocate(tmp(i)%bd_sg(Nb))
+		!do k=1,Nb
+			!if(is_a(bond(1)%bd(k)%i(1))) then
+				!tmp(i)%bd_sg(k)=img*dwave(k)
+				!write(101,"(4es13.2)")bond(1)%bd(k)%r-0.5d0*bond(1)%bd(k)%dir(:)*dwave(k),bond(1)%bd(k)%dir(:)*dwave(k)
+			!else
+				!tmp(i)%bd_sg(k)=-img*dwave(k)
+				!write(101,"(4es13.2)")bond(1)%bd(k)%r+0.5d0*bond(1)%bd(k)%dir(:)*dwave(k),-bond(1)%bd(k)%dir(:)*dwave(k)
+			!endif
+		!enddo
+		!write(101,"(1x/)")
 
 		!! d-wave cdw
 		!i=i+1
@@ -652,8 +653,8 @@ contains
 				nndif(1)=nndif(1)+1
 			end select
 			do l=2,size(nndif)
-				do k=1,size(neb(ri)%nb(l)%neb)
-					i=neb(ri)%nb(l)%neb(k)
+				do k=1,size(neb(ri)%nb(l-1)%neb)
+					i=neb(ri)%nb(l-1)%neb(k)
 					select case(cs(icfg(i),nd))
 					case(1,3)
 						nndif(l)=nndif(l)-1
@@ -664,8 +665,8 @@ contains
 						nndif(l)=nndif(l)-1
 					endif
 				enddo
-				do k=1,size(neb(rj)%nb(l)%neb)
-					j=neb(rj)%nb(l)%neb(k)
+				do k=1,size(neb(rj)%nb(l-1)%neb)
+					j=neb(rj)%nb(l-1)%neb(k)
 					select case(cs(icfg(j),nd))
 					case(1,3)
 						nndif(l)=nndif(l)+1
@@ -722,8 +723,8 @@ contains
 		El=0d0
 		do i=1,ne
 			do l=1,size(t)
-				do k=1,size(neb(cfg(i))%nb(l+1)%neb)
-					j=icfg(neb(cfg(i))%nb(l+1)%neb(k))
+				do k=1,size(neb(cfg(i))%nb(l)%neb)
+					j=icfg(neb(cfg(i))%nb(l)%neb(k))
 					call get_case(i,j,0,nd,sg)
 					select case(sg) 
 					case(1) 
@@ -732,30 +733,30 @@ contains
 						call det(vu,cr,A,iA,Y,pb)
 						El=El-(t(l)*conjg(pb))&
 							*jast(nndif,ja)&
-							*neb(cfg(i))%nb(l+1)%bdc(k)
+							*neb(cfg(i))%nb(l)%bdc(k)
 					case(5) 
 						call nn_dif(cfg(i),cfg(j),cfg,icfg,sg,nd,nndif)
 						call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 						call det(vu,cr,A,iA,Y,pb)
 						El=El+(t(l)*conjg(pb))&
 							*jast(nndif,ja)&
-							*neb(cfg(i))%nb(l+1)%bdc(k)
+							*neb(cfg(i))%nb(l)%bdc(k)
 					case(0)
 						if(l==1.and.i<=ne2) then
 							call getdiff(wf,i,j,cfg(i),cfg(j),sg,vu,cr)
 							call det(vu,cr,A,iA,Y,pb)
-							El=El+0.5d0*DJ*conjg(pb)-0.25d0*DJ
+							El=El+0.5d0*DJ*conjg(pb)-0.25d0*DJ-0.25d0*DJ+V
 						endif
 					case(-1)
 						if(l==1.and.k<3) then
-							El=El+0.25d0*DJ
+							El=El+0.25d0*DJ-0.25d0*DJ+V
 						endif
 					end select
 				enddo
 			enddo
 		enddo
-		El=El-0.25d0*DJ*nn(2)
-		El=El+V*nn(2)
+		!El=El-0.25d0*DJ*nn(2)
+		!El=El+V*nn(2)
 		!write(*,*)El
 		!El=(El-(4d0*V-DJ)*(ne-Ns/2))/Ns
 		!El=(El-(4d0*V)*(ne-Ns/2))/Ns
@@ -931,8 +932,8 @@ contains
 				i=n
 			endif
 			do l=1,size(t)
-				do k=1,size(neb(cfg(i))%nb(l+1)%neb)
-					j=icfg(neb(cfg(i))%nb(l+1)%neb(k))
+				do k=1,size(neb(cfg(i))%nb(l)%neb)
+					j=icfg(neb(cfg(i))%nb(l)%neb(k))
 					call get_case(i,j,ud,nd,sg)
 					select case(sg)
 					case(1:4)
@@ -1213,7 +1214,7 @@ contains
 	end subroutine
 	subroutine variational(Nmc,cfg,nd)
 		use lapack95, only: heevd,heevr
-		type(t_sort) :: allE(300)
+		type(t_mysort) :: allE(300)
 		real(8) :: dvar(size(var)),pvar(size(var)),eg(size(var)),dt=0.1d0,scv,var_av(size(var))
 		complex(8) :: wf(Ns*2,Ns),dwf(Ns*2,Ns,vn)
 		complex(8), allocatable :: g(:,:),S(:,:,:)
@@ -1285,7 +1286,7 @@ contains
 			write(*,"(es9.2$)")scv/(min(l*max(l-1,1),m*(m-1)))
 			if(l>100.and.abs(scv)/(min(l*max(l-1,1),m*(m-1)))<5d-3.and.scv<0.or.l==size(allE)) then
 				write(*,*)"variational finish"
-				call qsort(allE(:l))
+				call qsort1(allE(:l))
 				var(:)%val=0d0
 				do i=1,10
 					var(:)%val=var(:)%val+allE(i)%var
@@ -1303,9 +1304,9 @@ contains
 			l=l+1
 		enddo
 	end subroutine
-	recursive subroutine qsort(A)
+	recursive subroutine qsort1(A)
 		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
-		type(t_sort) :: A(:),tmp
+		type(t_mysort) :: A(:),tmp
 		integer :: left,right,n
 		real(8) :: random
 		real(8) :: pivot
@@ -1336,8 +1337,8 @@ contains
 			else
 				marker=left
 			endif
-			call qsort(A(1:marker-1))
-			call qsort(A(marker:n))
+			call qsort1(A(1:marker-1))
+			call qsort1(A(marker:n))
 		endif
 	end subroutine
 end module
@@ -1380,9 +1381,10 @@ program main
 
 	! calculation started
 	!do i=1,28,2
-	do i=1,100,2
+	do i=0,100,2
 		!var(:)%val=(/0d0/)
 		!var(1)%val=i*0.01
+		!ne=Ns
 		ne=Ns*7/8
 		ne=ne+mod(ne,2)
 		!read(30,rec=i+1,fmt="(i4,7es13.5)")ne,var
