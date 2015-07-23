@@ -26,9 +26,9 @@ module global
 		real(8), allocatable :: ssite(:)
 	end type
 	integer :: ne,ne2,vn,n_omp=24
-	real(8) :: t(1)=(/1d0/)
-	!real(8) :: DJ=0.3d0,V=0.3d0/4d0
-	real(8) :: DJ=1d0/3d0,V=1d0/12d0
+	real(8) :: t(2)=(/1d0,-0.3d0/)
+	real(8) :: DJ=0.3d0,V=0.3d0/4d0
+	!real(8) :: DJ=1d0/3d0,V=1d0/12d0
 	real(8) :: U=10d0
 	type(t_var), allocatable :: var(:)
 	logical :: no_sc=.true.
@@ -44,8 +44,8 @@ contains
 		T2=(/-8d0,8d0,0d0/)
 		!T1=a1*10
 		!T2=a2*10
-		!T1=a1*10
-		!T2=a2*10
+		T1=a1*16
+		T2=a2*8
 		bdc(1)=1d0
 		bdc(2)=1d0
 		layer=1
@@ -75,18 +75,18 @@ contains
 		allocate(tmp(i)%bd_sg(Ns))
 		tmp(i)%bd_sg(:)=-1d0
 
-		! d-wave sc
-		i=i+1
-		tmp(i)%sg=1
-		tmp(i)%nb=1
-		tmp(i)%val=1d-2
-		allocate(tmp(i)%bd_sg(Nb))
-		do k=1,Nb
-			tmp(i)%bd_sg(k)=dwave(k)*&
-				1d0
-			write(101,"(2es13.2,2es13.2)")bond(1)%bd(k)%r,tmp(i)%bd_sg(k)
-		enddo
-		write(101,"(1x/)")
+		!! d-wave sc
+		!i=i+1
+		!tmp(i)%sg=1
+		!tmp(i)%nb=1
+		!tmp(i)%val=1d-2
+		!allocate(tmp(i)%bd_sg(Nb))
+		!do k=1,Nb
+			!tmp(i)%bd_sg(k)=dwave(k)*&
+				!1d0
+			!write(101,"(2es13.2,2es13.2)")bond(1)%bd(k)%r,tmp(i)%bd_sg(k)
+		!enddo
+		!write(101,"(1x/)")
 
 		!! stripe d-wave sc
 		!i=i+1
@@ -114,24 +114,24 @@ contains
 		!write(101,"(1x/)")
 
 
-		!! sdw
-		!i=i+1
-		!tmp(i)%sg=3
-		!tmp(i)%val=5d-1
-		!allocate(tmp(i)%bd_sg(Ns))
-		!do k=1,Ns
-			!if(is_a(k)) then
-				!tmp(i)%bd_sg(k)=&
-					!!1d0
-					!sin(2d0*pi*0.125d0*(i2r(k,1)+0.5d0))
-			!else
-				!tmp(i)%bd_sg(k)=&
-					!!-1d0
-					!-sin(2d0*pi*0.125d0*(i2r(k,1)+0.5d0))
-			!endif
-			!write(101,"(2es13.2,2es13.2)")i2r(k,:),tmp(i)%bd_sg(k)
-		!enddo
-		!write(101,"(1x/)")
+		! sdw
+		i=i+1
+		tmp(i)%sg=3
+		tmp(i)%val=5d-1
+		allocate(tmp(i)%bd_sg(Ns))
+		do k=1,Ns
+			if(is_a(k)) then
+				tmp(i)%bd_sg(k)=&
+					!1d0
+					sin(2d0*pi*0.125d0*(i2r(k,1)+0.5d0))
+			else
+				tmp(i)%bd_sg(k)=&
+					!-1d0
+					-sin(2d0*pi*0.125d0*(i2r(k,1)+0.5d0))
+			endif
+			write(101,"(2es13.2,2es13.2)")i2r(k,:),tmp(i)%bd_sg(k)
+		enddo
+		write(101,"(1x/)")
 
 		!! ddw
 		!i=i+1
@@ -171,13 +171,13 @@ contains
 		!enddo
 		!write(101,"(1x/)")
 
-		!! hp
-		!i=i+1
-		!tmp(i)%sg=4
-		!tmp(i)%nb=2
-		!tmp(i)%val=-0.3d0
-		!allocate(tmp(i)%bd_sg(size(bond(2)%bd)))
-		!tmp(i)%bd_sg(:)=-1d0
+		! hp
+		i=i+1
+		tmp(i)%sg=4
+		tmp(i)%nb=2
+		tmp(i)%val=-0.3d0
+		allocate(tmp(i)%bd_sg(size(bond(2)%bd)))
+		tmp(i)%bd_sg(:)=-1d0
 
 		!i=i+1
 		!tmp(i)%sg=4

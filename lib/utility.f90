@@ -214,7 +214,7 @@ contains
 	end subroutine
 	subroutine collect(self,a)
 		class(t_sort) :: self(:)
-		integer :: i,j,tmp(1000)
+		integer :: i,j,tmp(10000)
 		integer, allocatable :: a(:)
 		tmp(1)=1
 		j=1
@@ -237,5 +237,6 @@ contains
 		tmp%val=a%val
 		a%val=self%val
 		self%val=tmp%val
+		deallocate(tmp)
 	end subroutine
 end module

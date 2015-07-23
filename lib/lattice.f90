@@ -64,6 +64,7 @@ contains
 			tmp%bond=a%bond
 			a%bond=self%bond
 			self%bond=tmp%bond
+			deallocate(tmp)
 		end select
 	end subroutine
 	function is_in(r,T1,T2,sg,bc)
@@ -115,7 +116,7 @@ contains
 	end function
 	subroutine gen_latt()
 		integer :: i,j,n,nsub
-		real(8) :: x(2),y(2),r(3),tmp(1000,3)
+		real(8) :: x(2),y(2),r(3),tmp(10000,3)
 		x(1)=minval((/T1(1),T2(1),T1(1)+T2(1),0d0/))
 		x(2)=maxval((/T1(1),T2(1),T1(1)+T2(1),0d0/))
 		y(1)=minval((/T1(2),T2(2),T1(2)+T2(2),0d0/))
@@ -150,9 +151,8 @@ contains
 	subroutine gen_neb()
 		type(t_mysort) :: tmp(Ns)
 		real(8) :: p,dr(3)
-		integer :: i,j,k,n,sg(2),nbond(100)
+		integer :: i,j,k,n,sg(2)
 		integer, allocatable :: t(:)
-		nbond=0
 		allocate(neb(Ns))
 		do i=1,Ns/layer
 			do j=1,Ns/layer

@@ -79,11 +79,11 @@ contains
 	end subroutine
 	subroutine inv_update_row(c,ci,pb,A,iA)
 		complex(8) :: c(:),A(:,:),iA(:,:),pb,ipb
-		complex(8), allocatable :: tmp1(:),tmp2(:,:)
+		complex(8) :: tmp1(size(A,1)),tmp2(size(A,1),size(A,1))
 		integer :: ci,i,j,n
 		ipb=1d0/pb
 		n=size(iA,1)
-		allocate(tmp1(n),tmp2(n,n))
+		!allocate(tmp1(n),tmp2(n,n))
 		tmp1=0d0
 		A(ci,:)=A(ci,:)+c
 		!!$OMP PARALLEL DO REDUCTION(+:tmp1)
@@ -104,11 +104,12 @@ contains
 	end subroutine
 	subroutine inv_update_col(c,cj,pb,A,iA)
 		complex(8) :: c(:),A(:,:),iA(:,:),pb,ipb
-		complex(8), allocatable :: tmp1(:),tmp2(:,:)
+		complex(8) :: tmp1(size(A,1)),tmp2(size(A,1),size(A,1))
+		!complex(8), allocatable :: tmp1(:),tmp2(:,:)
 		integer :: cj,i,j,n
 		ipb=1d0/pb
 		n=size(iA,1)
-		allocate(tmp1(n),tmp2(n,n))
+		!allocate(tmp1(n),tmp2(n,n))
 		tmp1=0d0
 		A(:,cj)=A(:,cj)+c
 		!!$OMP PARALLEL DO REDUCTION(+:tmp1)
@@ -129,10 +130,10 @@ contains
 	end subroutine
 	subroutine inv_update_rowcol(c,ij,iY,A,iA)
 		complex(8) :: c(:,:),A(:,:),iA(:,:),iY(:,:)
-		complex(8), allocatable :: tmp1(:,:),tmp2(:,:)
+		complex(8) :: tmp1(size(A,1),2),tmp2(size(A,1),size(A,1))
 		integer :: ij(:),i,j,n
 		n=size(iA,1)
-		allocate(tmp1(n,2),tmp2(n,n))
+		!allocate(tmp1(n,2),tmp2(n,n))
 		tmp1=0d0
 		A(ij(1),:)=A(ij(1),:)+c(:,1)
 		A(:,ij(2))=A(:,ij(2))+c(:,2)
@@ -156,10 +157,10 @@ contains
 	end subroutine
 	subroutine inv_update_tworow(c,ij,iY,A,iA)
 		complex(8) :: c(:,:),A(:,:),iA(:,:),iY(:,:)
-		complex(8), allocatable :: tmp1(:,:),tmp2(:,:)
+		complex(8) :: tmp1(size(A,1),2),tmp2(size(A,1),size(A,1))
 		integer :: ij(:),i,j,n
 		n=size(iA,1)
-		allocate(tmp1(n,2),tmp2(n,n))
+		!allocate(tmp1(n,2),tmp2(n,n))
 		tmp1=0d0
 		A(ij(1),:)=A(ij(1),:)+c(:,1)
 		A(ij(2),:)=A(ij(2),:)+c(:,2)
