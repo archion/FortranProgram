@@ -1,7 +1,8 @@
 module M_pmt
 	use M_const
 	implicit none
-	real(8), parameter :: t(3)=(/1d0,-0.25d0,0d0/),nf=0.85d0,U=2.55d0,DJ=0d0,V=-1d0,cvg=1d-6,Tk=1d-5,Vimp=2d0
+	real(8), parameter :: t(3)=(/1d0,-0.25d0,0d0/),nf=0.85d0,U=2.44d0,DJ=0d0,V=-1d0,cvg=1d-6,Tk=1d-5,Vimp=1d0
+	integer :: imp
 end module
 module M_bdg
 	use M_Hamilton
@@ -32,8 +33,8 @@ contains
 		a2=(/0d0,1d0,0d0/)
 		!T1=(/8d0,8d0,0d0/)
 		!T2=(/-6d0,6d0,0d0/)
-		T1=a1*30
-		T2=a2*30
+		T1=a1*24
+		T2=a2*24
 		bdc(1)=1d0
 		bdc(2)=1d0
 		allocate(sub(1,2))
@@ -44,6 +45,7 @@ contains
 		call gen_bond(3)
 		! finish i2r(i,2),neb(i)%nb(j)%bond(k)/bdc(k)/r(k,2)
 		write(*,*)"Total site number is: ",Ns
+		imp=nint(sqrt(real(Ns)))/2*nint(sqrt(real(Ns)))+nint(sqrt(real(Ns)))/2
 		!do k=1,Ns
 			!write(101,"(3es13.2,2I5)")i2r(k,:),k,ab(k)
 		!enddo
@@ -51,19 +53,21 @@ contains
 		allocate(sort_site(Ns))
 		do k=1,size(sort_site)
 			!sort_site(k)%val=cos(2d0*pi*sum((bond(0)%bd(k)%r)*q))
-			sort_site(k)%val=k
+			!sort_site(k)%val=k
+			sort_site(k)%val=sqrt(sum((bond(0)%bd(k)%r-i2r(imp,:))**2))+abs(theta(abs(bond(0)%bd(k)%r-i2r(imp,:)))-pi/4d0)
 			sort_site(k)%idx=k
-			!write(101,"(es13.2$)")bond(0)%bd(k)%r,bond(0)%bd(k)%dir,sort_site(k)%val
-			!write(101,"(x)")
+			write(101,"(es13.2$)")bond(0)%bd(k)%r,bond(0)%bd(k)%dir,sort_site(k)%val
+			write(101,"(x)")
 		enddo
-		!write(101,"(1x/)")
+		write(101,"(1x/)")
 		call sort_site%qsort()
 		call sort_site%collect(collect_site)
 
 		allocate(sort_bd1(size(bond(1)%bd)))
 		do k=1,size(sort_bd1)
-			sort_bd1(k)%val=k
 			!sort_bd1(k)%val=cos(2d0*pi*sum((bond(1)%bd(k)%r-(/0.5d0,0d0,0d0/))*q))
+			!sort_bd1(k)%val=k
+			sort_bd1(k)%val=sqrt(sum((bond(1)%bd(k)%r-i2r(imp,:))**2))+abs(theta(abs(bond(1)%bd(k)%r-i2r(imp,:)))-pi/4d0)
 			sort_bd1(k)%idx=k
 			!write(101,"(es13.2$)")bond(1)%bd(k)%r,bond(1)%bd(k)%dir,sort_bd1(k)%val
 			!write(101,"(x)")
@@ -75,10 +79,11 @@ contains
 		iv=0
 		! cp
 		call gen_var(iv,ip,sg=1,nb=0,V=1d0,var=tmp)
-		tmp(iv)%val=-1d-1
+		tmp(iv)%val=1.52d-01
 		tmp(iv)%bd_sg=-1d0
 
-		call gen_var(iv,ip,(/1,2/),(/nint(sqrt(real(Ns)))/2*nint(sqrt(real(Ns)))+nint(sqrt(real(Ns)))/2/),sg=-4,nb=0,V=1d0,var=tmp)
+		! impure
+		call gen_var(iv,ip,(/1,2/),(/imp/),sg=-4,nb=0,V=1d0,var=tmp)
 		tmp(iv)%val=Vimp
 		tmp(iv)%bd_sg=1d0
 
@@ -100,7 +105,7 @@ contains
 		do i=ip,iv
 			call random_number(tmp(i)%val)
 			!tmp(i)%val=2d-1
-			tmp(i)%val=(tmp(i)%val-0.5d0)*0.1d0+1d-1
+			tmp(i)%val=(tmp(i)%val-0.5d0)*0.1d0+5d-1
 			do k=1,size(tmp(i)%n)
 				tmp(i)%bd_sg(k)=dwave(tmp(i)%n(k))
 			enddo
@@ -216,190 +221,106 @@ contains
 		enddo
 		deallocate(tmp,sort_site,sort_bd1,collect_site,collect_bd1)
 	end subroutine
+	function theta(r)
+		real(8) :: r(:),theta,d
+		d=sqrt(sum(r**2))
+		if(d<1d-10) then
+			theta=0d0
+			return
+		endif
+		theta=acos(r(1)/d)
+		if(r(2)<0d0) then
+			theta=2d0*pi-theta
+		endif
+	end function
 	subroutine bdg_var()
-		complex(8) :: H(2*Ns,2*Ns)
-		real(8) :: wide,E(2*Ns),step,pn,fE,cfE,dt
-		integer :: sg,ic,m,i
-		logical :: flag
-		type(t_var) :: pvar(ubound(var,1))
-		dt=0.01d0
-		pvar=var(1:)
-		m=0
-		if(var(1)%sg==1) then
-			flag=.true.
-			var(1)%val=0d0
-			ic=2
-		else
-			flag=.false.
-			ic=1
-		endif
+		integer :: info
+		real(8) :: x(size(var(1:))),v(size(var(1:))),wa(nint((size(var(1:))*(3*size(var(1:))+13))/2.)+10)
+		!call hybrd1(do_var,size(var(1:)),var(1:)%val,v,1d-7,info,wa,size(wa))
 		do 
-			m=m+1
-			if(flag) then
-				step=0d0
-				pn=0d0
-				do
-					call Hamilton(H)
-					call heevd(H,E,"V")
-					call phy(H,E,pvar(1:1))
-					call fenergy(E,fE=fE)
-					!write(20,"(es15.7)")fE
-					write(*,"(es15.7)")fE
-					if(abs(pvar(1)%val-nf)<cvg*5d0) then
-						exit
-					endif
-					if(step<1d-10) then
-						step=abs(pvar(1)%val-nf)
-					endif
-					call find_cross(pn,pvar(1)%val-nf,sg)
-					if(sg/=0) then
-						step=max(step*0.3d0,1d-8)
-					endif
-					write(*,"(es13.5$)")pvar(1)%val,var(1)%val,step*sign(1d0,nf-pvar(1)%val)
-					var(1)%val=var(1)%val-step*sign(1d0,pvar(1)%val-nf)
-				enddo
+			if(var(1)%sg==1) then
+				x(1)=var(1)%val
+				!call hybrd1(do_var,size(var(1:1)),var(1:1)%val,v(1:1),1d-7,info,wa(:16),16)
+				call hybrd1(do_var,size(x(1:1)),x(1:1),v(1:1),1d-7,info,wa(:16),16)
+				!var(1)%val=x(1)
 			endif
-			do 
-				fE=cfE
-				pvar(ic:)%val=var(ic:)%val
-				call do_var(H,E,var(ic:),dt)
-				call fenergy(E,fE=cfE)
-				write(*,"(e12.4$)")var(1)%val,var(5)%val,var(Ns*2+5)%val,var(Ns*2+Ns+5)%val
-				write(20,"(es15.7)")cfE
-				write(*,"(es15.7)")cfE
-				if(mod(m,4)==0) then
-					call export_data(10)
-				endif
-				if(cfE>fE) then
-					dt=dt/2d0
-					var(ic:)%val=pvar(ic:)%val
-					cfE=fE
-					cycle
-				endif
-				if(abs(sum(var(ubound(var,1)-Ns+1:ubound(var,1))%val))>1d-1) then
-					exit
-				endif
-				if(dt<1d-5) then
-					dt=0.1d0
-					exit
-				endif
-				call Hamilton(H)
-				call heevd(H,E,"V")
-			enddo
-			if(m>100) then
+			info=-1
+			write(*,"(A$)")"****"
+			call do_var(size(var(1:)),var(1:)%val,v(1:),info=info)
+			if(all(abs(v)<1d-6)) then
 				exit
 			endif
-		enddo 
+		enddo
 	end subroutine
-	subroutine bdg()
-		complex(8) :: H(2*Ns,2*Ns)
-		real(8) :: wide,E(2*Ns),step,pn,fE,cfE,dt
-		integer :: sg,ic,m,i
-		logical :: flag
-		type(t_var) :: pvar(ubound(var,1))
-		dt=0.01d0
-		pvar=var(1:)
-		m=0
-		if(var(1)%sg==1) then
-			flag=.true.
-			var(1)%val=0d0
-			ic=2
-		else
-			flag=.false.
-			ic=1
-		endif
-		do 
-			m=m+1
-			if(flag) then
-				step=0d0
-				pn=0d0
-				do
-					call Hamilton(H)
-					call heevd(H,E,"V")
-					call phy(H,E,pvar(1:1))
-					call fenergy(E,fE=fE)
-					!write(20,"(es15.7)")fE
-					write(*,"(es15.7)")fE
-					if(abs(pvar(1)%val-nf)<cvg*5d0) then
-						exit
-					endif
-					if(step<1d-10) then
-						step=abs(pvar(1)%val-nf)
-					endif
-					call find_cross(pn,pvar(1)%val-nf,sg)
-					if(sg/=0) then
-						step=max(step*0.3d0,1d-8)
-					endif
-					write(*,"(es13.5$)")pvar(1)%val,var(1)%val,step*sign(1d0,nf-pvar(1)%val)
-					var(1)%val=var(1)%val-step*sign(1d0,pvar(1)%val-nf)
-				enddo
-			endif
-			!do 
-				fE=cfE
-				pvar(ic:)%val=var(ic:)%val
-				call phy(H,E,var(ic:))
-				call Hamilton(H)
-				call heevd(H,E,"V")
-				call fenergy(E,fE=cfE)
-				write(*,"(e12.4$)")var(1)%val,var(5)%val,var(Ns*2+5)%val,var(Ns*2+Ns+5)%val
-				write(20,"(es15.7)")cfE
-				write(*,"(es15.7)")cfE
-				if(mod(m,4)==0) then
-					call export_data(10)
-				endif
-				!if(sum(abs(var(ic:)%val-pvar(ic:)%val))/size(var(ic:))<cvg*200) then
-				!!if(abs(cfE-fE)<1d-6) then
-					!exit
-				!endif
-			!enddo
-			if(m>1000) then
-				exit
-			endif
-		enddo 
-	end subroutine
-	subroutine do_var(H,E,var,dt)
-		complex(8), intent(in) :: H(:,:)
-		real(8), intent(in) :: E(:)
-		real(8), intent(in) :: dt
-		type(t_var), intent(inout) :: var(:)
-		complex(8) :: bd,D(size(H,1),size(H,2)),cH(size(H,1),size(H,2))
-		real(8) :: f(size(E)),dp,dvar
-		integer :: l
-		f=1d0/(exp(E/Tk)+1d0)
+	subroutine do_var(n,x,v,info)
+		integer, intent(in) :: n
+		integer, intent(inout) :: info
+		real(8), intent(inout) :: x(n),v(n)
+		complex(8) :: H(Ns*2,Ns*2),D(size(H,1),size(H,2)),cH(size(H,1),size(H,2)),bd
+		real(8) :: E(Ns*2),f(size(E)),dvar,fE,err
+		integer :: l,i=0
+		i=i+1
+		var(1:n)%val=x
+		call Hamilton(H)
+		call heevd(H,E,"V")
 		cH=transpose(conjg(H))
-		!!$OMP PARALLEL DO PRIVATE(D,dvar)
-		do l=1,size(var)
+		f=1d0/(exp(E/Tk)+1d0)
+		call fenergy(E,fE)
+		write(*,"(i5$)"),i
+		write(*,"(es15.7$)")fE
+		if(n<8) then
+			write(*,"(es12.4$)")var(1:n)%val
+		else
+			write(*,"(es12.4$)")var(1)%val,var(5)%val,var(Ns*2+5)%val,var(Ns*2+Ns+5)%val
+		endif
+		!!$OMP PARALLEL DO PRIVATE(D)
+		do l=1,n
 			call dHamilton(var(l),H,cH,D(:,1:1))
+			v(l)=sum(real(D(:,1))*f(:))
 			dvar=0d0
 			select case(var(l)%sg)
 			case(1)
-				dvar=sum(real(D(:,1))*f(:))
-				dvar=dvar+real(sum(var(l)%bd_sg)*(1d0-nf))
+				v(l)=v(l)+real(sum(var(l)%bd_sg)*(1d0-nf))
 			case default
-				dvar=sum(real(D(:,1))*f(:))
+				dvar=-2d0*sum(abs(var(l)%bd_sg)**2)*var(l)%V
 				if(var(l)%nb==0) then
 					if(var(l)%sg==3) then
-						dvar=dvar-2d0*(var(l)%val+nf/2d0)*sum(abs(var(l)%bd_sg)**2)*var(l)%V+real(sum(var(l)%bd_sg)*var(l)%V)
-						!dvar=dvar/2d0+real(sum(var(l)%bd_sg)*var(l)%V)/2d0
+						v(l)=v(l)+real(sum(var(l)%bd_sg)*var(l)%V)
 					else
-						dvar=dvar-2d0*var(l)%val*sum(abs(var(l)%bd_sg)**2)*var(l)%V-real(sum(var(l)%bd_sg)*var(l)%V)
-						!dvar=dvar/2d0-real(sum(var(l)%bd_sg)*var(l)%V)/2d0
+						v(l)=v(l)-real(sum(var(l)%bd_sg)*var(l)%V)
 					endif
 				else
-					dvar=dvar-4d0*var(l)%val*sum(abs(var(l)%bd_sg))*var(l)%V
-					!dvar=dvar/4d0
+					dvar=dvar*2d0
 				endif
 			end select
-			var(l)%val=var(l)%val-dvar/size(var(l)%n)*dt
-			!var(l)%val=dvar/var(l)%V
+			if(info<0.and.abs(dvar)>1d-8) then
+				x(l)=-v(l)/dvar
+			endif
+			v(l)=(v(l)+dvar*var(l)%val)/(size(var(l)%n))
 		enddo
 		!!$OMP END PARALLEL DO
+		err=sum(abs(v))/size(v)
+		if(err<1d-7) then
+			info=-1
+		else
+			info=1
+		endif
+		if(n<8) then
+			write(*,"(es12.4$)")v(1:n)
+		else
+			write(*,"(es12.4$)")err
+		endif
+		write(*,"(x)")
+		if(n>1) then
+			write(20,"(es17.9$)")fE
+			write(20,"(es17.9)")err
+			call export_data(10)
+		endif
 	end subroutine
 	subroutine fenergy(E,fE)
 		real(8), intent(in) :: E(:)
 		real(8), intent(inout) :: fE
 		integer :: k,l
-		!fE=-Vimp+0.5d0*U*nf**2*Ns
 		fE=-Vimp
 		do k=1,size(E)
 			if((-E(k)/Tk)>1d2) then
@@ -415,7 +336,6 @@ contains
 			case default
 				if(var(l)%nb==0) then
 					if(var(l)%sg==3) then
-						!fE=fE-sum(abs((var(l)%val+nf/2d0)*var(l)%bd_sg)**2)*var(l)%V+real((var(l)%val)*sum(var(l)%bd_sg)*var(l)%V)
 						fE=fE-sum(abs(var(l)%val*var(l)%bd_sg)**2)*var(l)%V+real(var(l)%val*sum(var(l)%bd_sg)*var(l)%V)
 					else
 						fE=fE-sum(abs(var(l)%val*var(l)%bd_sg)**2)*var(l)%V-real(var(l)%val*sum(var(l)%bd_sg)*var(l)%V)
@@ -427,45 +347,6 @@ contains
 		enddo
 		fE=fE/Ns
 	end subroutine
-	subroutine phy(H,E,var)
-		complex(8), intent(in) :: H(:,:)
-		real(8), intent(in) :: E(:)
-		type(t_var), intent(inout) :: var(:)
-		real(8) :: f(size(E))
-		complex(8) :: bd,val
-		integer :: i,k,l,j,n
-		f=1d0/(exp(E/Tk)+1d0)
-		do l=1,ubound(var,1)
-			n=0
-			val=0d0
-			do k=1,size(var(l)%bd_sg)
-				i=bond(var(l)%nb)%bd(var(l)%n(k))%i(1)
-				j=bond(var(l)%nb)%bd(var(l)%n(k))%i(2)
-				bd=bond(var(l)%nb)%bd(var(l)%n(k))%bdc
-				n=n+Ns*2
-				select case(var(l)%sg)
-				case(2)
-					! pair channel
-					val=val+var(l)%bd_sg(k)*bd*&
-						(0.5d0*sum((H(i,:)*conjg(H(j+Ns,:))+H(j,:)*conjg(H(i+Ns,:)))*f(:)))
-				case(3)
-					! charge channel
-					val=val+var(l)%bd_sg(k)*bd*0.5d0*&
-						!(sum(conjg(H(i,:))*H(j,:)*f(:)+H(i+Ns,:)*conjg(H(j+Ns,:))*(1d0-f(:)))-nf)
-						(sum(conjg(H(i,:))*H(j,:)*f(:)+H(i+Ns,:)*conjg(H(j+Ns,:))*(1d0-f(:))))
-				case(1)
-					! chemical potential
-					val=val+bd*&
-						sum(conjg(H(i,:))*H(j,:)*f(:)+H(i+Ns,:)*conjg(H(j+Ns,:))*(1d0-f(:)))
-				case(4)
-					! spin channel
-					val=val+var(l)%bd_sg(k)*bd*0.5d0*&
-						sum(conjg(H(i,:))*H(j,:)*f(:)-H(i+Ns,:)*conjg(H(j+Ns,:))*(1d0-f(:)))
-				end select
-			enddo
-			var(l)%val=real(val)/size(var(l)%n)
-		enddo
-	end subroutine
 	subroutine export_data(ut)
 		integer :: ut,l,k
 		!rewind(ut)
@@ -475,7 +356,7 @@ contains
 				write(ut,"(x/)")
 			endif
 			do k=1,size(var(l)%n)
-				write(ut,"(es13.2$)")bond(var(l)%nb)%bd(var(l)%n(k))%r,bond(var(l)%nb)%bd(var(l)%n(k))%dir,var(l)%val
+				write(ut,"(es17.9$)")bond(var(l)%nb)%bd(var(l)%n(k))%r,bond(var(l)%nb)%bd(var(l)%n(k))%dir,var(l)%val
 				write(ut,"(x)")
 			enddo
 		enddo
@@ -501,11 +382,56 @@ program main
 	use M_bdg
 	implicit none
 	logical :: f
+	real(8) :: tmp(1152)
+	integer :: i,l,err
 	f=openfile(unit=10,file='../data/order.dat')
 	f=openfile(unit=20,file='../data/fenergy.dat')
+	f=openfile(unit=101,file='../data/lattice.dat')
+	i=1
 	call initial()
-	call bdg()
-	!call bdg_var()
+	!var(1)%val=1.519265227d-01
+	!open(30,file="../data/order_save.dat",status="old",action="read")
+	!read(30,"(1152es17.9)",iostat=err)tmp(1:1152)
+	!l=2
+	!do
+		!var(l)%val=0d0
+		!do i=1,size(var(l)%n)
+			!var(l)%val=var(l)%val+tmp(var(l)%n(i))
+		!enddo
+		!var(l)%val=var(l)%val/size(var(l)%n)
+		!l=l+1
+		!if(var(l)%sg/=var(max(l-1,1))%sg.or.var(l)%nb/=var(max(l-1,1))%nb) then
+			!exit
+		!endif
+	!enddo
+	!read(30,"(576es17.9)",iostat=err)tmp(1:576)
+	!do 
+		!var(l)%val=0d0
+		!do i=1,size(var(l)%n)
+			!var(l)%val=var(l)%val+tmp(var(l)%n(i))
+		!enddo
+		!var(l)%val=var(l)%val/size(var(l)%n)
+		!l=l+1
+		!if(var(l)%sg/=var(max(l-1,1))%sg.or.var(l)%nb/=var(max(l-1,1))%nb) then
+			!exit
+		!endif
+	!enddo
+	!read(30,"(576es17.9)",iostat=err)tmp(1:576)
+	!do 
+		!var(l)%val=0d0
+		!do i=1,size(var(l)%n)
+			!var(l)%val=var(l)%val+tmp(var(l)%n(i))
+		!enddo
+		!var(l)%val=var(l)%val/size(var(l)%n)
+		!l=l+1
+		!if(var(l)%sg/=var(max(l-1,1))%sg.or.var(l)%nb/=var(max(l-1,1))%nb.or.l>ubound(var,1)) then
+			!exit
+		!endif
+	!enddo
+	!call export_data(10)
+	!!stop
+	call bdg_var()
+	!call bdg()
 	!export data
 	call export_data(10)
 end program
