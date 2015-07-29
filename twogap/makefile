@@ -1,2 +1,2 @@
-out = twogap_tJ.out
+out = twogap_tJ_latt.out
 include ../makefile

@@ -1,6 +1,7 @@
 module global
 	use M_const
 	use M_utility
+	use M_hamilton
 	use M_lattice
 	implicit none
 	type, extends(t_sort), private :: t_mysort
@@ -66,44 +67,42 @@ contains
 		!q=(/1d0/50d0,0d0,0d0/)
 		!q=0d0
 		! lattice 
-		a1=(/1d0,0d0,0d0/)
-		a2=(/0d0,1d0,0d0/)
-		!T1=(/8d0,8d0,0d0/)
-		!T2=(/-6d0,6d0,0d0/)
-		T1=a1*16
-		T2=a2*10
-		bdc(1)=1d0
-		bdc(2)=1d0
-		allocate(sub(1,2))
-		sub(1,:)=(/0d0,0d0/)
-		layer=1
-		call gen_latt()
-		call gen_neb()
-		call gen_bond(3)
-		! finish i2r(i,2),neb(i)%nb(j)%bond(k)/bdc(k)/r(k,2)
-		write(*,*)"Total site number is: ",Ns
-		do k=1,Ns
-			write(101,"(3es13.2,2I5)")i2r(k,:),k,ab(k)
+		latt%a1=(/1d0,0d0,0d0/)
+		latt%a2=(/0d0,1d0,0d0/)
+		latt%T1=a1*16
+		latt%T2=a2*10
+		latt%bdc(1)=1d0
+		latt%bdc(2)=1d0
+		allocate(latt%sub(1,2))
+		latt%sub(1,:)=(/0d0,0d0/)
+		latt%layer=1
+		call latt%gen_latt()
+		call latt%gen_neb(3)
+		call latt%gen_bond(3)
+		! finish i2r(i,2),latt%neb((i)%nb(j)%bond(k)/bdc(k)/r(k,2)
+		write(*,*)"Total site number is: ",latt%Ns
+		do k=1,latt%Ns
+			write(101,"(3es13.2,2I5)")latt%i2r(k,:),k,ab(k)
 		enddo
 		write(101,"(1x/)")
 
-		allocate(sort_site(Ns))
+		allocate(sort_site(latt%Ns))
 		do k=1,size(sort_site)
-			!sort_site(k)%val=sin(2d0*pi*sum((bond(0)%bd(k)%r+(/0.5d0,0d0,0d0/))*q))
-			sort_site(k)%val=cos(2d0*pi*sum((bond(0)%bd(k)%r)*q))
+			!sort_site(k)%val=sin(2d0*pi*sum((latt%bond(0)%bd(k)%r+(/0.5d0,0d0,0d0/))*q))
+			sort_site(k)%val=cos(2d0*pi*sum((latt%bond(0)%bd(k)%r)*q))
 			sort_site(k)%idx=k
-			write(101,"(es13.2$)")bond(0)%bd(k)%r,bond(0)%bd(k)%dir,sort_site(k)%val
+			write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dir,sort_site(k)%val
 			write(101,"(x)")
 		enddo
 		write(101,"(1x/)")
 		call sort_site%qsort()
 		call sort_site%collect(collect_site)
 
-		allocate(sort_bd1(size(bond(1)%bd)))
+		allocate(sort_bd1(size(latt%bond(1)%bd)))
 		do k=1,size(sort_bd1)
-			sort_bd1(k)%val=cos(2d0*pi*sum((bond(1)%bd(k)%r-(/0.5d0,0d0,0d0/))*q))
+			sort_bd1(k)%val=cos(2d0*pi*sum((latt%bond(1)%bd(k)%r-(/0.5d0,0d0,0d0/))*q))
 			sort_bd1(k)%idx=k
-			write(101,"(es13.2$)")bond(1)%bd(k)%r,bond(1)%bd(k)%dir,sort_bd1(k)%val
+			write(101,"(es13.2$)")latt%bond(1)%bd(k)%r,latt%bond(1)%bd(k)%dir,sort_bd1(k)%val
 			write(101,"(x)")
 		enddo
 		write(101,"(1x/)")
@@ -122,9 +121,9 @@ contains
 		!do i=ip,iv
 			!tmp(i)%val=2d-1
 			!do k=1,size(tmp(i)%n)
-				!tmp(i)%bd_sg(k)=ab(bond(tmp(i)%nb)%bd(tmp(i)%n(k))%i(1))*img*dwave(tmp(i)%n(k))*&
+				!tmp(i)%bd_sg(k)=ab(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%i(1))*img*dwave(tmp(i)%n(k))*&
 					!1d0
-					!!cos(2d0*pi*sum(q*(bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r-(/0.5d0,0d0,0d0/))))
+					!!cos(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r-(/0.5d0,0d0,0d0/))))
 			!enddo
 		!enddo
 
@@ -143,7 +142,7 @@ contains
 			!tmp(i)%val=1d-5
 			!do k=1,size(tmp(i)%n)
 				!tmp(i)%bd_sg(k)=dwave(tmp(i)%n(k))*&
-					!cos(2d0*pi*sum(q*(bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r-(/0.5d0,0d0,0d0/))))
+					!cos(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r-(/0.5d0,0d0,0d0/))))
 			!enddo
 		!enddo
 
@@ -165,8 +164,8 @@ contains
 			do k=1,size(tmp(i)%n)
 				tmp(i)%bd_sg(k)=ab(tmp(i)%n(k))*&
 					!1d0
-					!sin(2d0*pi*sum(q*(bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r+(/0.5d0,0d0,0d0/))))
-					sin(2d0*pi*sum(q*(bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
+					!sin(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r+(/0.5d0,0d0,0d0/))))
+					sin(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
 			enddo
 		enddo
 
@@ -187,8 +186,8 @@ contains
 			tmp(i)%val=1d0
 			do k=1,size(tmp(i)%n)
 				tmp(i)%bd_sg(k)=&
-					!cos(2d0*pi*sum(2d0*q*(bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r+(/0.5d0,0d0,0d0/))))
-					cos(2d0*pi*sum(2d0*q*(bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
+					!cos(2d0*pi*sum(2d0*q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r+(/0.5d0,0d0,0d0/))))
+					cos(2d0*pi*sum(2d0*q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
 			enddo
 		enddo
 
@@ -202,7 +201,7 @@ contains
 			!do k=1,size(tmp(i)%n)
 				!tmp(i)%bd_sg(k)=&
 					!-1d0
-					!!cos(2d0*pi*sum(q*(bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r-(/0.5d0,0d0,0d0/))))
+					!!cos(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r-(/0.5d0,0d0,0d0/))))
 			!enddo
 		!enddo
 
@@ -239,44 +238,6 @@ contains
 		var=tmp(:iv)
 		deallocate(tmp,sort_site,sort_bd1,collect_site,collect_bd1)
 	end subroutine
-	function ab(i)
-		integer :: i,ab
-		if(mod(sum(nint(i2r(i,:)-i2r(1,:))),2)==0) then
-			ab=1
-		else
-			ab=-1
-		endif
-	end function
-	function dwave(i)
-		real(8) :: dwave
-		integer :: i
-		if(nint(bond(1)%bd(i)%dir(2))==0) then
-			dwave=1d0
-		else
-			dwave=-1d0
-		endif
-	end function
-	subroutine gen_var(l,lp,collect,sort,sg,nb,var)
-		integer :: l,lp,i,sg,nb
-		integer, optional :: collect(:),sort(:)
-		type(t_var) :: var(:)
-		lp=l+1
-		if(present(collect)) then
-			do i=1,size(collect)-1
-				l=l+1
-				var(l)%sg=sg
-				var(l)%nb=nb
-				allocate(var(l)%bd_sg(collect(i+1)-collect(i)),var(l)%n(collect(i+1)-collect(i)))
-				var(l)%n=sort(collect(i):collect(i+1)-1)
-			enddo
-		else
-			l=l+1
-			var(l)%sg=sg
-			var(l)%nb=nb
-			allocate(var(l)%bd_sg(size(bond(nb)%bd)),var(l)%n(size(bond(nb)%bd)))
-			var(l)%n=(/(i,i=1,size(bond(nb)%bd))/)
-		endif
-	end subroutine
 end module
 
 module M_wf
@@ -286,62 +247,17 @@ module M_wf
 	implicit none
 contains
 	subroutine iniwf(wf,dwf,cp)
-		complex(8) :: H(Ns*2,Ns*2),cH(Ns*2,Ns*2),D(Ns*2,Ns*2),wf(:,:),tmp(Ns),Q(Ns,Ns)
+		complex(8) :: H(latt%Ns*2,latt%Ns*2),cH(size(H,1),size(H,2)),D(size(H,1),size(H,2),size(var(1:))),wf(:,:),tmp(Ns),Q(latt%Ns,latt%Ns)
 		complex(8), optional :: dwf(:,:,:)
-		real(8) :: E(Ns*2),r,cp1
+		real(8) :: E(size(H,1)),r,cp1
 		type(t_var), optional :: cp
 		complex(8) :: bd
 		integer :: i,j,k,l,n,info,sg
 		if(present(cp).and.cp%sg/=0) then
 			return
 		endif
-		H=0d0
-		do l=1,size(var)
-			do k=1,size(var(l)%bd_sg)
-				i=bond(var(l)%nb)%bd(var(l)%n(k))%i(1)
-				j=bond(var(l)%nb)%bd(var(l)%n(k))%i(2)
-				bd=bond(var(l)%nb)%bd(var(l)%n(k))%bdc
-				select case(var(l)%sg)
-				case(1)
-					! pair channel
-					if(abs(var(l)%val)>5d-4) then
-						no_sc=.false.
-					endif
-					H(i,j+Ns)=H(i,j+Ns)+var(l)%val*var(l)%bd_sg(k)*bd
-					H(i+Ns,j)=H(i+Ns,j)+var(l)%val*var(l)%bd_sg(k)*conjg(bd)
-				case(2,0)
-					! charge channel
-					H(i,j)=H(i,j)+var(l)%val*conjg(var(l)%bd_sg(k))*bd
-					H(i+Ns,j+Ns)=H(i+Ns,j+Ns)-var(l)%val*var(l)%bd_sg(k)*bd
-				case(3)
-					! spin channel
-					H(i,j)=H(i,j)+var(l)%val*conjg(var(l)%bd_sg(k))*bd
-					H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+var(l)%val*var(l)%bd_sg(k)*bd
-				end select
-				H(j,i+Ns)=conjg(H(i+Ns,j))
-				H(j+Ns,i)=conjg(H(i,j+Ns))
-				H(j,i)=conjg(H(i,j))
-				H(j+Ns,i+Ns)=conjg(H(i+Ns,j+Ns))
-			enddo
-		enddo
 
-		do l=1,size(t)
-			do k=1,size(bond(l)%bd)
-				i=bond(l)%bd(k)%i(1)
-				j=bond(l)%bd(k)%i(2)
-				bd=bond(l)%bd(k)%bdc
-				H(i,j)=H(i,j)-t(l)*conjg(bd)
-				H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+t(l)*bd
-				if(no_sc.and.l==1) then
-					H(i,j+Ns)=H(i,j+Ns)+dwave(k)*5d-4*bd
-					H(i+Ns,j)=H(i+Ns,j)+dwave(k)*5d-4*conjg(bd)
-				endif
-				H(j,i+Ns)=conjg(H(i+Ns,j))
-				H(j+Ns,i)=conjg(H(i,j+Ns))
-				H(j,i)=conjg(H(i,j))
-				H(j+Ns,i+Ns)=conjg(H(i+Ns,j+Ns))
-			enddo
-		enddo
+		call Hamilton(H)
 
 		if(present(cp)) then
 			write(*,"(A$)")"*"
@@ -364,42 +280,10 @@ contains
 		wf=H(:,1:Ns)
 
 		if(present(dwf)) then
-			cH=conjg(H)
+			cH=transpose(conjg(H))
 			dwf=0d0
-			do l=1,vn
-				D=0d0
-				do k=1,size(var(l)%bd_sg)
-					i=bond(var(l)%nb)%bd(var(l)%n(k))%i(1)
-					j=bond(var(l)%nb)%bd(var(l)%n(k))%i(2)
-					bd=bond(var(l)%nb)%bd(var(l)%n(k))%bdc
-					select case(var(l)%sg)
-					case(1)
-						! pair channel
-						D(i,:)=D(i,:)+H(j+Ns,:)*var(l)%bd_sg(k)*bd
-						D(i+Ns,:)=D(i+Ns,:)+H(j,:)*var(l)%bd_sg(k)*conjg(bd)
-						if(i/=j) then
-							D(j,:)=D(j,:)+H(i+Ns,:)*conjg(var(l)%bd_sg(k)*conjg(bd))
-							D(j+Ns,:)=D(j+Ns,:)+H(i,:)*conjg(var(l)%bd_sg(k)*bd)
-						endif
-					case(2,0)
-						! charge channel
-						D(i,:)=D(i,:)+H(j,:)*conjg(var(l)%bd_sg(k))*bd
-						D(i+Ns,:)=D(i+Ns,:)-H(j+Ns,:)*var(l)%bd_sg(k)*bd
-						if(i/=j) then
-							D(j,:)=D(j,:)+H(i,:)*conjg(conjg(var(l)%bd_sg(k))*bd)
-							D(j+Ns,:)=D(j+Ns,:)-H(i+Ns,:)*conjg(var(l)%bd_sg(k)*bd)
-						endif
-					case(3)
-						! spin channel
-						D(i,:)=D(i,:)+H(j,:)*conjg(var(l)%bd_sg(k))*bd
-						D(i+Ns,:)=D(i+Ns,:)+H(j+Ns,:)*var(l)%bd_sg(k)*bd
-						if(i/=j) then
-							D(j,:)=D(j,:)+H(i,:)*conjg(conjg(var(l)%bd_sg(k))*bd)
-							D(j+Ns,:)=D(j+Ns,:)+H(i+Ns,:)*conjg(var(l)%bd_sg(k)*bd)
-						endif
-					end select
-				enddo
 
+			call dHamilton(var(l),H,cH,D(:,:,l))
 				select case(opt)
 				case(1)
 					!method 1
@@ -409,7 +293,7 @@ contains
 							if(abs(E(i)-E(j))<1d-8) then
 								cycle
 							endif
-							dwf(:,i,l)=dwf(:,i,l)+sum(cH(:,j)*D(:,i))*H(:,j)/(E(i)-E(j))
+							dwf(:,i,l)=dwf(:,i,l)+D(j,i)*H(:,j)/(E(i)-E(j))
 						enddo
 					enddo
 					!$OMP END PARALLEL DO
@@ -422,7 +306,7 @@ contains
 								Q(i,j)=0d0
 								cycle
 							endif
-							Q(i,j)=sum(cH(:,i+Ns)*D(:,j))/(E(j)-E(i+Ns))
+							Q(i,j)=D(i+Ns,j)/(E(j)-E(i+Ns))
 						enddo
 					enddo
 					!$OMP END PARALLEL DO
@@ -430,7 +314,7 @@ contains
 					do i=1,Ns*2
 						tmp=matmul(H(i,Ns+1:),Q)
 						do j=1,Ns*2
-							dwf(i,j,l)=sum(tmp*cH(j,:Ns))
+							dwf(i,j,l)=sum(tmp*cH(:Ns,j))
 						enddo
 					enddo
 					!$OMP END PARALLEL DO
@@ -721,8 +605,8 @@ contains
 		El=0d0
 		do i=1,ne
 			do l=1,size(t)
-				do n=1,size(neb(cfg(i))%nb(l)%neb)
-					j=icfg(neb(cfg(i))%nb(l)%neb(n))
+				do n=1,size(latt%neb((cfg(i))%nb(l)%neb)
+					j=icfg(latt%neb((cfg(i))%nb(l)%neb(n))
 					call get_case(i,j,0,nd,sg)
 					select case(sg) 
 					case(1) 
@@ -730,13 +614,13 @@ contains
 						call getpb(k,m,sg,D,pb)
 						El=El-(t(l)*conjg(pb))&
 							*exp(jast(cfg(i),cfg(j),sg,ja,jan))&
-							*neb(cfg(i))%nb(l)%bdc(n)
+							*latt%neb((cfg(i))%nb(l)%bdc(n)
 					case(5) 
 						call getindex(i,j,cfg,sg,k,m)
 						call getpb(k,m,sg,D,pb)
 						El=El+(t(l)*conjg(pb))&
 							*exp(jast(cfg(i),cfg(j),sg,ja,jan))&
-							*neb(cfg(i))%nb(l)%bdc(n)
+							*latt%neb((cfg(i))%nb(l)%bdc(n)
 					case(0)
 						if(l==1.and.i<=ne2) then
 							call getindex(i,j,cfg,sg,k,m)
@@ -782,9 +666,9 @@ contains
 		real(8) :: lphy,ja(:,:),jan(:)
 		integer :: cfg(:),icfg(:),b1,j1,i1,sg,nd,k(2),m(2)
 		lphy=0d0
-		do b1=1,size(bond(1)%bd)
-			i1=bond(1)%bd(b1)%i(1)
-			j1=bond(1)%bd(b1)%i(2)
+		do b1=1,size(latt%bond(1)%bd)
+			i1=latt%bond(1)%bd(b1)%i(1)
+			j1=latt%bond(1)%bd(b1)%i(2)
 			if(icfg(i1)<=ne2.and.icfg(j1)>ne) then
 				k(1)=icfg(i1)
 				m(1)=j1
@@ -816,9 +700,9 @@ contains
 		real(8) :: lphy,ja(:,:),jan(:)
 		integer :: cfg(:),icfg(:),i1,j1,i2,j2,nd,k(2),m(2),b1,b2
 		lphy=0d0
-		do b1=1,size(bond(1)%bd)
-			i1=bond(1)%bd(b1)%i(1)
-			j1=bond(1)%bd(b1)%i(2)
+		do b1=1,size(latt%bond(1)%bd)
+			i1=latt%bond(1)%bd(b1)%i(1)
+			j1=latt%bond(1)%bd(b1)%i(2)
 			if(icfg(i1)<=ne2.and.icfg(j1)>ne2.and.icfg(j1)<=ne) then
 				k(1)=icfg(i1)
 				m(2)=j1+Ns
@@ -828,9 +712,9 @@ contains
 			else
 				cycle
 			endif
-			do b2=1,size(bond(1)%bd)
-				i2=bond(1)%bd(b2)%i(1)
-				j2=bond(1)%bd(b2)%i(2)
+			do b2=1,size(latt%bond(1)%bd)
+				i2=latt%bond(1)%bd(b2)%i(1)
+				j2=latt%bond(1)%bd(b2)%i(2)
 				if(icfg(i2)>ne.and.icfg(j2)>ne) then
 					m(1)=i2
 					k(2)=icfg(j2)
@@ -920,8 +804,8 @@ contains
 				!i=n
 			!endif
 			!do l=1,size(t)
-				!do k=1,size(neb(cfg(i))%nb(l+1)%neb)
-					!j=icfg(neb(cfg(i))%nb(l+1)%neb(k))
+				!do k=1,size(latt%neb((cfg(i))%nb(l+1)%neb)
+					!j=icfg(latt%neb((cfg(i))%nb(l+1)%neb(k))
 					!call get_case(i,j,ud,nd,sg)
 					!select case(sg)
 					!case(1:4)
@@ -970,7 +854,7 @@ contains
 			!i=n-nd*(1-ud)/2
 			!call latt_one2two(cfg(i),Ns,x1)
 			!do inb=1,4
-				!j=icfg(neb(cfg(i),inb,1))
+				!j=icfg(latt%neb((cfg(i),inb,1))
 				!call get_case(i,j,ud,nd,sg)
 				!select case(sg) 
 				!case(1:4)
@@ -994,7 +878,7 @@ contains
 		!!integer :: cfg(:),icfg(:),i,n,m,j,k,l,inb,sg,cr(2),x1(2),x2(2),nr(2),dr(2),r(2),nd
 		!!do i=ne2-nd+1,ne-nd
 			!!do inb=1,4,1
-				!!j=icfg(neb(cfg(i),inb,1))
+				!!j=icfg(latt%neb((cfg(i),inb,1))
 				!!if(j>ne2) then
 					!!vu(:,1)=wf(cfg(j),:)
 					!!cr=(/i,-1/)
@@ -1017,11 +901,11 @@ contains
 		!lphy=0d0
 		!do i=ne2-nd+1,ne-nd
 			!do inb1=1,4,1
-				!j=icfg(neb(cfg(i),inb1,1))
+				!j=icfg(latt%neb((cfg(i),inb1,1))
 				!if(j<=ne2) then
 					!do jj=ne2-nd+1,Ns
 						!do inb2=1,4,1
-							!ii=icfg(neb(cfg(jj),inb2,1))
+							!ii=icfg(latt%neb((cfg(jj),inb2,1))
 							!if(ii<=(ne2-nd)) then
 								!cr=(/ii+ne2,j/)
 							!elseif(ii>(ne-nd)) then
@@ -1159,8 +1043,8 @@ contains
 		djan=0
 		do l=1,size(djan,2)
 			do p=1,size(var(vn+l)%n)
-				i=bond(var(vn+l)%nb)%bd(var(vn+l)%n(p))%i(1)
-				j=bond(var(vn+l)%nb)%bd(var(vn+l)%n(p))%i(2)
+				i=latt%bond(var(vn+l)%nb)%bd(var(vn+l)%n(p))%i(1)
+				j=latt%bond(var(vn+l)%nb)%bd(var(vn+l)%n(p))%i(2)
 				ja(i,j)=-var(vn+l)%val
 				dja(i,j,l)=-1
 				jan(i)=jan(i)+ja(i,j)*abs(cs(icfg(j),nd))
@@ -1559,18 +1443,18 @@ contains
 					write(101,"(x/)")
 				endif
 				do k=1,size(var(l)%n)
-					write(101,"(es13.2$)")bond(var(l)%nb)%bd(var(l)%n(k))%r,bond(var(l)%nb)%bd(var(l)%n(k))%dir,var(l)%bd_sg(k)*var(l)%val
+					write(101,"(es13.2$)")latt%bond(var(l)%nb)%bd(var(l)%n(k))%r,latt%bond(var(l)%nb)%bd(var(l)%n(k))%dir,var(l)%bd_sg(k)*var(l)%val
 					write(101,"(x)")
 				enddo
 			enddo
 			write(101,"(x/)")
 			do k=1,Ns
-				write(101,"(es13.2$)")bond(0)%bd(k)%r,bond(0)%bd(k)%dir,phy(1)%csite(k)
+				write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dir,phy(1)%csite(k)
 				write(101,"(x)")
 			enddo
 			write(101,"(x/)")
 			do k=1,Ns
-				write(101,"(es13.2$)")bond(0)%bd(k)%r,bond(0)%bd(k)%dir,phy(1)%ssite(k)
+				write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dir,phy(1)%ssite(k)
 				write(101,"(i5$)")ab(j)
 				write(101,"(x)")
 			enddo
