@@ -75,7 +75,7 @@ contains
 	end subroutine
 	function is_in(r,T1,T2)
 		logical :: is_in
-		real(8) :: r(3),k1,k2,bx,by,rx,ry,T1(3),T2(3)
+		real(8) :: r(3),k1,k2,b1,b2,u1,u2,r1,r2,T1(3),T2(3)
 		k1=T1(2)/T1(1)
 		k2=T2(2)/T2(1)
 		if(isnan(k1)) then
@@ -84,12 +84,26 @@ contains
 		if(isnan(k2)) then
 			k2=1d100
 		endif
-		bx=-(T1(2)/k2-T1(1))-err
-		by=T2(2)-k1*T2(1)-err
-		ry=r(2)-k1*r(1)
-		rx=-(r(2)/k2-r(1))
+		if(abs(k1)<1d0) then
+			b1=T2(2)-T2(1)*k1
+			r1=r(2)-r(1)*k1
+		else
+			b1=-(T2(2)/k1-T2(1))
+			r1=-(r(2)/k1-r(1))
+		endif
+		if(abs(k2)<1d0) then
+			b2=T1(2)-T1(1)*k2
+			r2=r(2)-r(1)*k2
+		else
+			b2=-(T1(2)/k2-T1(1))
+			r2=-(r(2)/k2-r(1))
+		endif
+		u1=-err*sign(1d0,b1)
+		u2=-err*sign(1d0,b2)
+		b1=b1+u1
+		b2=b2+u2
 		!if(rx>=-err.and.rx<bx.and.ry>=-err.and.ry<by) then
-		if((abs(rx+err)+abs(rx-bx)<=abs(bx+err)).and.(abs(ry+err)+abs(ry-by)<=abs(by+err))) then
+		if(((abs(r1-u1)+abs(r1-b1))<=(abs(b1-u1)+err/10d0)).and.((abs(r2-u2)+abs(r2-b2))<=(abs(b2-u2)+err/10d0))) then
 			is_in=.true.
 		else
 			is_in=.false.
@@ -214,7 +228,7 @@ contains
 	subroutine gen_bond(self,l)
 		class(t_latt) :: self
 		integer :: l,i,j,k,n,m,p
-		type(t_bond) :: tmp(1000)
+		type(t_bond) :: tmp(10000)
 		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,Ns=>self%Ns,layer=>self%layer,bdc=>self%bdc)
 			allocate(self%bond(0:l))
 			do k=0,l
