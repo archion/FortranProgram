@@ -20,14 +20,13 @@ module M_bdg
 	end type
 contains
 	subroutine initial()
-		integer :: iv(2),i,j,l,n,k
+		integer :: iv(-1:1),i,j,l,n,k
 		type(t_var), allocatable :: tmp(:)
 		type(t_mysort), allocatable :: sort_site(:),sort_bd1(:)
 		integer, allocatable :: collect_site(:),collect_bd1(:)
 		real(8) :: q(3)
 		allocate(tmp(-10000:10000))
 		call init_random_seed()
-		q=(/1d0/8d0,0d0,0d0/)
 		! lattice 
 		latt%a1=(/1d0,0d0,0d0/)
 		latt%a2=(/0d0,1d0,0d0/)
@@ -51,8 +50,8 @@ contains
 		allocate(sort_site(latt%Ns))
 		do k=1,size(sort_site)
 			!sort_site(k)%val=cos(2d0*pi*sum((bond(0)%bd(k)%r)*q))
-			!sort_site(k)%val=k
-			sort_site(k)%val=sqrt(sum((latt%bond(0)%bd(k)%r-latt%i2r(imp,:))**2))+abs(theta(abs(latt%bond(0)%bd(k)%r-latt%i2r(imp,:)))-pi/4d0)
+			sort_site(k)%val=k
+			!sort_site(k)%val=sqrt(sum((latt%bond(0)%bd(k)%r-latt%i2r(imp,:))**2))+abs(theta(abs(latt%bond(0)%bd(k)%r-latt%i2r(imp,:)))-pi/4d0)
 			sort_site(k)%idx=k
 			write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dir,sort_site(k)%val
 			write(101,"(i5$)")k
@@ -65,8 +64,8 @@ contains
 		allocate(sort_bd1(size(latt%bond(1)%bd)))
 		do k=1,size(sort_bd1)
 			!sort_bd1(k)%val=cos(2d0*pi*sum((latt%bond(1)%bd(k)%r-(/0.5d0,0d0,0d0/))*q))
-			!sort_bd1(k)%val=k
-			sort_bd1(k)%val=sqrt(sum((latt%bond(1)%bd(k)%r-latt%i2r(imp,:))**2))+abs(theta(abs(latt%bond(1)%bd(k)%r-latt%i2r(imp,:)))-pi/4d0)
+			sort_bd1(k)%val=k
+			!sort_bd1(k)%val=sqrt(sum((latt%bond(1)%bd(k)%r-latt%i2r(imp,:))**2))+abs(theta(abs(latt%bond(1)%bd(k)%r-latt%i2r(imp,:)))-pi/4d0)
 			sort_bd1(k)%idx=k
 			write(101,"(es13.2$)")latt%bond(1)%bd(k)%r,latt%bond(1)%bd(k)%dir,sort_bd1(k)%val
 			write(101,"(i5$)")k
@@ -76,33 +75,21 @@ contains
 		call sort_bd1%qsort()
 		call sort_bd1%collect(collect_bd1)
 
-		iv=(/0,1/)
+		iv=(/1,0,0/)
 		! cp
 		call gen_var(iv,n,sg=1,nb=0,V=1d0,var=tmp)
-		tmp(iv)%val=1.52d-01
-		tmp(iv)%bd_sg=-1d0
+		tmp(iv(0))%val=1.52d-01
+		tmp(iv(0))%bd_sg=-1d0
 
 		! impure
 		call gen_var(iv,n,(/1,2/),(/imp/),sg=-4,nb=0,V=1d0,var=tmp)
-		tmp(iv)%val=Vimp
-		tmp(iv)%bd_sg=1d0
-
-		!! ddw
-		!!call gen_var(iv,n,collect_bd1,sort_bd1%idx,sg=3,nb=1,V=1d0,var=tmp)
-		!call gen_var(iv,n,sg=3,nb=1,V=1d0,var=tmp)
-		do i=iv-n*sign(1,sg)+1,iv
-			!tmp(i)%val=2d-1
-			!do k=1,size(tmp(i)%n)
-				!tmp(i)%bd_sg(k)=ab(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%i(1))*img*dwave(tmp(i)%n(k))*&
-					!1d0
-					!!cos(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r-(/0.5d0,0d0,0d0/))))
-			!enddo
-		!enddo
+		tmp(iv(0))%val=Vimp
+		tmp(iv(0))%bd_sg=1d0
 
 		! d-wave sc
 		call gen_var(iv,n,collect_bd1,sort_bd1%idx,sg=2,nb=1,V=V,var=tmp)
 		!call gen_var(iv,n,sg=2,nb=1,V=V,var=tmp)
-		do i=iv-n*sign(1,sg)+1,iv
+		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			call random_number(tmp(i)%val)
 			!tmp(i)%val=2d-1
 			tmp(i)%val=(tmp(i)%val-0.5d0)*0.1d0+5d-1
@@ -111,56 +98,26 @@ contains
 			enddo
 		enddo
 
-		!call gen_var(iv,n,sg=2,nb=1,V=1d0,var=tmp)
-		!do i=iv-n*sign(1,sg)+1,iv
-			!tmp(i)%val=1d-5
-			!do k=1,size(tmp(i)%n)
-				!tmp(i)%bd_sg(k)=dwave(tmp(i)%n(k))*&
-					!cos(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r-(/0.5d0,0d0,0d0/))))
-			!enddo
-		!enddo
-
-
-		!! s-wave sc
-		!call gen_var(iv,n,collect_bd1,sort_bd1%idx,sg=2,nb=1,V=1d0,var=tmp)
-		!do i=iv-n*sign(1,sg)+1,iv
-			!tmp(i)%val=1d-1
-			!do k=1,size(tmp(i)%n)
-				!tmp(i)%bd_sg(k)=1d0
-			!enddo
-		!enddo
-
 		! sdw
 		call gen_var(iv,n,collect_site,sort_site%idx,sg=4,nb=0,V=-U,var=tmp)
 		!call gen_var(iv,n,sg=4,nb=0,V=-U,var=tmp)
-		do i=iv-n*sign(1,sg)+1,iv
+		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			call random_number(tmp(i)%val)
 			!tmp(i)%val=1d-1
 			tmp(i)%val=(tmp(i)%val-0.5d0)*0.1d0+1d-1
 			do k=1,size(tmp(i)%n)
 				tmp(i)%bd_sg(k)=ab(tmp(i)%n(k))*&
 					1d0
-					!sin(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r+(/0.5d0,0d0,0d0/))))
-					!sin(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
 			enddo
 		enddo
 
-		!! d-wave cdw
-		!!call gen_var(iv,n,collect_bd1,sort_bd1%idx,sg=3,nb=1,V=1d0,var=tmp)
-		!call gen_var(iv,n,sg=3,nb=1,V=1d0,var=tmp)
-		!do i=iv-n*sign(1,sg)+1,iv
-			!tmp(i)%val=1d-1
-			!do k=1,size(tmp(i)%n)
-				!tmp(i)%bd_sg(k)=dwave(tmp(i)%n(k))
-			!enddo
-		!enddo
 
 		! on site cdw
 		call gen_var(iv,n,collect_site,sort_site%idx,sg=3,nb=0,V=U,var=tmp)
 		!call gen_var(iv,n,sg=3,nb=0,V=U,var=tmp)
 		!deallocate(tmp(iv)%bd_sg,tmp(iv)%n)
 		!iv=iv-1
-		!do i=iv-n*sign(1,sg)+1,iv
+		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			call random_number(tmp(i)%val)
 			!tmp(i)%val=nf/2d0
 			tmp(i)%val=(tmp(i)%val-0.5d0)*0.1d0+nf/2d0
@@ -168,36 +125,21 @@ contains
 			do k=1,size(tmp(i)%n)
 				tmp(i)%bd_sg(k)=&
 					1d0
-					!cos(2d0*pi*sum(2d0*q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r+(/0.5d0,0d0,0d0/))))
-					!cos(2d0*pi*sum(2d0*q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
 			enddo
 		enddo
 
 		! hp
-		!call gen_var(iv,n,collect_bd1,sort_bd1%idx,sg=3,nb=1,V=1d0,var=tmp)
-		!deallocate(tmp(iv)%bd_sg,tmp(iv)%n)
-		!iv=iv-1
-		call gen_var(iv,n,sg=3,nb=1,V=1d0,var=tmp)
-		do i=iv-n*sign(1,sg)+1,iv
-			tmp(i)%val=t(1)
-			do k=1,size(tmp(i)%n)
-				tmp(i)%bd_sg(k)=&
-					-1d0
-					!cos(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r-(/0.5d0,0d0,0d0/))))
-			enddo
-		enddo
-
 		do l=1,size(t)
 			call gen_var(iv,n,sg=-3,nb=l,V=1d0,var=tmp)
-			do i=iv-n*sign(1,sg)+1,iv
+			do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 				tmp(i)%bd_sg=-1d0
 				tmp(i)%val=t(l)
 			enddo
 		enddo
 
 
-		allocate(var(iv(2):iv(1)))
-		do l=iv(2):iv(1)
+		allocate(var(iv(-1):iv(1)))
+		do l=iv(-1),iv(1)
 			call move_alloc(tmp(l)%bd_sg,var(l)%bd_sg)
 			call move_alloc(tmp(l)%n,var(l)%n)
 			var(l)%val=tmp(l)%val
@@ -340,7 +282,7 @@ contains
 				write(ut,"(x/)")
 			endif
 			do k=1,size(var(l)%n)
-				write(ut,"(es17.9$)")latt%bond(var(l)%nb)%bd(var(l)%n(k))%r,latt%bond(var(l)%nb)%bd(var(l)%n(k))%dir,var(l)%val
+				write(ut,"(es17.9$)")latt%bond(var(l)%nb)%bd(var(l)%n(k))%r,latt%bond(var(l)%nb)%bd(var(l)%n(k))%dir,var(l)%val,var(l)%bd_sg(k)
 				write(ut,"(x)")
 			enddo
 		enddo
@@ -411,7 +353,6 @@ program main
 			!exit
 		!endif
 	!enddo
-	!call export_data(10)
 	call self_consist()
 	call export_data(10)
 end program

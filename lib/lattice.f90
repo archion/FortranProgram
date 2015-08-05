@@ -29,7 +29,7 @@ module M_lattice
 	type t_bd
 		type(t_bond), allocatable :: bd(:)
 	end type
-	real(8) :: err=1d-8
+	real(8) :: err=1d-6
 	type t_latt
 		real(8) :: T1(3),T2(3),a1(3),a2(3),a3(3)
 		integer :: Ns,layer
@@ -73,11 +73,9 @@ contains
 			deallocate(tmp)
 		end select
 	end subroutine
-	function is_in(r,T1,T2,sg,bc)
+	function is_in(r,T1,T2)
 		logical :: is_in
 		real(8) :: r(3),k1,k2,bx,by,rx,ry,T1(3),T2(3)
-		integer, optional :: sg(2)
-		complex(8), optional :: bc
 		k1=T1(2)/T1(1)
 		k2=T2(2)/T2(1)
 		if(isnan(k1)) then
@@ -86,71 +84,47 @@ contains
 		if(isnan(k2)) then
 			k2=1d100
 		endif
-		if(present(sg)) then
-			bc=1d0
-			sg=0
-		endif
 		bx=-(T1(2)/k2-T1(1))-err
 		by=T2(2)-k1*T2(1)-err
 		ry=r(2)-k1*r(1)
 		rx=-(r(2)/k2-r(1))
-		if(rx>=-err.and.rx<bx.and.ry>=-err.and.ry<by) then
+		!if(rx>=-err.and.rx<bx.and.ry>=-err.and.ry<by) then
+		if((abs(rx+err)+abs(rx-bx)<=abs(bx+err)).and.(abs(ry+err)+abs(ry-by)<=abs(by+err))) then
 			is_in=.true.
 		else
 			is_in=.false.
-			associate(bdc=>latt%bdc)
-				if(present(sg)) then
-					if(rx<-err.and.abs(bdc(2))>err) then
-						sg(1)=1
-						bc=bc*conjg(bdc(2))
-					elseif(rx>=bx.and.abs(bdc(2))>err) then
-						sg(1)=-1
-						bc=bc*bdc(2)
-					else
-						sg(1)=0
-					endif
-					if(ry<-err.and.abs(bdc(1))>err) then
-						sg(2)=1
-						bc=bc*conjg(bdc(1))
-					elseif(ry>=by.and.abs(bdc(1))>err) then
-						sg(2)=-1
-						bc=bc*bdc(1)
-					else
-						sg(2)=0
-					endif
-				endif
-			end associate
 		endif
 	end function
 	subroutine gen_latt(self)
 		class(t_latt) :: self
-		integer :: i,j,n,nsub
-		real(8) :: x(2),y(2),r(3),tmp(10000,3)
+		integer :: i,j,l,n
+		real(8) :: x(2),y(2),r(3),tmp(10000000,3)
 		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,Ns=>self%Ns,layer=>self%layer,bdc=>self%bdc)
-			x(1)=minval((/T1(1),T2(1),T1(1)+T2(1),0d0/))
-			x(2)=maxval((/T1(1),T2(1),T1(1)+T2(1),0d0/))
-			y(1)=minval((/T1(2),T2(2),T1(2)+T2(2),0d0/))
-			y(2)=maxval((/T1(2),T2(2),T1(2)+T2(2),0d0/))
 			n=0
-			do j=int(y(1)/a2(2)),int(y(2)/a2(2))
-				do i=int((x(1)-a2(1)*j)/a1(1)),int((x(2)-a2(1)*j)/a1(1))
-					r=a1*i+a2*j
-					if(is_in(r,T1,T2)) then
-						n=n+1
-						tmp(n,:)=r
-					endif
+			do l=1,size(self%sub,1)
+				x(1)=minval((/T1(1),T2(1),T1(1)+T2(1),0d0/))-self%sub(l,1)
+				x(2)=maxval((/T1(1),T2(1),T1(1)+T2(1),0d0/))-self%sub(l,1)
+				y(1)=minval((/T1(2),T2(2),T1(2)+T2(2),0d0/))-self%sub(l,2)
+				y(2)=maxval((/T1(2),T2(2),T1(2)+T2(2),0d0/))-self%sub(l,2)
+				!write(10,"(3es13.2)")x(1),y(1),0d0
+				!write(10,"(3es13.2)")x(2),y(1),0d0
+				!write(10,"(3es13.2)")x(2),y(2),0d0
+				!write(10,"(3es13.2)")x(1),y(2),0d0
+				!write(10,"(3es13.2)")x(1),y(1),0d0
+				!write(10,"(x/)")
+				do j=nint(y(1)/a2(2)),nint(y(2)/a2(2))
+					do i=nint((x(1)-a2(1)*j)/a1(1)),nint((x(2)-a2(1)*j)/a1(1))
+						r=a1*i+a2*j+self%sub(l,:)
+						if(is_in(r,T1,T2)) then
+							n=n+1
+							tmp(n,:)=r
+						endif
+					enddo
 				enddo
 			enddo
 			Ns=n
-			nsub=size(self%sub,1)
-			allocate(self%i2r(Ns*size(self%sub,1)*layer,3))
+			allocate(self%i2r(Ns*layer,3))
 			self%i2r(1:Ns,:)=tmp
-			do i=2,nsub
-				do j=1,size(self%sub(i,:))
-					self%i2r(1+Ns*(i-1):Ns*i,j)=self%i2r(:Ns,j)+self%sub(i,j)
-				enddo
-			enddo
-			Ns=Ns*nsub
 			do i=2,layer
 				do j=1,size(a3)
 					self%i2r(1+Ns*(i-1):Ns*i,j)=self%i2r(:Ns,j)+a3(j)*(i-1)
@@ -161,29 +135,44 @@ contains
 	end subroutine
 	subroutine gen_neb(self,l)
 		class(t_latt) :: self
-		type(t_mysort) :: tmp(100000)
+		type(t_mysort) :: tmp(10000000)
 		real(8) :: p,dr(3)
-		integer :: i,j,k,n,n1,n2,l,sg(2)
+		integer :: i,j,k,n,n1,n2,l,sg(2),l1,l2
 		integer, allocatable :: t(:)
 		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,Ns=>self%Ns,layer=>self%layer,bdc=>self%bdc)
+			l1=max(abs(nint(sum(l*a1*T1)/sum(T1**2))),1)
+			l2=max(abs(nint(sum(l*a2*T2)/sum(T2**2))),1)
 			allocate(self%neb(Ns))
 			do i=1,Ns/layer
 				k=0
 				do j=1,Ns/layer
-					do n1=-l,l
-						do n2=-l,l
+					do n1=-l1,l1
+						do n2=-l2,l2
+							if((abs(bdc(1))<err.and.n1/=0).or.(abs(bdc(2))<err.and.n2/=0)) then
+								cycle
+							endif
 							dr=self%i2r(j,:)-self%i2r(i,:)+T1*n1+T2*n2
-							!if(sum(dr**2)>l**2) then
-							!cycle
-							!endif
 
 							k=k+1
-							if(.not.is_in(dr+T1/2d0+T2/2d0,T1,T2,sg,tmp(k)%bdc)) then
-								!dr=dr+T1*sg(1)+T2*sg(2)
-							endif
+							!if(.not.is_in(dr+T1/2d0+T2/2d0,T1,T2,sg,tmp(k)%bdc)) then
+								!!dr=dr+T1*sg(1)+T2*sg(2)
+							!endif
 							tmp(k)%val=sum(dr**2)
 							tmp(k)%idx=j
 							tmp(k)%dr=dr
+							tmp(k)%bdc=1d0
+							select case(n1)
+							case(1:)
+								tmp(k)%bdc=tmp(k)%bdc*bdc(1)**n1
+							case(:-1)
+								tmp(k)%bdc=tmp(k)%bdc*conjg(bdc(1))**n1
+							end select
+							select case(n2)
+							case(1:)
+								tmp(k)%bdc=tmp(k)%bdc*bdc(2)**n2
+							case(:-1)
+								tmp(k)%bdc=tmp(k)%bdc*conjg(bdc(2))**n2
+							end select
 						enddo
 					enddo
 				enddo
@@ -225,7 +214,7 @@ contains
 	subroutine gen_bond(self,l)
 		class(t_latt) :: self
 		integer :: l,i,j,k,n,m,p
-		type(t_bond) :: tmp(self%Ns*4)
+		type(t_bond) :: tmp(1000)
 		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,Ns=>self%Ns,layer=>self%layer,bdc=>self%bdc)
 			allocate(self%bond(0:l))
 			do k=0,l

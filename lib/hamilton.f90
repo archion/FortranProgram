@@ -41,33 +41,30 @@ contains
 		integer, intent(in), optional :: collect(:),sort(:)
 		real(8), intent(in) :: V
 		type(t_var), intent(inout) :: var(:)
-		integer, intent(inout) :: iv(:),n
-		integer :: i,l
+		integer, intent(inout) :: iv(-1:1),n
+		integer :: i,bs
 		n=0
-		if(sg<0) then
-			l=iv(2)
-		else
-			l=iv(1)
-		endif
+		bs=(size(var)-1)/2+1
 		if(present(collect)) then
 			do i=1,size(collect)-1
-				l=l+sign(1,sg)
-				n=n+1
-				var(l)%sg=sg
-				var(l)%nb=nb
-				var(l)%V=V
-				allocate(var(l)%bd_sg(collect(i+1)-collect(i)),var(l)%n(collect(i+1)-collect(i)))
-				var(l)%n=sort(collect(i):collect(i+1)-1)
+				iv(sign(1,sg))=iv(sign(1,sg))+sign(1,sg)
+				n=n+sign(1,sg)
+				var(iv(sign(1,sg))+bs)%sg=sg
+				var(iv(sign(1,sg))+bs)%nb=nb
+				var(iv(sign(1,sg))+bs)%V=V
+				allocate(var(iv(sign(1,sg))+bs)%bd_sg(collect(i+1)-collect(i)),var(iv(sign(1,sg))+bs)%n(collect(i+1)-collect(i)))
+				var(iv(sign(1,sg))+bs)%n=sort(collect(i):collect(i+1)-1)
 			enddo
 		else
-			l=l+sign(1,sg)
-			n=n+1
-			var(l)%sg=sg
-			var(l)%nb=nb
-			var(l)%V=V
-			allocate(var(l)%bd_sg(size(latt%bond(nb)%bd)),var(l)%n(size(latt%bond(nb)%bd)))
-			var(l)%n=(/(i,i=1,size(latt%bond(nb)%bd))/)
+			iv(sign(1,sg))=iv(sign(1,sg))+sign(1,sg)
+			n=n+sign(1,sg)
+			var(iv(sign(1,sg))+bs)%sg=sg
+			var(iv(sign(1,sg))+bs)%nb=nb
+			var(iv(sign(1,sg))+bs)%V=V
+			allocate(var(iv(sign(1,sg))+bs)%bd_sg(size(latt%bond(nb)%bd)),var(iv(sign(1,sg))+bs)%n(size(latt%bond(nb)%bd)))
+			var(iv(sign(1,sg))+bs)%n=(/(i,i=1,size(latt%bond(nb)%bd))/)
 		endif
+		iv(0)=iv(sign(1,sg))
 	end subroutine
 	subroutine Hamilton(H,rk)
 		complex(8), intent(inout) :: H(:,:)
