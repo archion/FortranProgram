@@ -1,6 +1,7 @@
 module M_Hamilton
 	use M_lattice
 	use M_const
+	use lapack95, only: heevd
 	implicit none
 	type t_var
 		real(8) :: val
@@ -188,5 +189,31 @@ contains
 			ddE(:,l1,l1)=ddE(:,l1,l1)*2d0
 		enddo
 		!$OMP END PARALLEL DO
+	end subroutine
+	subroutine energy(ut)
+		integer :: ut,n,i
+		real(8) :: ki(3),kf(3),k(3),dk(3)
+		complex(8) :: H(latt%Ns*2,latt%Ns*2)
+		real(8) :: E(size(H,1))
+		do i=1,size(brizon%k,1)
+			call Hamilton(H,brizon%k(i,:))
+			call heevd(H,E,"V")
+			write(ut,"(es17.9$)")brizon%k(i,:),E,abs(H(1,:))
+			write(ut,"(x)")
+		enddo
+	end subroutine
+	subroutine band(ki,kf,n,ut)
+		integer :: ut,n,i
+		real(8) :: ki(3),kf(3),k(3),dk(3)
+		complex(8) :: H(latt%Ns*2,latt%Ns*2)
+		real(8) :: E(size(H,1))
+		dk=(kf-ki)/n
+		do i=0,n-1
+			k=ki+dk*i
+			call Hamilton(H,k)
+			call heevd(H,E,"V")
+			write(ut,"(es17.9$)")k,E,abs(H(1,:))
+			write(ut,"(x)")
+		enddo
 	end subroutine
 end module

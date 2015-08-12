@@ -4,15 +4,13 @@ module pmt
 	real(8), parameter :: t(3)=(/1d0,-0.25d0,0.1d0/),&
 		V=0.12d0,DJ=0.35d0,&
 		!V=0.d0,DJ=0.25d0,&
-	Vs=DJ-V,Vd=0.5d0*DJ+V,Tk=0.02,nf=0.88d0
+	Vs=DJ-V,Vd=0.5d0*DJ+V,Tk=0.01,nf=0.8d0
 end module
 module selfcons
 	use pmt
 	use M_Hamilton
 	use M_utility
-	use lapack95, only: heevd
 	implicit none
-	type(t_latt) :: brilzone
 contains
 	subroutine initial()
 		integer :: iv(-1:1),n,i,j,l,ip,k
@@ -33,6 +31,10 @@ contains
 		call latt%gen_latt()
 		call latt%gen_neb(3)
 		call latt%gen_bond(3)
+		brizon%n1=128
+		brizon%n2=128
+		call latt%gen_brizon()
+		call check_lattice(30)
 		write(*,*)"Total site number is: ",latt%Ns
 
 		iv=(/1,0,0/)
@@ -122,14 +124,14 @@ contains
 		v=0d0
 		write(*,"(es12.4$)")x
 		!$OMP PARALLEL DO PRIVATE(H,E,f,cH,fE,D,dE,dvar) REDUCTION(+:v)
-		do k=1,brilzone%Ns
-			call Hamilton(H,brilzone%i2r(k,:))
+		do k=1,size(brizon%k,1)
+			call Hamilton(H,brizon%k(k,:))
 			call heevd(H,E,"V")
 			f=1d0/(exp(E/Tk)+1d0)
 			cH=transpose(conjg(H))
 			call fenergy(E,fE)
 			do l=1,n
-				call dHamilton(var(l),H,cH,D(:,1:1,l),brilzone%i2r(k,:))
+				call dHamilton(var(l),H,cH,D(:,1:1,l),brizon%k(k,:))
 			enddo
 			dE=real(D(:,1,:))
 			do l=1,n
@@ -155,7 +157,7 @@ contains
 		enddo
 		!$OMP END PARALLEL DO
 		do l=1,n
-			v(l)=v(l)/(size(var(l)%n)*brilzone%Ns)
+			v(l)=v(l)/(size(var(l)%n)*size(brizon%k,1))
 		enddo
 		err=sum(abs(v))/size(v)
 		write(*,*)err
@@ -200,23 +202,15 @@ contains
 	end subroutine
 end module
 program main
-	use pmt
 	use selfcons
 	implicit none
 	logical :: f
-	f=openfile(unit=20,file='../data/energy.dat')
-	! brillouin zone
-	brilzone%T1=(/1d0,1d0,0d0/)*pi
-	brilzone%T2=(/-1d0,1d0,0d0/)*pi
-	brilzone%a1=brilzone%T1/128d0
-	brilzone%a2=brilzone%T2/1284d0
-	brilzone%bdc(1)=1d0
-	brilzone%bdc(2)=1d0
-	allocate(brilzone%sub(1,3))
-	brilzone%sub(1,:)=(/0d0,0d0,0d0/)
-	brilzone%layer=1
-	call brilzone%gen_latt()
+	f=openfile(unit=20,file='../data/band.dat')
+	f=openfile(unit=30,file='../data/lattice.dat')
 
 	call initial()
 	call self_consist()
+	call band((/0d0,0d0,0d0/),brizon%T(1,:),128,20)
+	call band(brizon%T(1,:),brizon%T(1,:)+brizon%T(2,:),128,20)
+	call band(brizon%T(1,:)+brizon%T(2,:),(/0d0,0d0,0d0/),128,20)
 end program

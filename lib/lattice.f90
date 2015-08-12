@@ -42,9 +42,17 @@ module M_lattice
 		procedure gen_latt
 		procedure gen_neb
 		procedure gen_bond
+		procedure gen_brizon
+	end type
+	type t_brizon
+		integer :: n1,n2
+		real(8) :: b1(3),b2(3)
+		real(8), allocatable :: k(:,:)
+		real(8), allocatable :: T(:,:)
 	end type
 	type(t_latt), public :: latt
-	public theta,t_latt
+	type(t_brizon), public :: brizon
+	public theta,t_latt,check_lattice
 contains
 	subroutine myswap(self,a)
 		class(t_mysort) :: self
@@ -73,63 +81,58 @@ contains
 			deallocate(tmp)
 		end select
 	end subroutine
-	function is_in(r,T1,T2)
+	!function is_in(r,T1,T2)
+		!logical :: is_in
+		!real(8) :: r(3),tr(2),T1(3),T2(3),tf(2,2)
+		!tf=reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/))
+		!tr=matmul(tf,r(:2))
+		!if(all(tr>=-err.and.tr<(1d0-err))) then
+			!is_in=.true.
+		!else
+			!is_in=.false.
+		!endif
+	!end function
+	function is_in(r,T)
 		logical :: is_in
-		real(8) :: r(3),k1,k2,b1,b2,u1,u2,r1,r2,T1(3),T2(3)
-		k1=T1(2)/T1(1)
-		k2=T2(2)/T2(1)
-		if(isnan(k1)) then
-			k1=1d100
-		endif
-		if(isnan(k2)) then
-			k2=1d100
-		endif
-		if(abs(k1)<1d0) then
-			b1=T2(2)-T2(1)*k1
-			r1=r(2)-r(1)*k1
-		else
-			b1=-(T2(2)/k1-T2(1))
-			r1=-(r(2)/k1-r(1))
-		endif
-		if(abs(k2)<1d0) then
-			b2=T1(2)-T1(1)*k2
-			r2=r(2)-r(1)*k2
-		else
-			b2=-(T1(2)/k2-T1(1))
-			r2=-(r(2)/k2-r(1))
-		endif
-		u1=-err*sign(1d0,b1)
-		u2=-err*sign(1d0,b2)
-		b1=b1+u1
-		b2=b2+u2
-		!if(rx>=-err.and.rx<bx.and.ry>=-err.and.ry<by) then
-		if(((abs(r1-u1)+abs(r1-b1))<=(abs(b1-u1)+err/10d0)).and.((abs(r2-u2)+abs(r2-b2))<=(abs(b2-u2)+err/10d0))) then
-			is_in=.true.
-		else
-			is_in=.false.
-		endif
+		real(8) :: r(3),tr(2),T(:,:),T1(3),T2(3),tf(2,2),rerr(3)
+		integer :: i
+		is_in=.true.
+		rerr=0d0
+		do i=1,size(T,1)/2
+			rerr=rerr+(T(i+1,:)-T(i,:))*err*i/1.34d0
+		enddo
+		do i=1,size(T,1),2
+			T1=T(mod(i-2+size(T,1),size(T,1))+1,:)-T(i,:)
+			T2=T(mod(i,size(T,1))+1,:)-T(i,:)
+			tf=reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/))
+			tr=matmul(tf,r(:2)-T(i,:2)+rerr(:2))
+			if(any(tr<0d0)) then
+				is_in=.false.
+				exit
+			endif
+		enddo
 	end function
 	subroutine gen_latt(self)
 		class(t_latt) :: self
 		integer :: i,j,l,n
-		real(8) :: x(2),y(2),r(3),tmp(10000000,3)
+		real(8) :: x(4),y(4),r(3),tmp(10000000,3),tf(2,2),T(4,3)
 		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,Ns=>self%Ns,layer=>self%layer,bdc=>self%bdc)
+			tf=reshape((/a2(2),-a1(2),-a2(1),a1(1)/)/(a1(1)*a2(2)-a1(2)*a2(1)),(/2,2/))
+			T(1,:)=0d0
+			T(2,:)=T1
+			T(3,:)=T1+T2
+			T(4,:)=T2
 			n=0
 			do l=1,size(self%sub,1)
-				x(1)=minval((/T1(1),T2(1),T1(1)+T2(1),0d0/))-self%sub(l,1)
-				x(2)=maxval((/T1(1),T2(1),T1(1)+T2(1),0d0/))-self%sub(l,1)
-				y(1)=minval((/T1(2),T2(2),T1(2)+T2(2),0d0/))-self%sub(l,2)
-				y(2)=maxval((/T1(2),T2(2),T1(2)+T2(2),0d0/))-self%sub(l,2)
-				!write(10,"(3es13.2)")x(1),y(1),0d0
-				!write(10,"(3es13.2)")x(2),y(1),0d0
-				!write(10,"(3es13.2)")x(2),y(2),0d0
-				!write(10,"(3es13.2)")x(1),y(2),0d0
-				!write(10,"(3es13.2)")x(1),y(1),0d0
-				!write(10,"(x/)")
-				do j=nint(y(1)/a2(2)),nint(y(2)/a2(2))
-					do i=nint((x(1)-a2(1)*j)/a1(1)),nint((x(2)-a2(1)*j)/a1(1))
+				do i=1,4
+					x(i)=sum(tf(1,:)*T(i,:2))-sum(tf(1,:)*self%sub(l,:2))
+					y(i)=sum(tf(2,:)*T(i,:2))-sum(tf(2,:)*self%sub(l,:2))
+				enddo
+				do j=nint(minval(y)),nint(maxval(y))
+					do i=nint(minval(x)),nint(maxval(x))
 						r=a1*i+a2*j+self%sub(l,:)
-						if(is_in(r,T1,T2)) then
+						!if(is_in(r,T1,T2)) then
+						if(is_in(r,T)) then
 							n=n+1
 							tmp(n,:)=r
 						endif
@@ -261,6 +264,97 @@ contains
 			enddo
 		end associate
 	end subroutine
+	subroutine gen_brizon(self)
+		class(t_latt) :: self
+		real(8) :: r(3),tf(2,2),T(0:24,3),th,dr1(2),dr2(2)
+		real(8), allocatable :: x(:),y(:)
+		type(t_mysort) :: st(24)
+		integer :: n,i,j
+		integer, allocatable :: ist(:)
+		associate(b1=>brizon%b1,b2=>brizon%b2,n1=>brizon%n1,n2=>brizon%n2,T1=>self%T1,T2=>self%T2,bdc=>self%bdc)
+			if(all(abs(bdc(:2))>err)) then
+				allocate(brizon%k(n1*n2,3))
+			elseif(all(abs(bdc(:2))<err)) then
+				allocate(brizon%k(1,3))
+			elseif(abs(bdc(1))<err) then
+				allocate(brizon%k(n2,3))
+			else
+				allocate(brizon%k(n1,3))
+			endif
+			b1=(/-T2(2),T2(1),0d0/)
+			b2=(/T1(2),-T1(1),0d0/)
+			if(abs(bdc(1))<err) b2=T2
+			if(abs(bdc(2))<err) b1=T1
+			b1=2d0*pi*b1/sum(T1*b1)
+			b2=2d0*pi*b2/sum(T2*b2)
+			tf=reshape((/b2(2)*n1,-b1(2)*n2,-b2(1)*n1,b1(1)*n2/)/(b1(1)*b2(2)-b1(2)*b2(1)),(/2,2/))
+			if(abs(bdc(1))<err) tf(2,:)=0d0
+			if(abs(bdc(2))<err) tf(1,:)=0d0
+			n=0
+			do i=-2,2
+				do j=-2,2
+					if(i==0.and.j==0) then
+						cycle
+					endif
+					n=n+1
+					st(n)%dr=(b1*i+b2*j)/2d0
+					st(n)%val=theta(st(n)%dr)
+				enddo
+			enddo
+			call st(1:n)%qsort()
+			call st(1:n)%collect(ist)
+			do i=1,size(ist)-1
+				st(i)=st(ist(i))
+				do j=ist(i)+1,ist(i+1)-1
+					if(sqrt(sum(st(j)%dr**2))<sqrt(sum(st(i)%dr**2))) then
+						st(i)=st(j)
+					endif
+				enddo
+			enddo
+			n=size(ist)-1
+			do i=1,n
+			enddo
+			n=1
+			T(1,:2)=st(1)%dr(:2)
+			do i=2,(size(ist)-1)/2
+				dr1=T(n,:2)
+				dr2=st(i)%dr(:2)
+				th=theta(matmul(reshape((/dr2(2),-dr2(1),-dr1(2),dr1(1)/),(/2,2/)),(/sum(dr1**2),sum(dr2**2)/))/(dr1(1)*dr2(2)-dr1(2)*dr2(1)))
+				if(sin(th-theta(dr1)-err)<0d0) then
+					n=n-1
+				endif
+				if(sin(th-theta(dr2)+err)<0d0) then
+					n=n+1
+					T(n,:2)=dr2
+				endif
+			enddo
+			T(n+1:,:)=-T(1:n,:)
+			n=n*2
+			allocate(brizon%T(n,3),x(n),y(n))
+			do i=1,n
+				j=mod(i,n)+1
+				dr1=T(i,:2)
+				dr2=T(j,:2)
+				brizon%T(i,:2)=matmul(reshape((/dr2(2),-dr2(1),-dr1(2),dr1(1)/),(/2,2/)),(/sum(dr1**2),sum(dr2**2)/))/(dr1(1)*dr2(2)-dr1(2)*dr2(1))
+				brizon%T(i,3)=0d0
+			enddo
+			do i=1,size(x)
+				x(i)=sum(tf(1,:)*brizon%T(i,:2))
+				y(i)=sum(tf(2,:)*brizon%T(i,:2))
+			enddo
+			n=0
+			do j=nint(minval(y)),nint(maxval(y))
+				do i=nint(minval(x)),nint(maxval(x))
+					r=(b1/n1*i+b2/n2*j)
+					if(is_in(r,brizon%T)) then
+						n=n+1
+						brizon%k(n,:)=r
+					endif
+				enddo
+			enddo
+			deallocate(x,y,ist)
+		end associate
+	end subroutine
 	function theta(r)
 		real(8) :: r(:),theta,d
 		d=sqrt(sum(r**2))
@@ -273,4 +367,55 @@ contains
 			theta=2d0*pi-theta
 		endif
 	end function
+	subroutine check_lattice(ut)
+		integer :: ut,k
+
+		write(ut,"(3es13.2)")0d0,0d0,0d0
+		write(ut,"(3es13.2)")brizon%b1
+		write(ut,"(3es13.2)")brizon%b1+brizon%b2
+		write(ut,"(3es13.2)")brizon%b2
+		write(ut,"(3es13.2)")0d0,0d0,0d0
+		write(ut,"(x/)")
+
+		do k=1,size(brizon%T,1)+1
+			write(ut,"(3es13.2)")brizon%T(mod(k-1,size(brizon%T,1))+1,:)
+		enddo
+		write(ut,"(x/)")
+
+		do k=1,size(brizon%k,1)
+			write(ut,"(es13.2$)")brizon%k(k,:),0d0,0d0,0d0
+			write(ut,"(i7$)")k
+			write(ut,"(x)")
+		enddo
+		write(ut,"(x/)")
+
+
+		write(ut,"(3es13.2)")0d0,0d0,0d0
+		write(ut,"(3es13.2)")latt%a1
+		write(ut,"(3es13.2)")latt%a1+latt%a2
+		write(ut,"(3es13.2)")latt%a2
+		write(ut,"(3es13.2)")0d0,0d0,0d0
+		write(ut,"(x/)")
+
+		write(ut,"(3es13.2)")0d0,0d0,0d0
+		write(ut,"(3es13.2)")latt%T1
+		write(ut,"(3es13.2)")latt%T1+latt%T2
+		write(ut,"(3es13.2)")latt%T2
+		write(ut,"(3es13.2)")0d0,0d0,0d0
+		write(ut,"(x/)")
+
+		do k=1,size(latt%bond(0)%bd)
+			write(ut,"(es13.2$)")latt%bond(0)%bd(k)%r-latt%bond(0)%bd(k)%dir,latt%bond(0)%bd(k)%dir
+			write(ut,"(i7$)")k
+			write(ut,"(x)")
+		enddo
+		write(ut,"(x/)")
+
+		do k=1,size(latt%bond(1)%bd)
+			write(ut,"(es13.2$)")latt%bond(1)%bd(k)%r-latt%bond(1)%bd(k)%dir,latt%bond(1)%bd(k)%dir
+			write(ut,"(i7$)")k
+			write(ut,"(x)")
+		enddo
+		write(ut,"(x/)")
+	end subroutine
 end module
