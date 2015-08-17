@@ -18,16 +18,8 @@ module M_Hamilton
 						! -: don't do variation
 	end type
 	type(t_var), allocatable :: var(:)
+	integer :: spin=2
 contains
-	function ab(i)
-		integer, intent(in) :: i
-		integer :: ab
-		if(mod(sum(nint(latt%i2r(i,:)-latt%i2r(1,:))),2)==0) then
-			ab=1
-		else
-			ab=-1
-		endif
-	end function
 	function dwave(i)
 		integer, intent(in) :: i
 		real(8) :: dwave
@@ -90,16 +82,20 @@ contains
 					case(3,1)
 						! charge channel
 						H(i,j)=H(i,j)+var(l)%val*conjg(var(l)%bd_sg(k))*bd*var(l)%V
-						H(i+Ns,j+Ns)=H(i+Ns,j+Ns)-var(l)%val*var(l)%bd_sg(k)*bd*var(l)%V
+						if(spin==2) then
+							H(i+Ns,j+Ns)=H(i+Ns,j+Ns)-var(l)%val*var(l)%bd_sg(k)*bd*var(l)%V
+						endif
 					case(4)
 						! spin channel
 						H(i,j)=H(i,j)+var(l)%val*conjg(var(l)%bd_sg(k))*bd*var(l)%V
 						H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+var(l)%val*var(l)%bd_sg(k)*bd*var(l)%V
 					end select
-					H(j,i+Ns)=conjg(H(i+Ns,j))
-					H(j+Ns,i)=conjg(H(i,j+Ns))
 					H(j,i)=conjg(H(i,j))
-					H(j+Ns,i+Ns)=conjg(H(i+Ns,j+Ns))
+					if(spin==2) then
+						H(j,i+Ns)=conjg(H(i+Ns,j))
+						H(j+Ns,i)=conjg(H(i,j+Ns))
+						H(j+Ns,i+Ns)=conjg(H(i+Ns,j+Ns))
+					endif
 				enddo
 			enddo
 		end associate
@@ -139,10 +135,14 @@ contains
 						case(3,1)
 							! charge channel
 							D(m,u)=D(m,u)+cH(m,i)*H(j,n)*conjg(var%bd_sg(k))*bd*var%V
-							D(m,u)=D(m,u)-cH(m,i+Ns)*H(j+Ns,n)*var%bd_sg(k)*bd*var%V
+							if(spin==2) then
+								D(m,u)=D(m,u)-cH(m,i+Ns)*H(j+Ns,n)*var%bd_sg(k)*bd*var%V
+							endif
 							if(i/=j) then
 								D(m,u)=D(m,u)+cH(m,j)*H(i,n)*conjg(conjg(var%bd_sg(k))*bd)*var%V
-								D(m,u)=D(m,u)-cH(m,j+Ns)*H(i+Ns,n)*conjg(var%bd_sg(k)*bd)*var%V
+								if(spin==2) then
+									D(m,u)=D(m,u)-cH(m,j+Ns)*H(i+Ns,n)*conjg(var%bd_sg(k)*bd)*var%V
+								endif
 							endif
 						case(4)
 							! spin channel
@@ -193,7 +193,7 @@ contains
 	subroutine energy(ut)
 		integer :: ut,n,i
 		real(8) :: ki(3),kf(3),k(3),dk(3)
-		complex(8) :: H(latt%Ns*2,latt%Ns*2)
+		complex(8) :: H(latt%Ns*spin,latt%Ns*spin)
 		real(8) :: E(size(H,1))
 		do i=1,size(brizon%k,1)
 			call Hamilton(H,brizon%k(i,:))
@@ -205,7 +205,7 @@ contains
 	subroutine band(ki,kf,n,ut)
 		integer :: ut,n,i
 		real(8) :: ki(3),kf(3),k(3),dk(3)
-		complex(8) :: H(latt%Ns*2,latt%Ns*2)
+		complex(8) :: H(latt%Ns*spin,latt%Ns*spin)
 		real(8) :: E(size(H,1))
 		dk=(kf-ki)/n
 		do i=0,n-1

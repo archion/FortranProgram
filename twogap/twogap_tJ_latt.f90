@@ -13,7 +13,7 @@ module selfcons
 	implicit none
 contains
 	subroutine initial()
-		integer :: iv(-1:1),n,i,j,l,ip,k
+		integer :: iv(-1:1),n,i,j,l,k
 		type(t_var), allocatable :: tmp(:)
 		allocate(tmp(-10000:10000))
 		call init_random_seed()
@@ -53,7 +53,7 @@ contains
 		enddo
 
 		! d-wave sc
-		call gen_var(iv,ip,sg=2,nb=1,V=Vs,var=tmp)
+		call gen_var(iv,n,sg=2,nb=1,V=Vs,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			tmp(i)%val=2d-1
 			do k=1,size(tmp(i)%n)
@@ -62,7 +62,7 @@ contains
 		enddo
 
 		!! sdw
-		!call gen_var(iv,ip,sg=4,nb=0,V=DJ,var=tmp)
+		!call gen_var(iv,n,sg=4,nb=0,V=DJ,var=tmp)
 		!do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			!tmp(i)%val=2d-1
 			!do k=1,size(tmp(i)%n)
@@ -71,7 +71,7 @@ contains
 		!enddo
 
 		! bond order
-		call gen_var(iv,ip,sg=3,nb=1,V=Vd,var=tmp)
+		call gen_var(iv,n,sg=3,nb=1,V=Vd,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			tmp(i)%val=0d0
 			do k=1,size(tmp(i)%n)
@@ -81,7 +81,7 @@ contains
 
 		! hp
 		do l=1,size(t)
-			call gen_var(iv,ip,sg=-3,nb=l,V=1d0,var=tmp)
+			call gen_var(iv,n,sg=-3,nb=l,V=1d0,var=tmp)
 			do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 				tmp(i)%bd_sg=-1d0
 				tmp(i)%val=t(l)*(1d0-nf)

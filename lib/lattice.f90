@@ -50,9 +50,10 @@ module M_lattice
 		real(8), allocatable :: k(:,:)
 		real(8), allocatable :: T(:,:)
 	end type
+	integer :: nab
 	type(t_latt), public :: latt
 	type(t_brizon), public :: brizon
-	public theta,t_latt,check_lattice
+	public theta,t_latt,check_lattice,ab
 contains
 	subroutine myswap(self,a)
 		class(t_mysort) :: self
@@ -138,6 +139,9 @@ contains
 						endif
 					enddo
 				enddo
+				if(l==1) then
+					nab=n
+				endif
 			enddo
 			Ns=n
 			allocate(self%i2r(Ns*layer,3))
@@ -365,6 +369,15 @@ contains
 		theta=acos(r(1)/d)
 		if(r(2)<0d0) then
 			theta=2d0*pi-theta
+		endif
+	end function
+	function ab(i)
+		integer, intent(in) :: i
+		integer :: ab
+		if((i<=nab).or.(latt%Ns/latt%layer<i.and.i<=latt%Ns/latt%layer+nab)) then
+			ab=1
+		else
+			ab=-1
 		endif
 	end function
 	subroutine check_lattice(ut)
