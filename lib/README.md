@@ -14,25 +14,47 @@
   - inv_update_rowcol(c,ci,iY,A,iA)
 
 ### M_lattice
+```
+latt:
+输入
+	a1: 基矢
+	a2: 基矢
+	T1: 边界矢量
+	T2: 边界矢量
+	bdc: 边界条件
+	layer: 层数
+	sub: 子格的空间坐标
+输出
+	Ns: 总格点数
+	i2r: 格点指标对应的坐标
+	neb: 近邻
+		nb: 第几近邻
+			neb: 近邻格点的格点指标
+			bond: 近邻键的键指标
+			bdc: 跳跃附带的边界相位
+			dr: 近邻键的方向向量
+	bond: 键
+		bd: 第几近邻键
+			i: 键的两个格点指标
+			r: 键中心坐标
+			dr: 键的方向向量
+			bdc: 键的边界相位
+方法
+	gen_latt(): 生成 latt%i2r
+	gen_neb(l): 生成 latt%neb 到 l 近邻
+	gen_bond(l): 生成 latt%bond  到 l 近邻 
+	gen_brizon(): 生成 brizon
 
-input:  
-real(8) a1(2): principal axis 1 along x direct  
-real(8) a2(2): principal axis 2  
-real(8) T1(2): lattice size vector 1, along x direct  
-real(8) T2(2): lattice size vector 2  
-complex(8) bdc(2): boundary condition for T1 and T2  
-real(8), allocate sub(:,2): sublattice position  
+brizon:
+输入
+	n1: k点数目
+	n2: k点数目
+输出
+	b1: 倒格矢
+	b2: 倒格矢
+	k: k点的坐标
+	T: 布里渊区的端点坐标
 
-call:  
-subroutine gen_latt(): give i2r  
-subroutine gen_neb(): give neb  
+check_lattice(ut): 输出晶格到文件ut
+```
 
-get: 
-integer Ns: the site number  
-real(8) i2r(Ns,2): map site index to real space coordinate  
-neb(Ns):  
-neb(i)%nb(j)%bond(:): the (j-1)th neighbor of site i  
-neb(i)%nb(j)%bdc(:): the boundary condition of neighbor site
-neb(i)%nb(j)%r(:,2): the direction of neighbor site
-
-subroutine test(): export lattice
