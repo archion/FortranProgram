@@ -23,7 +23,7 @@ contains
 	function dwave(i)
 		integer, intent(in) :: i
 		real(8) :: dwave
-		if(nint(latt%bond(1)%bd(i)%dir(2))==0) then
+		if(nint(latt%bond(1)%bd(i)%dr(2))==0) then
 			dwave=1d0
 		else
 			dwave=-1d0
@@ -59,6 +59,27 @@ contains
 		endif
 		iv(0)=iv(sign(1,sg))
 	end subroutine
+	function get_var(sg,nb,l)
+		integer, intent(in) :: sg,nb
+		integer, optional, intent(in) :: l
+		complex(8) :: get_var(size(latt%bond(nb)%bd))
+		integer :: n,i,j
+		n=0
+		do i=1,size(var(1:))
+			if(var(i)%sg==sg.and.var(i)%nb==nb) then
+				do j=1,size(var(i)%n)
+					n=n+1
+					if(present(l).and.n<=size(get_var)*(l-1)) then
+						cycle
+					endif
+					get_var(var(i)%n(j))=var(i)%val*var(i)%bd_sg(j)
+					if(present(l).and.n==size(get_var)*l.or.n==size(get_var)) then
+						exit
+					endif
+				enddo
+			endif
+		enddo
+	end function
 	subroutine Hamilton(H,rk)
 		complex(8), intent(inout) :: H(:,:)
 		real(8), optional, intent(in) :: rk(:)
@@ -72,7 +93,7 @@ contains
 					j=latt%bond(var(l)%nb)%bd(var(l)%n(k))%i(2)
 					bd=latt%bond(var(l)%nb)%bd(var(l)%n(k))%bdc
 					if(present(rk)) then
-						bd=bd*exp(img*sum(rk*latt%bond(var(l)%nb)%bd(var(l)%n(k))%dir))
+						bd=bd*exp(img*sum(rk*latt%bond(var(l)%nb)%bd(var(l)%n(k))%dr))
 					endif
 					select case(abs(var(l)%sg))
 					case(2)
@@ -114,7 +135,7 @@ contains
 				j=latt%bond(var%nb)%bd(var%n(k))%i(2)
 				bd=latt%bond(var%nb)%bd(var%n(k))%bdc
 				if(present(rk)) then
-					bd=bd*exp(img*sum(rk*latt%bond(var%nb)%bd(var%n(k))%dir))
+					bd=bd*exp(img*sum(rk*latt%bond(var%nb)%bd(var%n(k))%dr))
 				endif
 				do u=1,size(D,2)
 					do m=1,size(D,1)

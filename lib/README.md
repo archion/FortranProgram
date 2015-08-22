@@ -58,3 +58,8 @@ brizon:
 check_lattice(ut): 输出晶格到文件ut
 ```
 
+### M_hamilton
+```
+输入
+	spin: 自旋数
+```

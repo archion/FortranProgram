@@ -23,7 +23,7 @@ module M_lattice
 	type ::  t_bond
 		integer :: i(2)
 		real(8) :: r(3)
-		real(8) :: dir(3)
+		real(8) :: dr(3)
 		complex(8) :: bdc
 	end type
 	type t_bd
@@ -252,7 +252,7 @@ contains
 						n=n+1
 						tmp(n)%i=(/i,j/)
 						tmp(n)%r=self%i2r(i,:)+self%neb(i)%nb(k)%dr(m,:)/2d0
-						tmp(n)%dir=self%neb(i)%nb(k)%dr(m,:)
+						tmp(n)%dr=self%neb(i)%nb(k)%dr(m,:)
 						tmp(n)%bdc=self%neb(i)%nb(k)%bdc(m)
 						self%neb(i)%nb(k)%bond(m)=n
 						do p=1,size(self%neb(j)%nb(k)%neb)
@@ -292,8 +292,8 @@ contains
 			b1=2d0*pi*b1/sum(T1*b1)
 			b2=2d0*pi*b2/sum(T2*b2)
 			tf=reshape((/b2(2)*n1,-b1(2)*n2,-b2(1)*n1,b1(1)*n2/)/(b1(1)*b2(2)-b1(2)*b2(1)),(/2,2/))
-			if(abs(bdc(1))<err) tf(2,:)=0d0
-			if(abs(bdc(2))<err) tf(1,:)=0d0
+			if(abs(bdc(1))<err) tf(1,:)=0d0
+			if(abs(bdc(2))<err) tf(2,:)=0d0
 			n=0
 			do i=-2,2
 				do j=-2,2
@@ -314,9 +314,6 @@ contains
 						st(i)=st(j)
 					endif
 				enddo
-			enddo
-			n=size(ist)-1
-			do i=1,n
 			enddo
 			n=1
 			T(1,:2)=st(1)%dr(:2)
@@ -357,6 +354,20 @@ contains
 				enddo
 			enddo
 			deallocate(x,y,ist)
+			if(abs(bdc(1))<err) then
+				b1=0d0
+				deallocate(brizon%T)
+				allocate(brizon%T(2,3))
+				brizon%T(1,:)=-b2/2d0
+				brizon%T(2,:)=b2/2d0
+			endif
+			if(abs(bdc(2))<err) then
+				b2=0d0
+				deallocate(brizon%T)
+				allocate(brizon%T(2,3))
+				brizon%T(1,:)=-b1/2d0
+				brizon%T(2,:)=b1/2d0
+			endif
 		end associate
 	end subroutine
 	function theta(r)
@@ -381,7 +392,7 @@ contains
 		endif
 	end function
 	subroutine check_lattice(ut)
-		integer :: ut,k
+		integer :: ut,k,l
 
 		write(ut,"(3es13.2)")0d0,0d0,0d0
 		write(ut,"(3es13.2)")brizon%b1
@@ -417,18 +428,13 @@ contains
 		write(ut,"(3es13.2)")0d0,0d0,0d0
 		write(ut,"(x/)")
 
-		do k=1,size(latt%bond(0)%bd)
-			write(ut,"(es13.2$)")latt%bond(0)%bd(k)%r-latt%bond(0)%bd(k)%dir,latt%bond(0)%bd(k)%dir
-			write(ut,"(i7$)")k
-			write(ut,"(x)")
+		do l=0,ubound(latt%bond,1)
+			do k=1,size(latt%bond(l)%bd)
+				write(ut,"(es13.2$)")latt%bond(l)%bd(k)%r-latt%bond(l)%bd(k)%dr/2d0,latt%bond(l)%bd(k)%dr
+				write(ut,"(i7$)")k
+				write(ut,"(x)")
+			enddo
+			write(ut,"(x/)")
 		enddo
-		write(ut,"(x/)")
-
-		do k=1,size(latt%bond(1)%bd)
-			write(ut,"(es13.2$)")latt%bond(1)%bd(k)%r-latt%bond(1)%bd(k)%dir,latt%bond(1)%bd(k)%dir
-			write(ut,"(i7$)")k
-			write(ut,"(x)")
-		enddo
-		write(ut,"(x/)")
 	end subroutine
 end module
