@@ -6,7 +6,7 @@ module pmt
 	real(8), parameter :: t(2)=(/1d0,1d0/3d0/),phi=pi/3d0,dm=1d0
 contains
 	subroutine initial()
-		integer :: iv(-1:1),n,i,j,l,k
+		integer :: n,i,j,l,k
 		type(t_var), allocatable :: tmp(:)
 		allocate(tmp(-10000:10000))
 		call init_random_seed()
@@ -32,23 +32,22 @@ contains
 		call check_lattice(30)
 		write(*,*)"Total site number is: ",latt%Ns
 
-		iv=(/1,0,0/)
 
 		! cp
-		call gen_var(iv,n,sg=-1,nb=0,V=1d0,var=tmp)
+		call gen_var(n,sg=-1,nb=0,V=1d0,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			tmp(i)%bd_sg=-1d0
 			tmp(i)%val=1d0
 		enddo
 
 		! hp
-		call gen_var(iv,n,sg=-3,nb=1,V=1d0,var=tmp)
+		call gen_var(n,sg=-3,nb=1,V=1d0,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			tmp(i)%bd_sg=-1d0
 			tmp(i)%val=t(1)
 		enddo
 
-		call gen_var(iv,n,sg=-3,nb=2,V=1d0,var=tmp)
+		call gen_var(n,sg=-3,nb=2,V=1d0,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			do k=1,size(tmp(i)%n)
 				tmp(i)%bd_sg(k)=exp(-1d0*ab(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%i(1))&
@@ -61,7 +60,7 @@ contains
 		enddo
 		!write(30,"(x/)")
 
-		call gen_var(iv,n,sg=-3,nb=0,V=1d0,var=tmp)
+		call gen_var(n,sg=-3,nb=0,V=1d0,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			do k=1,size(tmp(i)%n)
 				tmp(i)%bd_sg(k)=1d0&

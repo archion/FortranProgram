@@ -3,11 +3,6 @@ module global
 	use M_utility
 	use M_hamilton
 	implicit none
-	type, extends(t_sort), private :: t_mysort
-		integer :: idx
-	contains
-		procedure :: swap_sort => myswap1
-	end type
 	type t_phy
 		complex(8) :: E
 		!complex(8), allocatable :: cbond(:)
@@ -24,44 +19,29 @@ module global
 	!real(8) :: DJ=0.5d0,V=0.5d0/4d0
 	!real(8) :: DJ=1d0/3d0,V=1d0/12d0
 	real(8) :: U=10d0
-	logical :: no_sc=.true.
 	integer :: opt=1 ! 1 Tr(AdA)
 					 ! 2 O=cicj
 contains
-	subroutine myswap1(self,a)
-		class(t_mysort) :: self
-		class(t_sort) :: a
-		type(t_mysort), allocatable :: tmp
-		select type(a)
-		type is (t_mysort)
-			call self%t_sort%swap_sort(a)
-			allocate(tmp)
-			tmp%idx=a%idx
-			a%idx=self%idx
-			self%idx=tmp%idx
-			deallocate(tmp)
-		end select
-	end subroutine
 	subroutine initial()
-		integer :: iv(-1:1),i,j,l,n,k
+		integer ::i,j,l,n,k
 		type(t_var), allocatable :: tmp(:)
-		type(t_mysort), allocatable :: sort_site(:),sort_bd1(:)
-		integer, allocatable :: collect_site(:),collect_bd1(:)
+		real(8), allocatable :: bd0(:),bd1(:)
 		real(8) :: q(3)
 		allocate(tmp(-1000:1000))
 		call init_random_seed()
-		q=(/1d0/8d0,0d0,0d0/)
+		!q=(/1d0/8d0,0d0,0d0/)
 		!q=(/1d0/50d0,0d0,0d0/)
-		!q=0d0
+		q=0d0
 		! lattice 
-		latt%a1=(/1d0,0d0,0d0/)
-		latt%a2=(/0d0,1d0,0d0/)
-		latt%T1=latt%a1*16
-		latt%T2=latt%a2*10
+		latt%a1=(/1d0,1d0,0d0/)
+		latt%a2=(/-1d0,1d0,0d0/)
+		latt%T1=(/1d0,0d0,0d0/)*16
+		latt%T2=(/0d0,1d0,0d0/)*10
 		latt%bdc(1)=1d0
 		latt%bdc(2)=1d0
-		allocate(latt%sub(1,3))
+		allocate(latt%sub(2,3))
 		latt%sub(1,:)=(/0d0,0d0,0d0/)
+		latt%sub(2,:)=(/1d0,0d0,0d0/)
 		latt%layer=1
 		call latt%gen_latt()
 		call latt%gen_neb(3)
@@ -73,38 +53,31 @@ contains
 		enddo
 		write(101,"(1x/)")
 
-		allocate(sort_site(latt%Ns))
-		do k=1,size(sort_site)
+		allocate(bd0(latt%Ns))
+		do k=1,size(bd0)
 			!sort_site(k)%val=sin(2d0*pi*sum((latt%bond(0)%bd(k)%r+(/0.5d0,0d0,0d0/))*q))
-			sort_site(k)%val=cos(2d0*pi*sum((latt%bond(0)%bd(k)%r)*q))
-			sort_site(k)%idx=k
-			write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dir,sort_site(k)%val
+			bd0(k)=cos(2d0*pi*sum((latt%bond(0)%bd(k)%r)*q))
+			write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dr,bd0(k)
 			write(101,"(x)")
 		enddo
 		write(101,"(1x/)")
-		call sort_site%qsort()
-		call sort_site%collect(collect_site)
 
-		allocate(sort_bd1(size(latt%bond(1)%bd)))
-		do k=1,size(sort_bd1)
-			sort_bd1(k)%val=cos(2d0*pi*sum((latt%bond(1)%bd(k)%r-(/0.5d0,0d0,0d0/))*q))
-			sort_bd1(k)%idx=k
-			write(101,"(es13.2$)")latt%bond(1)%bd(k)%r,latt%bond(1)%bd(k)%dir,sort_bd1(k)%val
+		allocate(bd1(size(latt%bond(1)%bd)))
+		do k=1,size(bd1)
+			bd1(k)=cos(2d0*pi*sum((latt%bond(1)%bd(k)%r-(/0.5d0,0d0,0d0/))*q))
+			write(101,"(es13.2$)")latt%bond(1)%bd(k)%r,latt%bond(1)%bd(k)%dr,bd1(k)
 			write(101,"(x)")
 		enddo
 		write(101,"(1x/)")
-		call sort_bd1%qsort()
-		call sort_bd1%collect(collect_bd1)
 
-		iv=(/1,0,0/)
 		! cp
-		call gen_var(iv,n,sg=1,nb=0,V=1d0,var=tmp)
+		call gen_var(n,sg=1,nb=0,V=1d0,var=tmp)
 		tmp(iv(0))%val=-1.39752d+00
 		tmp(iv(0))%bd_sg=-1d0
 
 		!! ddw
-		!!call gen_var(iv,n,collect_bd1,sort_bd1%idx,sg=3,nb=1,V=1d0,var=tmp)
-		!call gen_var(iv,n,sg=3,nb=1,V=1d0,var=tmp)
+		!!call gen_var(n,bd1,sg=3,nb=1,V=1d0,var=tmp)
+		!call gen_var(n,sg=3,nb=1,V=1d0,var=tmp)
 		!do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			!tmp(i)%val=2d-1
 			!do k=1,size(tmp(i)%n)
@@ -116,16 +89,16 @@ contains
 
 
 		! d-wave sc
-		!call gen_var(iv,n,collect_bd1,sort_bd1%idx,sg=2,nb=1,V=1d0,var=tmp)
-		call gen_var(iv,n,sg=-2,nb=1,V=1d0,var=tmp)
+		!call gen_var(n,bd1,sg=2,nb=1,V=1d0,var=tmp)
+		call gen_var(n,sg=2,nb=1,V=1d0,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
-			tmp(i)%val=1d-4
+			tmp(i)%val=1d-1
 			do k=1,size(tmp(i)%n)
 				tmp(i)%bd_sg(k)=dwave(tmp(i)%n(k))
 			enddo
 		enddo
 
-		!call gen_var(iv,n,sg=2,nb=1,V=1d0,var=tmp)
+		!call gen_var(n,sg=2,nb=1,V=1d0,var=tmp)
 		!do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			!tmp(i)%val=1d-5
 			!do k=1,size(tmp(i)%n)
@@ -136,7 +109,7 @@ contains
 
 
 		!! s-wave sc
-		!call gen_var(iv,n,collect_bd1,sort_bd1%idx,sg=2,nb=1,V=1d0,var=tmp)
+		!call gen_var(n,bd1,sg=2,nb=1,V=1d0,var=tmp)
 		!do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			!tmp(i)%val=1d-1
 			!do k=1,size(tmp(i)%n)
@@ -145,21 +118,21 @@ contains
 		!enddo
 
 		! sdw
-		!call gen_var(iv,n,collect_site,sort_site%idx,sg=4,nb=0,V=1d0,var=tmp)
-		call gen_var(iv,n,sg=4,nb=0,V=1d0,var=tmp)
+		!call gen_var(n,bd0,sg=4,nb=0,V=1d0,var=tmp)
+		call gen_var(n,sg=4,nb=0,V=1d0,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			tmp(i)%val=8.88530d-01
 			do k=1,size(tmp(i)%n)
 				tmp(i)%bd_sg(k)=ab(tmp(i)%n(k))*&
-					!1d0
+					1d0
 					!sin(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r+(/0.5d0,0d0,0d0/))))
-					sin(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
+					!sin(2d0*pi*sum(q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
 			enddo
 		enddo
 
 		!! d-wave cdw
-		!!call gen_var(iv,n,collect_bd1,sort_bd1%idx,sg=3,nb=1,V=1d0,var=tmp)
-		!call gen_var(iv,n,sg=3,nb=1,V=1d0,var=tmp)
+		!!call gen_var(n,bd1,sg=3,nb=1,V=1d0,var=tmp)
+		!call gen_var(n,sg=3,nb=1,V=1d0,var=tmp)
 		!do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			!tmp(i)%val=1d-1
 			!do k=1,size(tmp(i)%n)
@@ -167,20 +140,26 @@ contains
 			!enddo
 		!enddo
 
-		! on site cdw
-		!call gen_var(iv,n,collect_site,sort_site%idx,sg=3,nb=0,V=1d0,var=tmp)
-		call gen_var(iv,n,sg=3,nb=0,V=1d0,var=tmp)
+		!! on site cdw
+		!!call gen_var(n,bd0,sg=3,nb=0,V=1d0,var=tmp)
+		!call gen_var(n,sg=3,nb=0,V=1d0,var=tmp)
+		!do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
+			!tmp(i)%val=1.32678d-02
+			!do k=1,size(tmp(i)%n)
+				!tmp(i)%bd_sg(k)=&
+					!!cos(2d0*pi*sum(2d0*q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r+(/0.5d0,0d0,0d0/))))
+					!cos(2d0*pi*sum(2d0*q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
+			!enddo
+		!enddo
+
+		! bond order
+		call gen_var(n,bd1(2:),sg=3,nb=1,V=1d0,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
-			tmp(i)%val=1.32678d-02
-			do k=1,size(tmp(i)%n)
-				tmp(i)%bd_sg(k)=&
-					!cos(2d0*pi*sum(2d0*q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r+(/0.5d0,0d0,0d0/))))
-					cos(2d0*pi*sum(2d0*q*(latt%bond(tmp(i)%nb)%bd(tmp(i)%n(k))%r)))
-			enddo
+			tmp(i)%bd_sg=-1d0
+			tmp(i)%val=-2.00021d-01
 		enddo
 
-		! hp
-		call gen_var(iv,n,sg=3,nb=2,V=1d0,var=tmp)
+		call gen_var(n,sg=3,nb=2,V=1d0,var=tmp)
 		do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 			tmp(i)%bd_sg=-1d0
 			tmp(i)%val=-2.00021d-01
@@ -188,7 +167,7 @@ contains
 
 		! hp
 		do l=1,size(t)
-			call gen_var(iv,n,sg=-3,nb=l,V=1d0,var=tmp)
+			call gen_var(n,sg=-3,nb=l,V=1d0,var=tmp)
 			do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 				tmp(i)%bd_sg=-1d0
 				tmp(i)%val=t(l)
@@ -198,23 +177,24 @@ contains
 		vn=iv(1)
 		!! n-n jast
 		!do i=0,7
-			!call gen_var(iv,n,sg=5,nb=i,V=1d0,var=tmp)
+			!call gen_var(n,sg=11,nb=i,V=1d0,var=tmp)
 			!do i=iv(0)-n+sign(1,n),iv(0),sign(1,n)
 				!tmp(i)%val=0d0
 			!enddo
 		!enddo
 
+		is_sc=.false.
 		allocate(var(iv(-1):iv(1)))
 		do l=iv(-1),iv(1)
 			!if(l>=1.and.tmp(l)%sg==2) then
-			if(tmp(l)%sg==2) then
-				no_sc=.false.
+			if(abs(tmp(l)%sg)==2) then
+				is_sc=.true.
 			endif
 			allocate(var(l)%bd_sg(size(tmp(l)%bd_sg)))
 			allocate(var(l)%n(size(tmp(l)%n)))
 		enddo
 		var=tmp(iv(-1):iv(1))
-		deallocate(tmp,sort_site,sort_bd1,collect_site,collect_bd1)
+		deallocate(tmp,bd0,bd1)
 	end subroutine
 end module
 
@@ -243,7 +223,7 @@ contains
 				cp%val=cp%val+(E(ne2)+E(ne2+1))/2d0
 				return
 			endif
-			if(var(1)%sg/=1.and.no_sc) then
+			if(var(1)%sg/=1.and.(.not.is_sc)) then
 				call heevd(H(:Ns,:Ns),E(:Ns),"V","U",info)
 				call heevd(H(Ns+1:,Ns+1:),E(Ns+1:),"V","U",info)
 				E(Ns+1:)=E(Ns+1:)+(E(ne2)+E(ne2+1))/2d0
@@ -1159,9 +1139,9 @@ contains
 				exit
 			endif
 		enddo
-		!$OMP MASTER
-		write(*,"('accept/total number is ',I6,'/',I6)")acp,n
-		!$OMP END MASTER
+		!!$OMP MASTER
+		!write(*,"('accept/total number is ',I6,'/',I6)")acp,n
+		!!$OMP END MASTER
 	end subroutine
 	subroutine variational(Nmc,cfg,nd)
 		use lapack95, only: heevd,heevr
@@ -1384,7 +1364,7 @@ contains
 			Nvar(1:2)=(/10000,ne/)
 			!var(1:)%val=(/-1.73E+00,1.87E+00,-4.51E-01,-6.08E-01,-1.84E-03/)
 			!var(1:)%val=(/-2.69E-01,2.13E-01,1.35E-02,2.97E-02/)
-			!call variational(Nvar,cfg,nd)
+			call variational(Nvar,cfg,nd)
 			!call variational(Nmc,cfg,nd)
 			write(*,"(i4$)")ne
 			write(*,"(es9.2$)")var(1:)%val
@@ -1423,24 +1403,24 @@ contains
 					write(101,"(x/)")
 				endif
 				do k=1,size(var(l)%n)
-					write(101,"(es13.2$)")latt%bond(var(l)%nb)%bd(var(l)%n(k))%r,latt%bond(var(l)%nb)%bd(var(l)%n(k))%dir,var(l)%bd_sg(k)*var(l)%val
+					write(101,"(es13.2$)")latt%bond(var(l)%nb)%bd(var(l)%n(k))%r,latt%bond(var(l)%nb)%bd(var(l)%n(k))%dr,var(l)%bd_sg(k)*var(l)%val
 					write(101,"(x)")
 				enddo
 			enddo
 			write(101,"(x/)")
 			do k=1,latt%Ns
-				write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dir,phy(1)%csite(k)
+				write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dr,phy(1)%csite(k)
 				write(101,"(x)")
 			enddo
 			write(101,"(x/)")
 			do k=1,latt%Ns
-				write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dir,phy(1)%ssite(k)
+				write(101,"(es13.2$)")latt%bond(0)%bd(k)%r,latt%bond(0)%bd(k)%dr,phy(1)%ssite(k)
 				write(101,"(i5$)")ab(j)
 				write(101,"(x)")
 			enddo
 			write(101,"(x/)")
 			!V=V+2
-			!stop
+			stop
 		enddo
 		!write(30,"(x)")
 		!enddo

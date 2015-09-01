@@ -241,14 +241,16 @@ contains
 			do k=0,l
 				n=0
 				do i=1,Ns
-					if(size(self%neb(i)%nb)<k+1) then
+					if(size(self%neb(i)%nb(1:))<k) then
 						cycle
 					endif
-					do m=1,size(self%neb(i)%nb(k)%neb)
+				o:	do m=1,size(self%neb(i)%nb(k)%neb)
 						j=self%neb(i)%nb(k)%neb(m)
-						if(j<i) then
-							cycle
-						endif
+						do p=1,m-1
+							if(abs(sum(self%neb(i)%nb(k)%dr(p,:)+self%neb(i)%nb(k)%dr(m,:)))<err) then
+								cycle o
+							endif
+						enddo
 						n=n+1
 						tmp(n)%i=(/i,j/)
 						tmp(n)%r=self%i2r(i,:)+self%neb(i)%nb(k)%dr(m,:)/2d0
@@ -261,7 +263,7 @@ contains
 								exit
 							endif
 						enddo
-					enddo
+					enddo o
 				enddo
 				allocate(self%bond(k)%bd(n))
 				self%bond(k)%bd=tmp(:n)
