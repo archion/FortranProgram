@@ -1,5 +1,5 @@
 module M_matrix
-	use lapack95, only : getrf, getri
+	use lapack95, only : getrf, getri, heevd, heev, heevx, heevr
 	implicit none
 	interface diag
 		module procedure mdiag, ndiag
@@ -238,6 +238,22 @@ contains
 			enddo
 		enddo
 	end function
+	function check_diag(A,U,E,err)
+		complex(8) :: A(:,:),U(:,:)
+		real(8) :: E(:)
+		real(8), optional :: err
+		real(8) :: err_
+		logical :: check_diag
+		check_diag=.true.
+		if(present(err)) then
+			err_=err
+		else
+			err_=1d-6
+		endif
+		if(any(abs((matmul(transpose(conjg(U)),matmul(A,U))-diag(E)))>err_)) then
+			check_diag=.false.
+		endif
+	end function
 	!subroutine mat_inv(a)
 		!writen by myself, not quite work
 		!implicit none
@@ -341,5 +357,87 @@ contains
 			enddo
 			ia(i+1)=n
 		enddo
+	end subroutine
+	subroutine diag2(A,E)
+		complex(8) :: A(2,2)
+		real(8) :: E(2)
+		real(8) :: tmp
+		if(abs(A(2,1))<1d-7) then
+			E=real((/A(1,1),A(2,2)/))
+			A(1,1)=1d0
+			A(2,2)=1d0
+			return
+		endif
+		tmp=sqrt((A(1,1)-A(2,2))**2+4d0*A(1,2)*A(2,1))
+		E=0.5d0*(A(1,1)+A(2,2)+(/-tmp,tmp/))
+		A(1,:)=E-A(2,2)
+		A(2,:)=A(2,1)
+		A(:,1)=A(:,1)/sqrt(A(1,1)**2+A(2,1)*conjg(A(2,1)))
+		A(:,2)=A(:,2)/sqrt(A(1,2)**2+A(2,2)*conjg(A(2,2)))
+	end subroutine
+	subroutine diag4(A,E,info)
+		complex(8) :: A(4,4),tmp2(2,2),tmp4(4,4)
+		integer, optional :: info
+		real(8) :: E(4)
+		tmp4=0d0
+		call diag2(A(:2,:2),E(:2))
+		A(4,4)=A(1,1)
+		A(3,3)=A(2,2)
+		A(3,4)=A(2,1)
+		A(4,3)=A(1,2)
+
+		tmp4(1,1)=E(1)
+		tmp4(2,2)=-E(1)
+		tmp4(1,2)=A(1,4)
+		tmp4(2,1)=A(4,1)
+		call diag2(tmp4(:2,:2),E(3:4))
+		tmp4(4,1)=tmp4(2,1)
+		tmp4(1,4)=tmp4(1,2)
+		tmp4(4,4)=tmp4(2,2)
+
+		tmp4(2,2)=E(2)
+		tmp4(3,3)=-E(2)
+		tmp4(2,3)=A(2,3)
+		tmp4(3,2)=A(3,2)
+		call diag2(tmp4(2:3,2:3),E(1:2))
+
+		E=(/E(3),E(1),E(2),E(4)/)
+		A(1:2,3:4)=0d0
+		A(3:4,1:2)=0d0
+		tmp4(2,1)=0d0
+		tmp4(1,2)=0d0
+		A=matmul(A,tmp4)
+	end subroutine
+	subroutine mat_diag(H,E,info)
+		complex(8) :: H(:,:),tmp(size(H,1),size(H,2))
+		real(8) :: E(:)
+		integer, optional :: info
+		if(present(info)) then
+			tmp=H
+		endif
+		select case(size(E))
+		case(2)
+			call diag2(H,E)
+		case(4)
+			call diag4(H,E)
+		case(100:)
+			call heevd(H,E,"V")
+		case default
+			call heev(H,E,"V")
+		end select
+		if(present(info)) then
+			if(.not.check_diag(tmp,H,E)) then
+				write(*,*)"diag4 err, A is"
+				write(*,*)"real part"
+				write(*,"(4es12.4)")real(tmp)
+				write(*,*)"imag part"
+				write(*,"(4es12.4)")imag(tmp)
+				write(*,*)"E is"
+				write(*,"(4es12.4)")E
+				write(*,*)"UAU is"
+				write(*,"(4es12.4)")real(matmul(transpose(conjg(H)),matmul(tmp,H)))
+				stop
+			endif
+		endif
 	end subroutine
 end module

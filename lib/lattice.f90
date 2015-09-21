@@ -33,7 +33,7 @@ module M_lattice
 	type t_latt
 		real(8) :: T1(3),T2(3),a1(3),a2(3),a3(3)
 		integer :: Ns,layer
-		complex(8) :: bdc(3)
+		complex(8) :: bdc(3)=(/1d0,1d0,0d0/)
 		type(t_neb), allocatable :: neb(:)
 		type(t_bd), allocatable :: bond(:)
 		real(8), allocatable :: sub(:,:)
@@ -43,6 +43,7 @@ module M_lattice
 		procedure gen_neb
 		procedure gen_bond
 		procedure gen_brizon
+		procedure gen_origin_brizon
 	end type
 	type t_brizon
 		integer :: n1,n2
@@ -52,8 +53,8 @@ module M_lattice
 	end type
 	integer :: nab
 	type(t_latt), public :: latt
-	type(t_brizon), public :: brizon
-	public theta,t_latt,check_lattice,ab
+	type(t_brizon), public :: brizon,o_brizon
+	public theta,t_latt,t_brizon,check_lattice,ab
 contains
 	subroutine myswap(self,a)
 		class(t_mysort) :: self
@@ -82,21 +83,14 @@ contains
 			deallocate(tmp)
 		end select
 	end subroutine
-	!function is_in(r,T1,T2)
-		!logical :: is_in
-		!real(8) :: r(3),tr(2),T1(3),T2(3),tf(2,2)
-		!tf=reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/))
-		!tr=matmul(tf,r(:2))
-		!if(all(tr>=-err.and.tr<(1d0-err))) then
-			!is_in=.true.
-		!else
-			!is_in=.false.
-		!endif
-	!end function
-	function is_in(r,T)
+	function is_in(r,T,dr)
 		logical :: is_in
 		real(8) :: r(3),tr(2),T(:,:),T1(3),T2(3),tf(2,2),rerr(3)
+		real(8), optional :: dr(:)
 		integer :: i
+		if(present(dr)) then
+			dr=0d0
+		endif
 		is_in=.true.
 		rerr=0d0
 		do i=1,size(T,1)/2
@@ -109,10 +103,51 @@ contains
 			tr=matmul(tf,r(:2)-T(i,:2)+rerr(:2))
 			if(any(tr<0d0)) then
 				is_in=.false.
-				exit
+				if(present(dr)) then
+					if(tr(1)<0d0) then
+						do 
+							dr=dr-(T2+2d0*T(i,:2))
+							tr=matmul(tf,r(:2)+dr-T(i,:2)+rerr(:2))
+							if(tr(1)>=0d0) then
+								exit
+							endif
+						enddo
+					endif
+					if(tr(2)<0d0) then
+						do 
+							dr=dr-(T1+2d0*T(i,:2))
+							tr=matmul(tf,r(:2)+dr-T(i,:2)+rerr(:2))
+							if(tr(2)>=0d0) then
+								exit
+							endif
+						enddo
+					endif
+				else
+					exit
+				endif
 			endif
 		enddo
 	end function
+	subroutine gen_grid(a1,a2,r0,T,tmp,n)
+		integer :: n
+		real(8) :: tmp(:,:),r0(:),a1(:),a2(:),T(:,:)
+		real(8) :: r(3),x(size(T,1)),y(size(T,1)),tf(2,2)
+		integer :: i,j
+		tf=reshape((/a2(2),-a1(2),-a2(1),a1(1)/)/(a1(1)*a2(2)-a1(2)*a2(1)),(/2,2/))
+		do i=1,size(T,1)
+			x(i)=sum(tf(1,:)*(T(i,:2)-r0(:2)))
+			y(i)=sum(tf(2,:)*(T(i,:2)-r0(:2)))
+		enddo
+		do j=nint(minval(y)),nint(maxval(y))
+			do i=nint(minval(x)),nint(maxval(x))
+				r=a1*i+a2*j+r0
+				if(is_in(r,T)) then
+					n=n+1
+					tmp(n,:)=r
+				endif
+			enddo
+		enddo
+	end subroutine
 	subroutine gen_latt(self)
 		class(t_latt) :: self
 		integer :: i,j,l,n
@@ -125,20 +160,7 @@ contains
 			T(4,:)=T2
 			n=0
 			do l=1,size(self%sub,1)
-				do i=1,4
-					x(i)=sum(tf(1,:)*T(i,:2))-sum(tf(1,:)*self%sub(l,:2))
-					y(i)=sum(tf(2,:)*T(i,:2))-sum(tf(2,:)*self%sub(l,:2))
-				enddo
-				do j=nint(minval(y)),nint(maxval(y))
-					do i=nint(minval(x)),nint(maxval(x))
-						r=a1*i+a2*j+self%sub(l,:)
-						!if(is_in(r,T1,T2)) then
-						if(is_in(r,T)) then
-							n=n+1
-							tmp(n,:)=r
-						endif
-					enddo
-				enddo
+				call gen_grid(a1,a2,self%sub(l,:),T,tmp,n)
 				if(l==1) then
 					nab=n
 				endif
@@ -270,22 +292,27 @@ contains
 			enddo
 		end associate
 	end subroutine
-	subroutine gen_brizon(self)
+	subroutine gen_brizon(self,brizon)
 		class(t_latt) :: self
-		real(8) :: r(3),tf(2,2),T(0:24,3),th,dr1(2),dr2(2)
-		real(8), allocatable :: x(:),y(:)
+		type(t_brizon) :: brizon
+		real(8) :: tf(2,2),T(0:24,3),th,dr1(2),dr2(2)
 		type(t_mysort) :: st(24)
 		integer :: n,i,j
 		integer, allocatable :: ist(:)
 		associate(b1=>brizon%b1,b2=>brizon%b2,n1=>brizon%n1,n2=>brizon%n2,T1=>self%T1,T2=>self%T2,bdc=>self%bdc)
+			if(allocated(brizon%k)) then
+				deallocate(brizon%k)
+			endif
 			if(all(abs(bdc(:2))>err)) then
 				allocate(brizon%k(n1*n2,3))
 			elseif(all(abs(bdc(:2))<err)) then
 				allocate(brizon%k(1,3))
 			elseif(abs(bdc(1))<err) then
 				allocate(brizon%k(n2,3))
+				n1=1
 			else
 				allocate(brizon%k(n1,3))
+				n2=1
 			endif
 			b1=(/-T2(2),T2(1),0d0/)
 			b2=(/T1(2),-T1(1),0d0/)
@@ -293,9 +320,7 @@ contains
 			if(abs(bdc(2))<err) b1=T1
 			b1=2d0*pi*b1/sum(T1*b1)
 			b2=2d0*pi*b2/sum(T2*b2)
-			tf=reshape((/b2(2)*n1,-b1(2)*n2,-b2(1)*n1,b1(1)*n2/)/(b1(1)*b2(2)-b1(2)*b2(1)),(/2,2/))
-			if(abs(bdc(1))<err) tf(1,:)=0d0
-			if(abs(bdc(2))<err) tf(2,:)=0d0
+
 			n=0
 			do i=-2,2
 				do j=-2,2
@@ -333,7 +358,7 @@ contains
 			enddo
 			T(n+1:,:)=-T(1:n,:)
 			n=n*2
-			allocate(brizon%T(n,3),x(n),y(n))
+			allocate(brizon%T(n,3))
 			do i=1,n
 				j=mod(i,n)+1
 				dr1=T(i,:2)
@@ -341,21 +366,11 @@ contains
 				brizon%T(i,:2)=matmul(reshape((/dr2(2),-dr2(1),-dr1(2),dr1(1)/),(/2,2/)),(/sum(dr1**2),sum(dr2**2)/))/(dr1(1)*dr2(2)-dr1(2)*dr2(1))
 				brizon%T(i,3)=0d0
 			enddo
-			do i=1,size(x)
-				x(i)=sum(tf(1,:)*brizon%T(i,:2))
-				y(i)=sum(tf(2,:)*brizon%T(i,:2))
-			enddo
+
 			n=0
-			do j=nint(minval(y)),nint(maxval(y))
-				do i=nint(minval(x)),nint(maxval(x))
-					r=(b1/n1*i+b2/n2*j)
-					if(is_in(r,brizon%T)) then
-						n=n+1
-						brizon%k(n,:)=r
-					endif
-				enddo
-			enddo
-			deallocate(x,y,ist)
+			call gen_grid(b1/n1,b2/n2,(/0d0,0d0,0d0/),brizon%T,brizon%k,n)
+			deallocate(ist)
+
 			if(abs(bdc(1))<err) then
 				b1=0d0
 				deallocate(brizon%T)
@@ -371,6 +386,38 @@ contains
 				brizon%T(2,:)=b1/2d0
 			endif
 		end associate
+	end subroutine
+	subroutine gen_origin_brizon(self,a1,a2,o_brizon)
+		class(t_latt) :: self
+		type(t_brizon) :: o_brizon
+		real(8) :: a1(:),a2(:)
+		type(t_latt) :: latt_
+		real(8) :: dr(2),a(2,3),tmp(100,3)
+		integer :: nk,i,j,n
+		nk=size(brizon%k,1)
+		latt_%T1=a1
+		latt_%T2=a2
+		o_brizon%n1=1
+		o_brizon%n2=1
+		call latt_%gen_brizon(o_brizon)
+		n=0
+		call gen_grid(brizon%b1,brizon%b2,(/0d0,0d0,0d0/),o_brizon%T,tmp,n)
+		deallocate(o_brizon%k)
+		allocate(o_brizon%k(nk*n,3))
+		o_brizon%k(1:nk,:)=brizon%k
+		j=1
+		do i=1,n
+			if(sum(abs(tmp(i,:)))>err) then
+				j=j+1
+				o_brizon%k(1+nk*(j-1):nk*j,1)=brizon%k(:,1)+tmp(i,1)
+				o_brizon%k(1+nk*(j-1):nk*j,2)=brizon%k(:,2)+tmp(i,2)
+			endif
+		enddo
+		do i=nk+1,size(o_brizon%k,1)
+			if(.not.is_in(o_brizon%k(i,:),o_brizon%T,dr)) then
+				o_brizon%k(i,:2)=o_brizon%k(i,:2)+dr
+			endif
+		enddo
 	end subroutine
 	function theta(r)
 		real(8) :: r(:),theta,d

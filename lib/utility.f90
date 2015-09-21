@@ -82,22 +82,25 @@ contains
 		a=b
 		b=tmp
 	end subroutine
-	subroutine find_peak(pa,a,sg)
-		real(8) :: pa(:),a
-		integer :: sg
-		sg=0
-		if(pa(1)/=0d0) then
-			if((pa(1)-pa(2))<0d0.and.(pa(2)-a)>0d0) then
-				sg=1
+	subroutine find_peak(a,ipeak)
+		real(8) :: a(:)
+		integer, allocatable :: ipeak(:)
+		integer :: ipeak_(10),n,i
+		n=0
+		do i=2,size(a)-1
+			if((a(i)-a(i-1))>0d0.and.(a(i)-a(i+1))>0d0) then
+				n=n+1
+				if(n>10) then
+					n=n-1
+					exit
+				endif
+				ipeak_(n)=i
 			endif
-			if((pa(1)-pa(2))>0d0.and.(pa(2)-a)<0d0) then
-				sg=-1
-			endif
-		endif
-		pa(1)=pa(2)
-		pa(2)=a
+		enddo
+		allocate(ipeak(n))
+		ipeak=ipeak_(:n)
 	end subroutine
-	subroutine find_cross(pa,a,sg)
+	subroutine is_cross(pa,a,sg)
 		real(8) :: pa,a
 		integer :: sg
 		sg=0

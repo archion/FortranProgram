@@ -4,11 +4,11 @@ module pmt
 	real(8), parameter :: t(5)=(/1d0,-0.25d0,0.1d0,0d0,0d0/),&
 	!real(8), parameter :: t(5)=(/1d0,0d0,0d0,0d0,0d0/),&
 		cvg=1e-6,&
-		V=0.12d0,DJ=0.35d0,&
-		!V=0.d0,DJ=0.25d0,&
+		!V=0.12d0,DJ=0.35d0,&
+		V=0.d0,DJ=0.25d0,&
 	Vs=DJ-V,Vd=0.5d0*DJ+V
-	character(3) :: pgflag="ddw"
-	!character(3) :: pgflag="sdw"
+	!character(3) :: pgflag="ddw"
+	character(3) :: pgflag="sdw"
 end module
 module selfcons
 	use pmt
@@ -27,6 +27,7 @@ contains
 		pg=max(pg,0.1d0)
 		sc=max(sc,0.1d0)
 		ap=max(ap,0.1d0)
+		c=0
 		do 
 			pnp=0d0
 			al=0.2d0
@@ -35,38 +36,49 @@ contains
 				scp=0d0
 				app=0d0
 				np=0d0
-				c=0
+				!c=0
 				!$OMP PARALLEL DO REDUCTION(+:np,pgp,scp,app,c) PRIVATE(k,ek,Uk)
+				do i=-mk+1,mk
+					do j=-mk+1,mk
 				!do i=0,mk
 					!do j=0,min(i,mk-i)
-						!k=(/pi/mk*i,pi/mk*j/)
-				do i=-mk/2,mk/2-1
-					do j=-mk/2+abs(i),mk/2-1-abs(i)
-						c=c+1
-						k=2d0*pi/mk*(/i,j/)
+						k=(/pi/mk*i,pi/mk*j/)
+				!do i=-mk/2,mk/2-1
+					!do j=-mk/2+abs(i),mk/2-1-abs(i)
+						!c=c+1
+						!k=2d0*pi/mk*(/i,j/)
 						call EU2(k,nf,pg,sc,ap,cp,ek,Uk)
+						!call EU_lapack(k,nf,pg,sc,ap,cp,ek,Uk)
 						call order(k,ek,Uk,Tk,np,pgp,scp,app)
 					enddo
 				enddo
 				!$OMP END PARALLEL DO
-				c=c*2
+				c=c+1
+				!c=c*2
+				!np=np/c
+				!pgp=pgp/c
+				!scp=scp/c
+				!app=app/c
 				!np=np/(mk**2)*2d0
 				!pgp=pgp/(mk**2)*2d0
 				!scp=scp/(mk**2)*2d0
 				!app=app/(mk**2)*2d0
-				np=np/c
-				pgp=pgp/c
-				scp=scp/c
-				app=app/c
+				np=np/(mk**2*8d0)
+				pgp=pgp/(mk**2*8d0)
+				scp=scp/(mk**2*8d0)
+				app=app/(mk**2*8d0)
 				if(abs(nf-np)<1d-5) then
 					exit
 				endif
-				call find_cross(pnp,np-nf,sg)
+				call is_cross(pnp,np-nf,sg)
 				if(sg/=0) then
 					al=al*0.3d0
 				endif
 				cp=cp-al*sign(1d0,np-nf)
+				write(*,"(e12.4$)")np,Tk,cp,sc,pg,ap
+				write(*,"(1X)")
 			enddo
+			stop
 			if((abs(scp-sc)+abs(pgp-pg)+abs(app-ap))<cvg) then
 				exit
 			endif
@@ -266,8 +278,10 @@ contains
 		bt=1d0/Tk
 		Ns=0
 		!$OMP PARALLEL DO REDUCTION(+:np,pgp,scp,app,Ns) PRIVATE(k,eks,eka,gk,sck,pgk,e1,e2,E,tmp,s)
-		do i=1,mk
-			do j=0,min(i,mk-i)
+		do i=-mk+1,mk
+			do j=-mk+1,mk
+		!do i=1,mk
+			!do j=0,min(i,mk-i)
 				k=(/pi/mk*i,pi/mk*j/)
 				eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-cp-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))
 				eka=-2d0*(dp*t(1)+ap*Vd)*(cos(k(1))+cos(k(2)))
@@ -328,11 +342,11 @@ contains
 			al=0.2d0
 			pnp=0d0
 			do 			
+				c=c+1
 				pgp=0d0
 				scp=0d0
 				app=0d0
 				np=0d0
-				c=c+1
 				call freeorder(nf,Tk,pg,sc,ap,cp,np,pgp,scp,app)
 				!call freeorder(0d0,Tk,pg,sc,0d0,cp,np,pgp,scp,app)
 				!app=0d0
@@ -344,7 +358,7 @@ contains
 				if(abs(nf-np)<1d-5) then
 					exit
 				endif
-				call find_cross(pnp,np-nf,sg)
+				call is_cross(pnp,np-nf,sg)
 				if(sg/=0) then
 					al=al*0.3d0
 				endif
@@ -670,7 +684,7 @@ contains
 			call selforder(pg,sc,ap,cp,nf,Tk,1)
 			write(*,"(e12.4$)")sc,pg,Tk
 			if(sg==0) then
-				call find_cross(psc,sc-zo,isg)
+				call is_cross(psc,sc-zo,isg)
 				if(isg/=0) then
 					if(dTk<mTk) then
 						Tc=Tk
@@ -680,7 +694,7 @@ contains
 				endif
 				Tk=Tk+dTk*sign(1d0,sc-zo)
 			elseif(sg==1) then
-				call find_cross(ppg,pg-zo,isg)
+				call is_cross(ppg,pg-zo,isg)
 				if(isg/=0) then
 					if(dTk<mTk) then
 						Tc=Tk
@@ -690,7 +704,7 @@ contains
 				endif
 				Tk=Tk+dTk*sign(1d0,pg-zo)
 			else
-				call find_cross(ppg,pg-zo,isg)
+				call is_cross(ppg,pg-zo,isg)
 				if(isg/=0) then
 					if(dTk<mTk) then
 						Tc=Tk
@@ -794,6 +808,12 @@ program main
 	cp=0d0
 	Tc=5d-2
 	Tp=5d-2
+	Tk=1d-2
+	nf=0.85
+	call selfconsist_tg(nf,Tk,sc,pg,ap,cp)
+	!call selforder(pg,sc,ap,cp,nf,Tk,1)
+	write(*,"(e16.6$)")pg,sc,cp,ap
+	stop
 	!write(*,"(e12.4$)")Tk,superfluid(1d0,1d0,0d0,-0.7d0,0.8d0,0.002d0)
 	!stop
 	!call phasediagram((/0.9d0,0.83d0,-0.01d0/))
