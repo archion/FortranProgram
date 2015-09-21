@@ -311,17 +311,13 @@ program main
 		!endif
 	!enddo
 	!call self_consist()
-	call band((/0d0,0d0,0d0/),(/pi,0d0,0d0/),128,30)
-	call band((/pi,0d0,0d0/),(/pi,pi,0d0/),128,30)
-	call band((/pi,pi,0d0/),(/0d0,0d0,0d0/),128,30)
+	call band(30,(/0d0,0d0,0d0/),(/pi,0d0,0d0/),128)
+	call band(30,(/pi,0d0,0d0/),(/pi,pi,0d0/),128)
+	call band(30,(/pi,pi,0d0/),(/0d0,0d0,0d0/),128)
 	!call band((/0d0,0d0,0d0/),(/pi,2.48d0,0d0/),128,30)
 	!!call EDC(60,0.001d0,(/1.521708942d0,1.202640938d0,0d0/),(/-0.5d0,0.5d0,512d0/))
 	!!call DOS(50,0.01d0,(/-1d0,1d0,512d0/))
 
-	!!brizon%n1=brizon%n1*100
-	!!brizon%n2=brizon%n1*100
-	!!call latt%gen_brizon(brizon)
 	call latt%gen_origin_brizon((/1d0,0d0,0d0/),(/0d0,1d0,0d0/),o_brizon)
-	!call fermis(40,0.01d0,0d0,o_brizon%k)
-	call fermis(40,0.03d0,0d0,o_brizon%k)
+	call fermis(40,0.03d0,o_brizon%k,0d0)
 end program

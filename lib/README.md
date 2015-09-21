@@ -44,6 +44,7 @@ latt:
 	gen_neb(l): 生成 latt%neb 到 l 近邻
 	gen_bond(l): 生成 latt%bond  到 l 近邻 
 	gen_brizon(): 生成 brizon
+	gen_origin_brizon(a1,a2,o_brizon): 以当前brizon生成正格矢为a1，a2的布里渊区o_brizon
 
 brizon:
 输入
