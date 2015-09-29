@@ -6,7 +6,7 @@ object77=$(patsubst %.f,%.o,$(notdir $(source77)))
 FCC = ifort
 ARFLAG = -rs
 OMPFLAG = -openmp
-#OMPFLAG= -warn nounused -traceback
+#OMPFLAG = -openmp -warn nounused -traceback
 all:$(out)
 $(out):$(object90) $(object77)
 	ar $(ARFLAG) $@ $(object90) $(object77)

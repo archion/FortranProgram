@@ -242,4 +242,9 @@ contains
 		self%val=tmp%val
 		deallocate(tmp)
 	end subroutine
+	function abs2(a)
+		complex(8) :: a
+		real(8) :: abs2
+		abs2=real(a*conjg(a))
+	end function
 end module

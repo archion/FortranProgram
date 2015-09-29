@@ -9,28 +9,37 @@ module M_Hamilton
 	contains
 		procedure :: swap_sort => myswap1
 	end type
+	type t_v2i
+		integer, allocatable :: i(:)
+	end type
 	type t_var
-		real(8) :: val
-		integer :: nb
+		real(8), allocatable :: val(:)
+		type(t_v2i), allocatable :: v2i(:)
+		integer, allocatable :: i2v(:)
 		complex(8), allocatable :: bd_sg(:)
-		integer, allocatable :: n(:)
+		integer :: n
 		real(8) :: V
+		integer :: Vn
+		integer :: nb
 		integer :: sg   
 						! 1:  chemical potainial
-						! 2:  pair
+						! 2:  singlet pair
 						! 3:  charge
 						! 4:  spin
 						! 11: n-n jast
 						! -: don't do variation
 	contains
 		procedure :: Hamilton
+		procedure :: dHamilton
+		procedure :: put
+		procedure :: get
 	end type
 	type(t_var), allocatable :: var(:)
 	integer :: spin=2
 	logical :: is_sc=.true.
 	integer :: iv(-1:1)=(/1,0,0/)
-	integer, private :: getn(-20:20,2)=0,ni(-1:1)=(/1,0,0/)
-	private myswap1 
+	real(8) :: Tk,nf
+	private myswap1
 contains
 	function dwave(i)
 		integer, intent(in) :: i
@@ -41,17 +50,28 @@ contains
 			dwave=-1d0
 		endif
 	end function
-	subroutine gen_var(n,val,sg,nb,V,var)
+	subroutine gen_var(sg,nb,val,V,Vn)
 		integer, intent(in) :: sg,nb
 		real(8), intent(in), optional :: val(:)
-		real(8), intent(in) :: V
-		type(t_var), intent(inout) :: var(:)
-		integer, intent(inout) :: n
-		integer :: i,bs
+		real(8), intent(in), optional :: V
+		integer, intent(in), optional :: Vn
 		type(t_mysort), allocatable :: sort(:)
 		integer, allocatable :: collect(:)
-		n=0
-		bs=(size(var)-1)/2+1
+		integer :: i,j
+		iv(sign(1,sg))=iv(sign(1,sg))+sign(1,sg)
+		iv(0)=iv(sign(1,sg))
+		var(iv(0))%sg=sg
+		var(iv(0))%nb=nb
+		if(present(V)) then
+			var(iv(0))%V=V
+		else
+			var(iv(0))%V=1d0
+		endif
+		if(present(Vn)) then
+			var(iv(0))%Vn=Vn
+		else
+			var(iv(0))%Vn=nb
+		endif
 		if(present(val)) then
 
 			allocate(sort(size(val)))
@@ -59,57 +79,73 @@ contains
 			sort(:)%idx=(/(i,i=1,size(sort))/)
 			call sort%qsort()
 			call sort%collect(collect)
+			allocate(var(iv(0))%i2v(size(val)))
+			allocate(var(iv(0))%bd_sg(size(val)))
+			allocate(var(iv(0))%val(size(collect)-1))
+			allocate(var(iv(0))%v2i(size(collect)-1))
+			var(iv(0))%n=size(collect)-1
 
 			do i=1,size(collect)-1
-				iv(sign(1,sg))=iv(sign(1,sg))+sign(1,sg)
-				n=n+sign(1,sg)
-				var(iv(sign(1,sg))+bs)%sg=sg
-				var(iv(sign(1,sg))+bs)%nb=nb
-				var(iv(sign(1,sg))+bs)%V=V
-				allocate(var(iv(sign(1,sg))+bs)%bd_sg(collect(i+1)-collect(i)),var(iv(sign(1,sg))+bs)%n(collect(i+1)-collect(i)))
-				var(iv(sign(1,sg))+bs)%n=sort(collect(i):collect(i+1)-1)%idx
+				allocate(var(iv(0))%v2i(i)%i(collect(i+1)-collect(i)))
+				var(iv(0))%v2i(i)%i=sort(collect(i):collect(i+1)-1)%idx
+				do j=collect(i),collect(i+1)-1
+					var(iv(0))%i2v(sort(j)%idx)=i
+				enddo
 			enddo
 		else
-			iv(sign(1,sg))=iv(sign(1,sg))+sign(1,sg)
-			n=n+sign(1,sg)
-			var(iv(sign(1,sg))+bs)%sg=sg
-			var(iv(sign(1,sg))+bs)%nb=nb
-			var(iv(sign(1,sg))+bs)%V=V
-			allocate(var(iv(sign(1,sg))+bs)%bd_sg(size(latt%bond(nb)%bd)),var(iv(sign(1,sg))+bs)%n(size(latt%bond(nb)%bd)))
-			var(iv(sign(1,sg))+bs)%n=(/(i,i=1,size(latt%bond(nb)%bd))/)
+			allocate(var(iv(0))%i2v(size(latt%bond(nb)%bd)))
+			allocate(var(iv(0))%bd_sg(size(latt%bond(nb)%bd)))
+			allocate(var(iv(0))%val(1))
+			allocate(var(iv(0))%v2i(1))
+			allocate(var(iv(0))%v2i(1)%i(size(latt%bond(nb)%bd)))
+			var(iv(0))%v2i(1)%i=(/(i,i=1,size(latt%bond(nb)%bd))/)
+			var(iv(0))%i2v=1
+			var(iv(0))%n=1
 		endif
-		iv(0)=iv(sign(1,sg))
-		ni(sign(1,sg))=ni(sign(1,sg))+sign(1,sg)
-		getn(ni(sign(1,sg)),:)=(/iv(0)-n+sign(1,n),iv(0)/)
 	end subroutine
-	function get_var(sg,nb,l)
-		integer, intent(in) :: sg,nb
-		integer, intent(in) :: l
-		integer :: get_var(2)
-		integer :: n,i,j
+	subroutine get(self,val)
+		class(t_var), intent(inout) :: self(:)
+		real(8), intent(in) :: val(:)
+		integer :: n,l1,l2
 		n=0
-		do i=ni(-1),ni(1)
-			if(var(getn(i,1))%sg==sg.and.var(getn(i,1))%nb==nb) then
+		do l1=1,size(self)
+			do l2=1,size(self(l1)%val)
 				n=n+1
-				if(n==l) then
-					get_var=getn(i,:)
-					exit
+				if(n>size(val)) then
+					return
 				endif
-			endif
+				self(l1)%val(l2)=val(n)
+			enddo
 		enddo
-		if(n/=l) then
-			write(*,*)"get_var fail"
-			stop
-		endif
+	end subroutine
+	function put(self)
+		class(t_var), intent(in) :: self(:)
+		real(8) :: put(sum(self%n))
+		integer :: n,l1,l2
+		n=0
+		do l1=1,size(self)
+			do l2=1,size(self(l1)%val)
+				n=n+1
+				put(n)=self(l1)%val(l2)
+			enddo
+		enddo
 	end function
-	subroutine Hamilton(self,H,rk,fn,info)
+	subroutine var_shrink()
+		integer :: lb
+		type(t_var) :: tmp(iv(-1):iv(1))
+		tmp(iv(-1):iv(1))=var(iv(-1):iv(1))
+		deallocate(var)
+		allocate(var(iv(-1):iv(1)))
+		var(iv(-1):iv(1))=tmp(iv(-1):iv(1))
+	end subroutine
+	subroutine Hamilton(self,H,k,fn,info)
 		class(t_var), intent(in) :: self(:)
 		complex(8), intent(inout) :: H(:,:)
-		real(8), optional, intent(in) :: rk(:)
+		real(8), optional, intent(in) :: k(:)
 		complex(8), external, optional :: fn
 		integer, optional, intent(in) :: info
 		complex(8) :: bdc,expk,bd
-		integer :: i,j,k,l,isc
+		integer :: i,j,l1,l2,l3,n,isc
 		! TO-DO: bd is incorrect when nambu space is not used
 		if(.not.present(info)) then
 			H=0d0
@@ -121,118 +157,65 @@ contains
 			isc=1
 		endif
 		associate(Ns=>latt%Ns)
-			do l=lbound(self,1),ubound(self,1)
-				do k=1,size(self(l)%bd_sg)
-					i=latt%bond(self(l)%nb)%bd(self(l)%n(k))%i(1)
-					j=latt%bond(self(l)%nb)%bd(self(l)%n(k))%i(2)
-					bdc=latt%bond(self(l)%nb)%bd(self(l)%n(k))%bdc
-					bd=self(l)%bd_sg(k)
-					if(present(rk)) then
-						expk=exp(-img*sum(rk*latt%bond(self(l)%nb)%bd(self(l)%n(k))%dr))
-					endif
-					if(present(fn)) then
-						bd=bd*fn(latt%bond(self(l)%nb)%bd(self(l)%n(k))%dr)
-					else
-					endif
-					select case(abs(self(l)%sg))
-					case(2)
-						! pair channel
-						if(.not.is_sc) then
-							write(*,*)"is_sc is not setted as true"
-							stop
+			do l1=1,size(self)
+				do l2=1,size(self(l1)%val)
+					do l3=1,size(self(l1)%v2i(l2)%i)
+						n=self(l1)%v2i(l2)%i(l3)
+						i=latt%bond(self(l1)%nb)%bd(n)%i(1)
+						j=latt%bond(self(l1)%nb)%bd(n)%i(2)
+						bdc=latt%bond(self(l1)%nb)%bd(n)%bdc
+						bd=self(l1)%val(l2)*self(l1)%bd_sg(n)*self(l1)%V
+						if(present(k)) then
+							expk=exp(-img*sum(k*latt%bond(self(l1)%nb)%bd(n)%dr))
 						endif
 						if(present(fn)) then
-							cycle
+							bd=bd*fn(latt%bond(self(l1)%nb)%bd(n)%dr)
 						endif
-						H(i,j+Ns)=H(i,j+Ns)+self(l)%val*bd*bdc*self(l)%V*expk
-						H(i+Ns,j)=H(i+Ns,j)+self(l)%val*bd*conjg(bdc)*self(l)%V*expk
-						if(self(l)%nb/=0) then
-							H(j+Ns,i)=H(j+Ns,i)+conjg(self(l)%val*bd*bdc*self(l)%V*expk)
-							H(j,i+Ns)=H(j,i+Ns)+conjg(self(l)%val*bd*conjg(bdc)*self(l)%V*expk)
-						endif
-					case(3,1)
-						! charge channel
-						H(i,j)=H(i,j)+self(l)%val*conjg(bd)*bdc*self(l)%V*expk
-						if(self(l)%nb/=0) then
-							H(j,i)=H(j,i)+conjg(self(l)%val*conjg(bd)*bdc*self(l)%V*expk)
-						endif
-						if(spin==2) then
-							H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+isc*self(l)%val*bd*bdc*self(l)%V*expk
-							if(self(l)%nb/=0) then
-								H(j+Ns,i+Ns)=H(j+Ns,i+Ns)+isc*conjg(self(l)%val*bd*bdc*self(l)%V*expk)
-							endif
-						endif
-					case(4)
-						! spin channel
-						H(i,j)=H(i,j)+self(l)%val*conjg(bd)*bdc*self(l)%V*expk
-						H(i+Ns,j+Ns)=H(i+Ns,j+Ns)-isc*self(l)%val*bd*bdc*self(l)%V*expk
-						if(self(l)%nb/=0) then
-							H(j,i)=H(j,i)+conjg(self(l)%val*conjg(bd)*bdc*self(l)%V*expk)
-							H(j+Ns,i+Ns)=H(j+Ns,i+Ns)-isc*conjg(self(l)%val*bd*bdc*self(l)%V*expk)
-						endif
-					end select
-				enddo
-			enddo
-		end associate
-	end subroutine
-	pure subroutine dHamilton(var,H,cH,D,rk)
-		type(t_var), intent(in) :: var
-		complex(8), intent(in) :: H(:,:),cH(:,:)
-		real(8), optional, intent(in) :: rk(:)
-		complex(8), intent(inout) :: D(:,:)
-		complex(8) :: bdc,expk,bd
-		integer :: i,j,k,l,m,n,u,isc
-		D=0d0
-		if(is_sc) then
-			isc=-1
-		else
-			isc=1
-		endif
-		expk=1d0
-		associate(Ns=>latt%Ns)
-			do k=1,size(var%bd_sg)
-				i=latt%bond(var%nb)%bd(var%n(k))%i(1)
-				j=latt%bond(var%nb)%bd(var%n(k))%i(2)
-				bdc=latt%bond(var%nb)%bd(var%n(k))%bdc
-				bd=var%bd_sg(k)
-				if(present(rk)) then
-					expk=exp(img*sum(rk*latt%bond(var%nb)%bd(var%n(k))%dr))
-				endif
-				do u=1,size(D,2)
-					do m=1,size(D,1)
-						if(size(D,2)==1) then
-							n=m 
-						else
-							n=u
-						endif
-						select case(var%sg)
+						select case(abs(self(l1)%sg))
 						case(2)
 							! pair channel
-							D(m,u)=D(m,u)+cH(m,i)*H(j+Ns,n)*bd*bdc*var%V*expk
-							D(m,u)=D(m,u)+cH(m,i+Ns)*H(j,n)*bd*conjg(bdc)*var%V*expk
-							if(var%nb/=0) then
-								D(m,u)=D(m,u)+cH(m,j+Ns)*H(i,n)*conjg(bd*bdc*var%V*expk)
-								D(m,u)=D(m,u)+cH(m,j)*H(i+Ns,n)*conjg(bd*conjg(bdc)*var%V*expk)
+							if(.not.is_sc) then
+								write(*,*)"is_sc is not setted as true"
+								stop
 							endif
-						case(3,1)
-							! charge channel
-							D(m,u)=D(m,u)+cH(m,i)*H(j,n)*conjg(bd)*bdc*var%V*expk
-							if(var%nb/=0) then
-								D(m,u)=D(m,u)+cH(m,j)*H(i,n)*conjg(conjg(bd)*bdc*var%V*expk)
+							if(present(fn)) then
+								cycle
 							endif
-							if(spin==2) then
-								D(m,u)=D(m,u)+isc*cH(m,i+Ns)*H(j+Ns,n)*bd*bdc*var%V*expk
-								if(var%nb/=0) then
-									D(m,u)=D(m,u)+isc*cH(m,j+Ns)*H(i+Ns,n)*conjg(bd*bdc*var%V*expk)
+							if(self(l1)%nb/=0) then
+								H(i,j+Ns)=H(i,j+Ns)+bd*bdc*expk
+								H(i+Ns,j)=H(i+Ns,j)+bd*conjg(bdc)*expk
+								H(j+Ns,i)=H(j+Ns,i)+conjg(bd*bdc*expk)
+								H(j,i+Ns)=H(j,i+Ns)+conjg(bd*conjg(bdc)*expk)
+							else
+								do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
+									j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
+									H(j,j+Ns)=H(j,j+Ns)+bd*bdc*expk
+									H(j+Ns,j)=H(j+Ns,j)+bd*conjg(bdc)*expk
+								enddo
+							endif
+						case(3,1,4)
+							! charge and spin channel
+							if(abs(self(l1)%sg)==4) then
+								isc=-isc
+							endif
+							if(self(l1)%nb/=0) then
+								H(i,j)=H(i,j)+conjg(bd)*bdc*expk
+								H(j,i)=H(j,i)+conjg(conjg(bd)*bdc*expk)
+								if(spin==2) then
+									H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+isc*bd*bdc*expk
+									H(j+Ns,i+Ns)=H(j+Ns,i+Ns)+isc*conjg(bd*bdc*expk)
 								endif
+							else
+								do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
+									j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
+									H(j,j)=H(j,j)+conjg(bd)*bdc*expk
+									if(spin==2) then
+										H(j+Ns,j+Ns)=H(j+Ns,j+Ns)+isc*bd*bdc*expk
+									endif
+								enddo
 							endif
-						case(4)
-							! spin channel
-							D(m,u)=D(m,u)+cH(m,i)*H(j,n)*conjg(bd)*bdc*var%V*expk
-							D(m,u)=D(m,u)-isc*cH(m,i+Ns)*H(j+Ns,n)*bd*bdc*var%V*expk
-							if(var%nb/=0) then
-								D(m,u)=D(m,u)+cH(m,j)*H(i,n)*conjg(conjg(bd)*bdc*var%V*expk)
-								D(m,u)=D(m,u)-isc*cH(m,j+Ns)*H(i+Ns,n)*conjg(bd*bdc*var%V*expk)
+							if(abs(self(l1)%sg)==4) then
+								isc=-isc
 							endif
 						end select
 					enddo
@@ -240,38 +223,221 @@ contains
 			enddo
 		end associate
 	end subroutine
-	!subroutine ddEnergy(E,H,cH,D,ddE)
-		!complex(8), intent(in) :: H(:,:),cH(:,:),D(:,:,:)
-		!real(8), intent(in) :: E(:)
-		!real(8), intent(inout) :: ddE(:,:,:)
-		!real(8) :: tmp,iE(size(E),size(E))
-		!integer :: l,l1,l2,n,m
-		!ddE(:,:,:)=0d0
-		!do n=1,size(E)
-			!do m=1,size(E)
-				!if(abs(E(n)-E(m))<1d-7) then
-					!iE(m,n)=0d0
-					!cycle
-				!endif
-				!iE(m,n)=1d0/(E(n)-E(m))
-			!enddo
-		!enddo
-		!!$OMP PARALLEL DO PRIVATE(tmp)
-		!do l1=1,size(ddE,1)
-			!!do l2=1,size(ddE,1)
-			!do l2=l1,l1
-				!do n=1,size(E)
-					!tmp=0d0
-					!do m=1,size(E)
-						!tmp=tmp+real(conjg(D(m,n,l1))*D(m,n,l2))*iE(m,n)
-					!enddo
-					!ddE(n,l1,l2)=tmp
-				!enddo
-			!enddo
-			!ddE(:,l1,l1)=ddE(:,l1,l1)*2d0
-		!enddo
-		!!$OMP END PARALLEL DO
-	!end subroutine
+	subroutine dHamilton(self,H,cH,D,k)
+		class(t_var), intent(in) :: self(:)
+		complex(8), intent(in) :: H(:,:),cH(:,:)
+		real(8), optional, intent(in) :: k(:)
+		complex(8), intent(inout) :: D(:,:,:)
+		complex(8) :: bdc,expk,bd,tmp
+		integer :: i,j,l1,l2,l3,l,m1,m2,m2p,n,isc
+		D=0d0
+		if(is_sc) then
+			isc=-1
+		else
+			isc=1
+		endif
+		expk=1d0
+		l=0
+		associate(Ns=>latt%Ns)
+			do l1=1,size(self)
+				do l2=1,size(self(l1)%val)
+					l=l+1
+					if(l>size(D,3)) then
+						return
+					endif
+					do l3=1,size(self(l1)%v2i(l2)%i)
+						n=self(l1)%v2i(l2)%i(l3)
+						i=latt%bond(self(l1)%nb)%bd(n)%i(1)
+						j=latt%bond(self(l1)%nb)%bd(n)%i(2)
+						bdc=latt%bond(self(l1)%nb)%bd(n)%bdc
+						bd=self(l1)%bd_sg(n)*self(l1)%V
+						if(present(k)) then
+							expk=exp(-img*sum(k*latt%bond(self(l1)%nb)%bd(n)%dr))
+						endif
+						do m2p=1,size(D,2)
+							do m1=1,size(D,1)
+								if(size(D,2)==1) then
+									m2=m1 
+								else
+									m2=m2p
+								endif
+								tmp=0d0
+								select case(self(l1)%sg)
+								case(2)
+									! pair channel
+									if(self(l1)%nb/=0) then
+										tmp=tmp+cH(m1,i)*H(j+Ns,m2)*bd*bdc*expk
+										tmp=tmp+cH(m1,i+Ns)*H(j,m2)*bd*conjg(bdc)*expk
+										tmp=tmp+cH(m1,j+Ns)*H(i,m2)*conjg(bd*bdc*expk)
+										tmp=tmp+cH(m1,j)*H(i+Ns,m2)*conjg(bd*conjg(bdc)*expk)
+									else
+										do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
+											j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
+											tmp=tmp+cH(m1,j)*H(j+Ns,m2)*bd*bdc*expk
+											tmp=tmp+cH(m1,j+Ns)*H(j,m2)*bd*conjg(bdc)*expk
+										enddo
+									endif
+								case(3,1,4)
+									! charge and spin channel
+									if(self(l1)%sg==4) then
+										isc=-isc
+									endif
+									if(self(l1)%nb/=0) then
+										tmp=tmp+cH(m1,i)*H(j,m2)*conjg(bd)*bdc*expk
+										tmp=tmp+cH(m1,j)*H(i,m2)*conjg(conjg(bd)*bdc*expk)
+										if(spin==2) then
+											tmp=tmp+cH(m1,i+Ns)*H(j+Ns,m2)*isc*bd*bdc*expk
+											tmp=tmp+cH(m1,j+Ns)*H(i+Ns,m2)*isc*conjg(bd*bdc*expk)
+										endif
+									else
+										do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
+											j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
+											tmp=tmp+cH(m1,j)*H(j,m2)*conjg(bd)*bdc*expk
+											if(spin==2) then
+												tmp=tmp+cH(m1,j+Ns)*H(j+Ns,m2)*isc*bd*bdc*expk
+											endif
+										enddo
+									endif
+									if(self(l1)%sg==4) then
+										isc=-isc
+									endif
+								end select
+								D(m1,m2p,l)=D(m1,m2p,l)+tmp
+							enddo
+						enddo
+					enddo
+				enddo
+			enddo
+		end associate
+	end subroutine
+	subroutine MF_var(n,x,v,info)
+		integer, intent(in) :: n
+		integer, intent(in) :: info
+		real(8), intent(inout) :: x(n),v(n)
+		complex(8) :: H(latt%Ns*spin,latt%Ns*spin)
+		real(8) :: E(size(H,1))
+		complex(8) :: D(size(H,1),1,n),cH(size(H,1),size(H,2))
+		real(8) :: f(size(E)),dv,dvv,err,dE(size(H,1),n),fE,tmp,mt(maxval(var(1:)%n),maxval(var(1:)%n))
+		integer :: l,lp,l1,l2,l3,m,i,j,k
+		common fE,err
+		v=0d0
+		fE=0d0
+		call var(1:)%get(x)
+		!$OMP PARALLEL DO REDUCTION(+:fE,v) PRIVATE(H,E,cH,f,dE,D)
+		do k=1,size(brizon%k,1)
+			call var%Hamilton(H,brizon%k(k,:))
+			call mat_diag(H,E)
+			cH=transpose(conjg(H))
+			f=1d0/(exp(E/Tk)+1d0)
+			call var(1:)%dHamilton(H,cH,D(:,1:1,:),brizon%k(k,:))
+			dE=real(D(:,1,:))
+			do l=1,size(E)
+				if((-E(l))>1d2*Tk) then
+					fE=fE+E(l)
+				else
+					fE=fE-Tk*log(1d0+exp(-E(l)/Tk))
+				endif
+			enddo
+			do l=1,n
+				v(l)=v(l)+sum(dE(:,l)*f(:))
+			enddo
+		enddo
+		!$OMP END PARALLEL DO
+		fE=fE/size(brizon%k,1)
+		v=v/size(brizon%k,1)
+
+		if(var(1)%sg==1) then
+			fE=fE+nf*latt%Ns*var(1)%val(1)
+			v(1)=v(1)+nf*latt%Ns
+		endif
+
+		!Nambu space
+		l=0
+		if(is_sc) then
+			do l1=1,size(var(1:))
+				do l2=1,size(var(l1)%val)
+					l=l+1
+					if(var(l1)%nb==0) then
+						tmp=0d0
+						do l3=1,size(var(l1)%v2i(l2)%i)
+							i=var(l1)%v2i(l2)%i(l3)
+							tmp=tmp+var(l1)%V*real(var(l1)%bd_sg(i))*size(latt%neb(i)%nb(var(l1)%Vn)%neb)
+						enddo
+						if(var(l1)%sg==4) then
+							tmp=-tmp
+						endif
+						fE=fE+tmp*var(l1)%val(l2)
+						if(l<=n) v(l)=v(l)+tmp
+					endif
+				enddo
+			enddo
+		endif
+
+		l=0
+		do l1=1,size(var(1:))
+			mt=0d0
+			lp=l
+			do l2=1,size(var(l1)%val)
+				l=l+1
+				dvv=0d0
+				dv=0d0
+				if(var(l1)%nb==var(l1)%Vn) then
+					if(var(l1)%sg/=1) then
+						do l3=1,size(var(l1)%v2i(l2)%i)
+							i=var(l1)%v2i(l2)%i(l3)
+							tmp=var(l1)%V*abs2(var(l1)%bd_sg(i))
+							if(var(l1)%nb/=0) then
+								tmp=tmp*spin
+							endif
+							fE=fE-tmp*var(l1)%val(l2)**2
+							if(l<=n) then
+								mt(l2,1)=mt(l2,1)+tmp*2d0
+							endif
+						enddo
+					endif
+				else
+					do l3=1,size(var(l1)%v2i(l2)%i)
+						i=var(l1)%v2i(l2)%i(l3)
+						do m=1,size(latt%neb(i)%nb(var(l1)%Vn)%neb)
+							j=latt%neb(i)%nb(var(l1)%Vn)%neb(m)
+							tmp=var(l1)%V*real(var(l1)%bd_sg(i)*conjg(var(l1)%bd_sg(j)))
+							fE=fE-tmp*var(l1)%val(l2)*var(l1)%val(var(l1)%i2v(j))/2d0
+							if(l<=n) then
+								mt(l2,var(l1)%i2v(j))=mt(l2,var(l1)%i2v(j))+tmp
+							endif
+						enddo
+					enddo
+				endif
+			enddo
+			if(l<=n) then
+				if(var(l1)%nb==var(l1)%Vn) then
+					if(info<0.and.var(l1)%sg/=1) then
+						x(lp+1:l)=1d0/mt(:l-lp,1)*v(lp+1:l)
+					endif
+					v(lp+1:l)=v(lp+1:l)-mt(:l-lp,1)*var(l1)%val
+				else
+					if(info<0.and.var(l1)%sg/=1) then
+						x(lp+1:l)=v(lp+1:l)
+					endif
+					v(lp+1:l)=v(lp+1:l)-matmul(mt(:l-lp,:l-lp),var(l1)%val)
+					if(info<0.and.var(l1)%sg/=1) then
+						call sysv(mt(:l-lp,:l-lp),x(lp+1:l))
+					endif
+				endif
+				do l2=1,size(var(l1)%val)
+					v(lp+l2)=v(lp+l2)/size(var(l1)%v2i(l2)%i)
+				enddo
+			endif
+		enddo
+		fE=fE/latt%Ns
+		err=sum(abs(v))/size(v)
+
+		!write(*,"(es12.4$)")fE
+		!write(*,"(es12.4$)")err
+		!write(*,"(es12.4$)")var(1:)%val(1)
+		!write(*,"(es12.4$)")v
+		!write(*,"(x)")
+	end subroutine
 	function Green(gm,k,omg)
 		real(8) :: k(:),gm,omg
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin),Green

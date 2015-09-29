@@ -1,5 +1,5 @@
 module M_matrix
-	use lapack95, only : getrf, getri, heevd, heev, heevx, heevr
+	use lapack95, only : getrf, getri, heevd, heev, heevx, heevr, sysv
 	implicit none
 	interface diag
 		module procedure mdiag, ndiag
