@@ -269,18 +269,18 @@ contains
 				o:	do m=1,size(self%neb(i)%nb(k)%neb)
 						j=self%neb(i)%nb(k)%neb(m)
 						do p=1,m-1
-							if(abs(sum(self%neb(i)%nb(k)%dr(p,:)+self%neb(i)%nb(k)%dr(m,:)))<err) then
+							if(sum(abs(self%neb(i)%nb(k)%dr(p,:)+self%neb(i)%nb(k)%dr(m,:)))<err) then
 								cycle o
 							endif
 						enddo
 						n=n+1
 						tmp(n)%i=(/i,j/)
-						tmp(n)%r=self%i2r(i,:)+self%neb(i)%nb(k)%dr(m,:)/2d0
+						tmp(n)%r=(self%i2r(i,:)+self%i2r(j,:))/2d0
 						tmp(n)%dr=self%neb(i)%nb(k)%dr(m,:)
 						tmp(n)%bdc=self%neb(i)%nb(k)%bdc(m)
 						self%neb(i)%nb(k)%bond(m)=n
 						do p=1,size(self%neb(j)%nb(k)%neb)
-							if(self%neb(j)%nb(k)%neb(p)==i) then
+							if(sum(abs(self%neb(j)%nb(k)%dr(p,:)+tmp(n)%dr))<err.and.self%neb(j)%nb(k)%neb(p)==i) then
 								self%neb(j)%nb(k)%bond(p)=n
 								exit
 							endif

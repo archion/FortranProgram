@@ -2,8 +2,9 @@ module pmt
 	use M_const
 	implicit none
 	real(8), parameter :: t(3)=(/1d0,-0.25d0,0.1d0/),&
-		!V=0.12d0,DJ=0.35d0
-		V=0.d0,DJ=0.25d0
+		V=0.0325d0,DJ=0.35d0
+		!V=-0.25d0/4d0,DJ=0.25d0
+	integer :: cs=2
 end module
 module selfcons
 	use pmt
@@ -20,10 +21,10 @@ contains
 		! lattice 
 		latt%a1=(/1d0,1d0,0d0/)
 		latt%a2=(/-1d0,1d0,0d0/)
-		latt%T1=(/1d0,0d0,0d0/)*4
-		latt%T2=(/0d0,1d0,0d0/)*8
-		!latt%T1=(/1d0,1d0,0d0/)
-		!latt%T2=(/-1d0,1d0,0d0/)
+		!latt%T1=(/1d0,0d0,0d0/)*2
+		!latt%T2=(/0d0,1d0,0d0/)*2
+		latt%T1=(/1d0,1d0,0d0/)
+		latt%T2=(/-1d0,1d0,0d0/)
 		latt%bdc(1)=1d0
 		latt%bdc(2)=1d0
 		allocate(latt%sub(2,3))
@@ -33,42 +34,45 @@ contains
 		call latt%gen_latt()
 		call latt%gen_neb(size(t))
 		call latt%gen_bond(size(t))
-		brizon%n1=64/8/2
-		brizon%n2=64/8/4
+		brizon%n1=32
+		brizon%n2=32
 		call latt%gen_brizon(brizon)
 		call check_lattice(101)
 		write(*,*)"Total site number is: ",latt%Ns
 
 		allocate(bd0(latt%Ns))
 		do i=1,size(bd0)
-			bd0(i)=i
+			!bd0(i)=latt%bond(0)%bd(i)%i(2)
+			bd0(i)=1
 		enddo
 
 		allocate(bd1(size(latt%bond(1)%bd)))
 		do i=1,size(bd1)
-			bd1(i)=i
+			!bd1(i)=latt%bond(1)%bd(i)%i(2)
+			bd1(i)=1
 		enddo
 
 		! cp
 		call gen_var(sg=1,nb=0)
 		var(iv(0))%val(1)=0d0
-		var(iv(0))%bd_sg=-1d0
+		var(iv(0))%bd=-1d0
 
 		! d-wave sc
 		!call gen_var(sg=2,nb=1,V=(-DJ+V))
-		call gen_var(sg=2,nb=1,val=bd1,V=(-DJ+V))
-		do i=1,size(var(iv(0))%bd_sg)
-			var(iv(0))%bd_sg(i)=dwave(i)
+		call gen_var(sg=2,nb=1,val=bd1,V=(-DJ*0.75d0+V))
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=dwave(i)
 		enddo
 		do l2=1,size(var(iv(0))%val)
 			var(iv(0))%val(l2)=1d-1
 		enddo
 
 		!! ddw
-		!call gen_var(sg=3,nb=1,V=(-0.5d0*DJ-V))
-		!call gen_var(sg=3,nb=1,val=bd1,V=(-0.5d0*DJ-V))
-		!do i=1,size(var(iv(0))%bd_sg)
-			!var(iv(0))%bd_sg(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
+		!!call gen_var(sg=3,nb=1,V=(-0.5d0*DJ-V))
+		!!call gen_var(sg=3,nb=1,val=bd1,V=(-0.5d0*DJ-V))
+		!call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))
+		!do i=1,size(var(iv(0))%bd)
+			!var(iv(0))%bd(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
 		!enddo
 		!do l2=1,size(var(iv(0))%val)
 			!var(iv(0))%val(l2)=1d-1
@@ -77,8 +81,8 @@ contains
 		! sdw
 		!call gen_var(sg=4,nb=0,V=DJ/4d0,Vn=1)
 		call gen_var(sg=4,nb=0,val=bd0,V=DJ/4d0,Vn=1)
-		do i=1,size(var(iv(0))%bd_sg)
-			var(iv(0))%bd_sg(i)=ab(i)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=ab(i)
 		enddo
 		do l2=1,size(var(iv(0))%val)
 			var(iv(0))%val(l2)=1d-1
@@ -86,30 +90,35 @@ contains
 
 		! bond order
 		!call gen_var(sg=3,nb=1,V=(-0.5d0*DJ-V))
-		call gen_var(sg=3,nb=1,val=bd1,V=(-0.5d0*DJ-V))
-		var(iv(0))%bd_sg=1d0
+		!call gen_var(sg=3,nb=1,val=bd1,V=(-0.5d0*DJ-V))
+		call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))
+		var(iv(0))%bd=1d0
 		do l2=1,size(var(iv(0))%val)
 			var(iv(0))%val(l2)=0d0
 		enddo
 
 		! hp
 		do l=1,size(t)
-			call gen_var(sg=-3,nb=l,V=1d0)
-			var(iv(0))%bd_sg=-1d0
-			var(iv(0))%val(:)=t(l)*(1d0-nf)
+			call gen_var(sg=-3,nb=l)
+			var(iv(0))%bd=-1d0
+			var(iv(0))%val(:)=t(l)
 		enddo
 
 		call var_shrink()
+		var(lbound(var,1))%update => update_var
+		call var(lbound(var,1))%update()
 		call export_data(30)
+		!write(*,*)var(3)%Vbd
+		!stop
 	end subroutine
 	subroutine export_data(ut)
 		integer :: ut,l1,i
 		do l1=2,size(var(1:))
-			do i=1,size(var(l1)%bd_sg)
+			do i=1,size(var(l1)%bd)
 				write(ut,"(es17.9$)")latt%bond(var(l1)%nb)%bd(i)%r,&
 					latt%bond(var(l1)%nb)%bd(i)%dr,&
 					var(l1)%val(var(l1)%i2v(i)),&
-					var(l1)%bd_sg(i)
+					var(l1)%bd(i)
 				write(ut,"(x)")
 			enddo
 			write(ut,"(x/)")
@@ -118,68 +127,69 @@ contains
 	subroutine update_var()
 		integer :: l1
 		do l1=lbound(var,1),0
-			if(var(l1)%sg==-3.and.size(var(l1)%val)==1) then
-				var(l1)%val(:)=t(var(l1)%nb)*(1d0-nf)
+			if(var(l1)%sg==-3) then
+				var(l1)%Vbd(:)=abs(1d0-nf)
 			endif
 		enddo
 	end subroutine
 	subroutine self_consist()
 		integer :: info,i
-		real(8) :: x(sum(var(1:)%n)),v(size(x)),wa(nint((size(x)*(3*size(x)+13))/2.)+10),fE,mfE,mx(size(x)),px(size(x)),err
+		real(8) :: x(sum(var(1:)%n)),v(size(x)),wa(nint((size(x)*(3*size(x)+13))/2.)+10),fE,mfE,mx(size(x)),px(size(x)),err,merr
 		common fE,err
-		call update_var()
 		info=1
-		x=var(1:)%put()
 
-		mfE=0d0
-		x=0d0
-		do i=1,10
-			call hybrd1(MF_var,size(x(:)),x(:),v(:),1d-7,info,wa,size(wa))
-			if(fE<mfE.and.err<1d-6) then
-				mfE=fE
-				mx=x
-			endif
-			write(*,"(i5$)")i
-			write(*,"(es12.4$)")fE,err,var(1:)%val(1)
-			write(*,"(x)")
-			call export_data(30)
-			call random_number(var(2)%val(1))
-			call random_number(var(3)%val(1))
-			var(2)%val=var(2)%val(1)
-			var(3)%val=var(3)%val(1)
-			if(i>5) then
-				var(3)%val=0d0
-			endif
-			x(2:)=var(2:3)%put()
-		enddo
-		call var(1:)%get(mx)
-		return
-
-		i=0
-		do 
-			i=i+1
-			if(var(1)%sg==1) then
-				call hybrd1(MF_var,size(x(1:1)),x(1:1),v(1:1),1d-7,info,wa(:16),16)
-				if(info/=1) then
-					write(*,*)"hybrd1 err, info=",info
-					return
-				endif
-				x=var(1:)%put()
-			endif
-			call MF_var(size(x),x,v,info=-1)
-			write(*,"(i5$)")i
-			write(*,"(es12.4$)")fE,err,var(1:)%val(1)
-			write(*,"(x)")
-			if(err<1d-4) then
+		select case(cs)
+		case(1)
+			mfE=0d0
+			x=0d0
+			do i=1,10
 				call hybrd1(MF_var,size(x(:)),x(:),v(:),1d-7,info,wa,size(wa))
+				if(fE<mfE) then
+					mfE=fE
+					mx=x
+					merr=err
+				endif
+				!write(*,"(i5$)")i
+				!write(*,"(es12.4$)")fE,err,var(1:)%val(1)
+				!write(*,"(x)")
+				call export_data(30)
+				call random_number(var(2)%val(:))
+				call random_number(var(3)%val(:))
+				x=var(1:)%put()
+			enddo
+			call var(1:)%get(mx)
+			!write(*,"(es12.4$)")Tk,mfE,merr,var(1:)%val(1)
+			!write(*,"(x)")
+		case(2)
+			var(2)%val(:)=abs(var(2)%val(:))+0.1d0
+			var(3)%val(:)=abs(var(3)%val(:))+0.1d0
+			x=var(1:)%put()
+			i=0
+			do 
+				i=i+1
+				if(var(1)%sg==1) then
+					call hybrd1(MF_var,size(x(1:1)),x(1:1),v(1:1),1d-7,info,wa(:16),16)
+					if(info/=1) then
+						write(*,*)"hybrd1 err, info=",info
+						stop
+					endif
+					x=var(1:)%put()
+				endif
+				call MF_var(size(x),x,v,info=-1)
+				!write(*,"(i5$)")i
+				!write(*,"(es12.4$)")fE,err,var(1:)%val(1)
+				!write(*,"(x)")
+				if(err<1d-4) then
+					call hybrd1(MF_var,size(x(:)),x(:),v(:),1d-7,info,wa,size(wa))
+					call var(1:)%get(x)
+					!write(*,"(i5$)")i
+					!write(*,"(es12.4$)")fE,err,var(1:)%val(1)
+					!write(*,"(x)")
+					exit
+				endif
 				call var(1:)%get(x)
-				write(*,"(i5$)")i
-				write(*,"(es12.4$)")fE,err,var(1:)%val(1)
-				write(*,"(x)")
-				exit
-			endif
-			call var(1:)%get(x)
-		enddo
+			enddo
+		end select
 	end subroutine
 	function findTc(l,is,Tm)
 		integer :: l,is
@@ -386,8 +396,11 @@ program main
 	implicit none
 	logical :: f
 	integer :: l,m,i
-	real(8) :: n(63)=&
-		(/9.5000d-01, 9.4500d-01, 9.4000d-01, 9.3500d-01, 9.3000d-01, 9.2500d-01, 9.2000d-01, 9.1500d-01, 9.1000d-01, 9.0500d-01, 9.0000d-01, 8.9500d-01, 8.9000d-01, 8.8500d-01, 8.8000d-01, 8.7500d-01, 8.7000d-01, 8.6900d-01, 8.6800d-01, 8.6700d-01, 8.6600d-01, 8.6500d-01, 8.6400d-01, 8.6300d-01, 8.6200d-01, 8.6100d-01, 8.6000d-01, 8.5900d-01, 8.5800d-01, 8.5700d-01, 8.5600d-01, 8.5500d-01, 8.5400d-01, 8.5300d-01, 8.5200d-01, 8.5100d-01, 8.5000d-01, 8.4900d-01, 8.4800d-01, 8.4700d-01, 8.4600d-01, 8.4500d-01, 8.4400d-01, 8.4300d-01, 8.4200d-01, 8.4100d-01, 8.4000d-01, 8.3900d-01, 8.3800d-01, 8.3700d-01, 8.3600d-01, 8.3500d-01, 8.3400d-01, 8.3300d-01, 8.3200d-01, 8.3100d-01, 8.3000d-01, 8.2500d-01, 8.2000d-01, 8.1500d-01, 8.1000d-01, 8.0500d-01, 8.0000d-01/)
+	!real(8) :: n(63)=&
+		!(/9.5000d-01, 9.4500d-01, 9.4000d-01, 9.3500d-01, 9.3000d-01, 9.2500d-01, 9.2000d-01, 9.1500d-01, 9.1000d-01, 9.0500d-01, 9.0000d-01, 8.9500d-01, 8.9000d-01, 8.8500d-01, 8.8000d-01, 8.7500d-01, 8.7000d-01, 8.6900d-01, 8.6800d-01, 8.6700d-01, 8.6600d-01, 8.6500d-01, 8.6400d-01, 8.6300d-01, 8.6200d-01, 8.6100d-01, 8.6000d-01, 8.5900d-01, 8.5800d-01, 8.5700d-01, 8.5600d-01, 8.5500d-01, 8.5400d-01, 8.5300d-01, 8.5200d-01, 8.5100d-01, 8.5000d-01, 8.4900d-01, 8.4800d-01, 8.4700d-01, 8.4600d-01, 8.4500d-01, 8.4400d-01, 8.4300d-01, 8.4200d-01, 8.4100d-01, 8.4000d-01, 8.3900d-01, 8.3800d-01, 8.3700d-01, 8.3600d-01, 8.3500d-01, 8.3400d-01, 8.3300d-01, 8.3200d-01, 8.3100d-01, 8.3000d-01, 8.2500d-01, 8.2000d-01, 8.1500d-01, 8.1000d-01, 8.0500d-01, 8.0000d-01/)
+	!real(8) :: n(47)=&
+		!(/9.500d-01, 9.4500d-01, 9.4000d-01, 9.3500d-01, 9.3000d-01, 9.2500d-01, 9.2000d-01, 9.1500d-01, 9.1000d-01, 9.0500d-01, 9.0000d-01, 8.9750d-01, 8.9500d-01, 8.9250d-01, 8.9000d-01, 8.8750d-01, 8.8500d-01, 8.8250d-01, 8.8000d-01, 8.7750d-01, 8.7500d-01, 8.7250d-01, 8.7000d-01, 8.6750d-01, 8.6500d-01, 8.6250d-01, 8.6000d-01, 8.5750d-01, 8.5500d-01, 8.5250d-01, 8.5000d-01, 8.4750d-01, 8.4500d-01, 8.4250d-01, 8.4000d-01, 8.3500d-01, 8.3000d-01, 8.2500d-01, 8.2000d-01, 8.1500d-01, 8.1000d-01, 8.0500d-01, 8.0000d-01, 7.5000d-01, 7.0000d-01, 6.5000d-01, 6.0000d-01 /)
+	real(8) :: n(25)=(/(0.92d0-i/200d0,i=1,25)/)
 	real(8) :: Ts(size(n),2),Td(size(n),2),Tc(2)
 	real(8), allocatable :: peak(:)
 	f=openfile(unit=10,file='../data/phase.dat')
@@ -399,19 +412,33 @@ program main
 	f=openfile(unit=70,file='../data/map_raman.dat')
 	f=openfile(unit=80,file='../data/map_band.dat')
 	f=openfile(unit=90,file='../data/energy.dat')
+	f=openfile(unit=100,file='../data/gap.dat')
 	f=openfile(unit=101,file='../data/lattice.dat')
 
 	call initial()
 
-	!do l=6,6
-		nf=0.86d0
-		Tk=0.01
-		call self_consist()
-		write(*,"(es12.4$)")nf,Tk,var(1:)%val(1)
-		write(*,"(x)")
-		stop
-		!!call raman(60,0.003d0,(/0d0,0.3d0/),256,peak)
+	!Tk=1d-4
+	!do l=1,size(n)
+		!nf=n(l)
+		!call self_consist()
+		!write(*,"(es12.4$)")nf,Tk,var(1:)%val(1)
+		!write(*,"(x)")
+		!write(100,"(es12.4$)")nf,Tk,var(1:)%val(1)
+		!write(100,"(x)")
 	!enddo
+	!stop
+
+	!do l=1,10
+		!nf=8.6000E-01
+		!Tk=3.09063E-02/10d0*l
+		!call self_consist()
+		!write(*,"(es12.4$)")nf,Tk,var(1:)%val(1)
+		!write(*,"(x)")
+		!write(100,"(es12.4$)")nf,Tk,var(1:)%val(1)*var(1:)%V
+		!write(100,"(x)")
+		!call raman(60,0.04d0,(/0d0,0.3d0/),256,peak)
+	!enddo
+	!stop
 	!call latt%gen_origin_brizon((/1d0,0d0,0d0/),(/0d0,1d0,0d0/),o_brizon)
 	!write(*,"(A$)")"raman peak"
 	!write(*,"(es12.4$)")peak
@@ -442,12 +469,9 @@ program main
 	Tc=1d-1
 	do l=1,size(n)
 		nf=n(l)
-		Tc(1)=findTc(3,1,Tc(1)+0.02)
-		if(Tc(1)<1d-4) then
-			Td(l:,:)=0d0
-			exit
-		endif
-		Tc(2)=findTc(3,-1,Tc(1))
+		Tc(1)=findTc(2,1,Tc(1)+0.02)
+		!Tc(1)=findTc(2,1,0.12d0)
+		Tc(2)=findTc(2,-1,Tc(1))
 		write(10,"(es12.4$)")nf,Tc
 		write(*,"(es12.4$)")nf,Tc
 		write(10,"(x)")
@@ -458,13 +482,17 @@ program main
 	Tc=1d-1
 	do l=1,size(n)
 		nf=n(l)
-		Tc(1)=findTc(2,1,Tc(1)+0.02)
-		Tc(2)=findTc(2,-1,Tc(1))
+		Tc(1)=findTc(3,1,Tc(1)+0.02)
+		!Tc(1)=findTc(3,1,0.12d0)
+		!if(Tc(1)<1d-4) then
+			!Td(l:,:)=0d0
+			!exit
+		!endif
+		Tc(2)=findTc(3,-1,Tc(1))
 		write(10,"(es12.4$)")nf,Tc
 		write(*,"(es12.4$)")nf,Tc
 		write(10,"(x)")
 		write(*,"(x)")
 	enddo
 	write(10,"(x/)")
-
 end program
