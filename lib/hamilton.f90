@@ -146,6 +146,8 @@ contains
 			enddo
 		enddo
 	end function
+	subroutine default_update()
+	end subroutine
 	subroutine var_shrink()
 		integer :: lb
 		type(t_var) :: tmp(iv(-1):iv(1))
@@ -153,6 +155,7 @@ contains
 		deallocate(var)
 		allocate(var(iv(-1):iv(1)))
 		var(iv(-1):iv(1))=tmp(iv(-1):iv(1))
+		var(iv(-1))%update => default_update
 	end subroutine
 	subroutine Hamilton(self,H,k,fn,info)
 		class(t_var), intent(in) :: self(:)
@@ -450,6 +453,61 @@ contains
 			!write(*,"(x)")
 		!endif
 	end subroutine
+	!function free_energy()
+		!integer :: l,l1,l2,l3,m,i,j
+		!real(8) :: free_energy,tmp
+		!free_energy=free_energy+nf*latt%Ns*var(1)%val(1)
+		!!Nambu space
+		!l=0
+		!if(is_sc) then
+			!do l1=1,size(var(1:))
+				!do l2=1,size(var(l1)%val)
+					!l=l+1
+					!if(var(l1)%nb==0) then
+						!do l3=1,size(var(l1)%v2i(l2)%i)
+							!i=var(l1)%v2i(l2)%i(l3)
+							!do m=1,size(latt%neb(i)%nb(var(l1)%Vn)%neb)
+								!j=latt%neb(i)%nb(var(l1)%Vn)%neb(m)
+								!tmp=real(var(l1)%bd(j))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vn)%bond(m))
+								!if(mod(abs(var(l1)%sg),10)==4) then
+									!tmp=-tmp
+								!endif
+								!free_energy=free_energy+tmp*var(l1)%val(var(l1)%i2v(j))
+							!enddo
+						!enddo
+					!endif
+				!enddo
+			!enddo
+		!endif
+
+		!l=0
+		!do l1=1,size(var(1:))
+			!do l2=1,size(var(l1)%val)
+				!l=l+1
+				!if(var(l1)%nb==var(l1)%Vn) then
+					!if(var(l1)%sg/=1) then
+						!do l3=1,size(var(l1)%v2i(l2)%i)
+							!i=var(l1)%v2i(l2)%i(l3)
+							!tmp=abs2(var(l1)%bd(i))*var(l1)%Vbd(i)
+							!if(var(l1)%nb/=0) then
+								!tmp=tmp*spin
+							!endif
+							!free_energy=free_energy-tmp*var(l1)%val(l2)**2
+						!enddo
+					!endif
+				!else
+					!do l3=1,size(var(l1)%v2i(l2)%i)
+						!i=var(l1)%v2i(l2)%i(l3)
+						!do m=1,size(latt%neb(i)%nb(var(l1)%Vn)%neb)
+							!j=latt%neb(i)%nb(var(l1)%Vn)%neb(m)
+							!tmp=real(var(l1)%bd(i)*conjg(var(l1)%bd(j)))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vn)%bond(m))
+							!free_energy=free_energy-tmp*var(l1)%val(l2)*var(l1)%val(var(l1)%i2v(j))/2d0
+						!enddo
+					!enddo
+				!endif
+			!enddo
+		!enddo
+	!end function
 	function Green(gm,k,omg)
 		real(8) :: k(:),gm,omg
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin),Green

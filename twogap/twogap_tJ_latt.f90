@@ -34,10 +34,10 @@ contains
 		call latt%gen_latt()
 		call latt%gen_neb(size(t))
 		call latt%gen_bond(size(t))
-		brizon%n1=32
-		brizon%n2=32
+		brizon%n1=64
+		brizon%n2=64
 		call latt%gen_brizon(brizon)
-		call check_lattice(101)
+		!call check_lattice(101)
 		write(*,*)"Total site number is: ",latt%Ns
 
 		allocate(bd0(latt%Ns))
@@ -67,26 +67,26 @@ contains
 			var(iv(0))%val(l2)=1d-1
 		enddo
 
-		!! ddw
-		!!call gen_var(sg=3,nb=1,V=(-0.5d0*DJ-V))
-		!!call gen_var(sg=3,nb=1,val=bd1,V=(-0.5d0*DJ-V))
-		!call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))
-		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
-		!enddo
-		!do l2=1,size(var(iv(0))%val)
-			!var(iv(0))%val(l2)=1d-1
-		!enddo
-
-		! sdw
-		!call gen_var(sg=4,nb=0,V=DJ/4d0,Vn=1)
-		call gen_var(sg=4,nb=0,val=bd0,V=DJ/4d0,Vn=1)
+		! ddw
+		!call gen_var(sg=3,nb=1,V=(-0.5d0*DJ-V))
+		!call gen_var(sg=3,nb=1,val=bd1,V=(-0.5d0*DJ-V))
+		call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))
 		do i=1,size(var(iv(0))%bd)
-			var(iv(0))%bd(i)=ab(i)
+			var(iv(0))%bd(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
 		enddo
 		do l2=1,size(var(iv(0))%val)
 			var(iv(0))%val(l2)=1d-1
 		enddo
+
+		!! sdw
+		!!call gen_var(sg=4,nb=0,V=DJ/4d0,Vn=1)
+		!call gen_var(sg=4,nb=0,val=bd0,V=DJ/4d0,Vn=1)
+		!do i=1,size(var(iv(0))%bd)
+			!var(iv(0))%bd(i)=ab(i)
+		!enddo
+		!do l2=1,size(var(iv(0))%val)
+			!var(iv(0))%val(l2)=1d-1
+		!enddo
 
 		! bond order
 		!call gen_var(sg=3,nb=1,V=(-0.5d0*DJ-V))
@@ -161,8 +161,8 @@ contains
 			!write(*,"(es12.4$)")Tk,mfE,merr,var(1:)%val(1)
 			!write(*,"(x)")
 		case(2)
-			var(2)%val(:)=abs(var(2)%val(:))+0.1d0
-			var(3)%val(:)=abs(var(3)%val(:))+0.1d0
+			var(2)%val(:)=0.1d0
+			var(3)%val(:)=0.1d0
 			x=var(1:)%put()
 			i=0
 			do 
