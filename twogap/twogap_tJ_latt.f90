@@ -2,15 +2,15 @@ module pmt
 	use M_const
 	implicit none
 	real(8), parameter :: t(3)=(/1d0,-0.25d0,0.1d0/),&
-		V=0.0325d0,DJ=0.35d0
-		!V=-0.25d0/4d0,DJ=0.25d0
-	integer :: cs=2
+		!V=0.0325d0,DJ=0.35d0
+		V=-0.25d0/4d0,DJ=0.25d0
 end module
 module selfcons
 	use pmt
-	use M_Hamilton
+	use M_Hamilton_test
 	use M_utility
 	implicit none
+	include 'nlopt.f'
 contains
 	subroutine initial()
 		integer :: l2,l3,l,i
@@ -34,8 +34,8 @@ contains
 		call latt%gen_latt()
 		call latt%gen_neb(size(t))
 		call latt%gen_bond(size(t))
-		brizon%n1=64
-		brizon%n2=64
+		brizon%n1=32
+		brizon%n2=brizon%n1
 		call latt%gen_brizon(brizon)
 		!call check_lattice(101)
 		write(*,*)"Total site number is: ",latt%Ns
@@ -55,7 +55,7 @@ contains
 		! cp
 		call gen_var(sg=1,nb=0)
 		var(iv(0))%val(1)=0d0
-		var(iv(0))%bd=-1d0
+		var(iv(0))%bd=-0.5d0
 
 		! d-wave sc
 		!call gen_var(sg=2,nb=1,V=(-DJ+V))
@@ -67,26 +67,26 @@ contains
 			var(iv(0))%val(l2)=1d-1
 		enddo
 
-		! ddw
-		!call gen_var(sg=3,nb=1,V=(-0.5d0*DJ-V))
-		!call gen_var(sg=3,nb=1,val=bd1,V=(-0.5d0*DJ-V))
-		call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))
-		do i=1,size(var(iv(0))%bd)
-			var(iv(0))%bd(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
-		enddo
-		do l2=1,size(var(iv(0))%val)
-			var(iv(0))%val(l2)=1d-1
-		enddo
-
-		!! sdw
-		!!call gen_var(sg=4,nb=0,V=DJ/4d0,Vn=1)
-		!call gen_var(sg=4,nb=0,val=bd0,V=DJ/4d0,Vn=1)
+		!! ddw
+		!!call gen_var(sg=3,nb=1,V=(-0.5d0*DJ-V))
+		!!call gen_var(sg=3,nb=1,val=bd1,V=(-0.5d0*DJ-V))
+		!call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))
 		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=ab(i)
+			!var(iv(0))%bd(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
 		!enddo
 		!do l2=1,size(var(iv(0))%val)
 			!var(iv(0))%val(l2)=1d-1
 		!enddo
+
+		! sdw
+		!call gen_var(sg=4,nb=0,V=DJ,Vn=1)
+		call gen_var(sg=4,nb=0,val=bd0,V=DJ,Vn=1)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=ab(i)
+		enddo
+		do l2=1,size(var(iv(0))%val)
+			var(iv(0))%val(l2)=1d-1
+		enddo
 
 		! bond order
 		!call gen_var(sg=3,nb=1,V=(-0.5d0*DJ-V))
@@ -105,11 +105,7 @@ contains
 		enddo
 
 		call var_shrink()
-		var(lbound(var,1))%update => update_var
-		call var(lbound(var,1))%update()
-		call export_data(30)
-		!write(*,*)var(3)%Vbd
-		!stop
+		!call export_data(30)
 	end subroutine
 	subroutine export_data(ut)
 		integer :: ut,l1,i
@@ -124,7 +120,7 @@ contains
 			write(ut,"(x/)")
 		enddo
 	end subroutine
-	subroutine update_var()
+	subroutine update()
 		integer :: l1
 		do l1=lbound(var,1),0
 			if(var(l1)%sg==-3) then
@@ -132,64 +128,112 @@ contains
 			endif
 		enddo
 	end subroutine
-	subroutine self_consist()
-		integer :: info,i
-		real(8) :: x(sum(var(1:)%n)),v(size(x)),wa(nint((size(x)*(3*size(x)+13))/2.)+10),fE,mfE,mx(size(x)),px(size(x)),err,merr
-		common fE,err
+	subroutine self_consist(fE_)
+		real(8), optional :: fE_
+		real(8) :: x(sum(var(1:)%n)),v(size(x)),wa(nint((size(x)*(3*size(x)+13))/2.)+10),minf
+		integer :: info
+		real(8) :: fE
+		common fE
+		call update()
 		info=1
+		var(2)%val=1d-1
+		var(3)%val=2d-1
+		x=var(1:)%put()
+		x=x+1d-5
+		call hybrd1(minpack_fn,size(x),x,v,1d-7,info,wa,size(wa))
+		write(*,"(es12.4$)")Tk,fE,var(1:)%val(1),sum(abs(v))
+		write(*,"(x)")
+	end subroutine
+	subroutine self_consist_nlp(fE)
+		real(8), optional :: fE
+		real(8) :: x(sum(var(2:)%n)),minf
+		real(8) :: lb(size(x)),ub(size(x)),cst(1)
+		integer(8) opt
+		integer ires
+		call update()
 
-		select case(cs)
-		case(1)
-			mfE=0d0
-			x=0d0
-			do i=1,10
-				call hybrd1(MF_var,size(x(:)),x(:),v(:),1d-7,info,wa,size(wa))
-				if(fE<mfE) then
-					mfE=fE
-					mx=x
-					merr=err
-				endif
-				!write(*,"(i5$)")i
-				!write(*,"(es12.4$)")fE,err,var(1:)%val(1)
-				!write(*,"(x)")
-				call export_data(30)
-				call random_number(var(2)%val(:))
-				call random_number(var(3)%val(:))
-				x=var(1:)%put()
-			enddo
-			call var(1:)%get(mx)
-			!write(*,"(es12.4$)")Tk,mfE,merr,var(1:)%val(1)
-			!write(*,"(x)")
-		case(2)
-			var(2)%val(:)=0.1d0
-			var(3)%val(:)=0.1d0
-			x=var(1:)%put()
-			i=0
-			do 
-				i=i+1
-				if(var(1)%sg==1) then
-					call hybrd1(MF_var,size(x(1:1)),x(1:1),v(1:1),1d-7,info,wa(:16),16)
-					if(info/=1) then
-						write(*,*)"hybrd1 err, info=",info
-						stop
-					endif
-					x=var(1:)%put()
-				endif
-				call MF_var(size(x),x,v,info=-1)
-				!write(*,"(i5$)")i
-				!write(*,"(es12.4$)")fE,err,var(1:)%val(1)
-				!write(*,"(x)")
-				if(err<1d-4) then
-					call hybrd1(MF_var,size(x(:)),x(:),v(:),1d-7,info,wa,size(wa))
-					call var(1:)%get(x)
-					!write(*,"(i5$)")i
-					!write(*,"(es12.4$)")fE,err,var(1:)%val(1)
-					!write(*,"(x)")
-					exit
-				endif
-				call var(1:)%get(x)
-			enddo
-		end select
+		lb=1d-6
+		ub=1d0
+		var(2)%val=1d-1
+		var(3)%val=1d-1
+		x=var(2:)%put()
+		x=x+1d-5
+		!x=(/1.0000d-06,2.5000d-1,1.0000d-06,1.4260d-01/)
+
+		!call nlo_create(opt, NLOPT_LN_BOBYQA, size(x))
+		!call nlo_create(opt, NLOPT_LN_SBPLX, size(x))
+
+		call nlo_create(opt, NLOPT_LD_LBFGS, size(x))
+		call nlo_set_lower_bounds(ires, opt, lb)
+		call nlo_set_upper_bounds(ires, opt, ub)
+		call nlo_set_min_objective(ires, opt, nlopt_fn, cst)
+		call nlo_set_xtol_rel(ires, opt, 1d-7)
+		call nlo_set_maxeval(ires, opt, size(x)*200)
+
+		call nlo_optimize(ires, opt, x, minf)
+		if(ires<0) then
+			write(*,"(A$)")"ires is negetive"
+			write(*,"(i3$)")ires
+			write(*,"(es12.4)")cst
+			!stop
+			!x=var(2:)%put()
+			!call nlo_optimize(ires, opt, x, minf)
+			!if(cst(1)>1d-4) then
+				!stop
+			!endif
+		endif
+		call nlo_destroy(opt)
+		if(present(fE)) fE=minf
+		write(*,"(i3$)")ires
+		write(*,"(es12.4$)")Tk,minf,var(2:)%val(1),cst
+		write(*,"(x)")
+		stop
+	end subroutine
+	subroutine nlopt_fn(val, n, x, grad, need_gradient, f_data)
+		integer :: n
+		real(8) :: val, x(n)
+		real(8) :: grad(n),f_data(1)
+		integer :: need_gradient
+		integer :: info,i,j
+		real(8) :: mu(1),vmu(1),wa(16),v(n),val_
+		call var(2:)%get(x)
+		mu(1)=0d0
+		info=1
+		call hybrd1(minpack_fn,1,mu(1:1),vmu(1:1),1d-7,info,wa(:16),16)
+		call var(1:1)%get(mu)
+		call MF_val(2,v,val,0)
+		!i=3
+		!j=2
+		!write(*,"(es12.4$)")v(sum(var(2:i-1)%n)+j)
+		!call var(2:)%get(x)
+		!var(i)%val(j)=var(i)%val(j)-1d-7
+		!call MF_val(2,v,val,0)
+		!call var(2:)%get(x)
+		!var(i)%val(j)=var(i)%val(j)+1d-7
+		!call MF_val(2,v,val_,0)
+		!write(*,"(es12.4$)")(val_-val)/2d-7
+		!write(*,"(x)")
+		!stop
+		!val=sum(abs(v))
+		write(*,"(es12.4$)")val,x
+		if(need_gradient/=0) then
+			grad=v
+			!write(*,"(es12.4$)")grad
+		endif
+		f_data(1)=sum(abs(v))
+		!write(*,"(es12.4$)")v
+		write(*,"(x)")
+	end subroutine
+	subroutine minpack_fn(n,x,v,info)
+		integer, intent(in) :: n
+		integer, intent(in) :: info
+		real(8), intent(inout) :: x(n),v(n)
+		real(8) :: fE
+		common fE
+		call var(1:)%get(x)
+		call MF_val(1,v,fE,0)
+		!write(*,"(es12.4$)")fE,x
+		!write(*,"(x)")
 	end subroutine
 	function findTc(l,is,Tm)
 		integer :: l,is
@@ -250,7 +294,6 @@ contains
 			call mat_diag(H,E)
 			cH=transpose(conjg(H))
 			f=1d0/(1d0+exp(bt*E))
-
 			!call var%Hamilton(Bg(:,:,1),brizon%k(n,:),b1g)
 			!call var%Hamilton(Bg(:,:,2),brizon%k(n,:),b2g)
 			call var(:0)%Hamilton(Bg(:,:,1),brizon%k(n,:),b1g)
@@ -416,8 +459,14 @@ program main
 	f=openfile(unit=101,file='../data/lattice.dat')
 
 	call initial()
-
-	!Tk=1d-4
+	
+	!nf=n(1)
+	!Tk=5.7d-2
+	!do 
+		!Tk=Tk-1d-3
+		!call self_consist()
+		!if(Tk<5.3d-2) stop
+	!enddo
 	!do l=1,size(n)
 		!nf=n(l)
 		!call self_consist()
@@ -451,8 +500,8 @@ program main
 	!!call band_e(80,0.01d0,(/pi,pi,0d0/),(/0d0,pi,0d0/),128,(/-1d0,1d0/),512)
 	!!call band_e(80,0.01d0,(/0d0,pi,0d0/),(/0d0,0d0,0d0/),128,(/-1d0,1d0/),512)
 	!call band(20,(/0d0,0d0,0d0/),(/pi,pi,0d0/),128)
-	!call band(20,(/pi,pi,0d0/),(/0d0,pi,0d0/),128)
-	!call band(20,(/0d0,pi,0d0/),(/0d0,0d0,0d0/),128)
+	!call band(20,(/pi,pi,0d0/),(/pi,0d0,0d0/),128)
+	!call band(20,(/pi,0d0,0d0/),(/0d0,0d0,0d0/),128)
 	!call band(20,(/pi/2d0,pi/2d0,0d0/),(/pi,0d0,0d0/),128)
 	!call energy(90,o_brizon%k)
 	!call DOS(50,0.005d0,(/-0.4d0,0.4d0/),512,peak)

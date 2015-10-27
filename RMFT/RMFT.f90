@@ -1,15 +1,16 @@
 module pmt
 	use M_const
 	implicit none
-	real(8), parameter :: t(1)=(/1d0/),&
-		V=0.00d0,DJ=0.30d0
-	integer :: cs=2
+	real(8), parameter :: t(2)=(/1d0,-0.3d0/),&
+		V=0.12d0,DJ=0.30d0
+		!V=0.04d0,DJ=0.30d0
 end module
 module selfcons
 	use pmt
 	use M_Hamilton
 	use M_utility
 	implicit none
+	include 'nlopt.f'
 contains
 	subroutine initial()
 		integer :: l2,l3,l,i
@@ -20,8 +21,6 @@ contains
 		! lattice 
 		latt%a1=(/1d0,1d0,0d0/)
 		latt%a2=(/-1d0,1d0,0d0/)
-		!latt%T1=(/1d0,0d0,0d0/)*2
-		!latt%T2=(/0d0,1d0,0d0/)*8
 		latt%T1=(/1d0,1d0,0d0/)
 		latt%T2=(/-1d0,1d0,0d0/)
 		latt%bdc(1)=1d0
@@ -33,9 +32,11 @@ contains
 		call latt%gen_latt()
 		call latt%gen_neb(size(t))
 		call latt%gen_bond(size(t))
-		brizon%n1=256
-		brizon%n2=256
+		!brizon%n1=32
+		brizon%n1=64
+		brizon%n2=brizon%n1
 		call latt%gen_brizon(brizon)
+		call latt%gen_origin_brizon((/1d0,0d0,0d0/),(/0d0,1d0,0d0/),o_brizon)
 		!call check_lattice(101)
 		write(*,*)"Total site number is: ",latt%Ns
 
@@ -53,14 +54,14 @@ contains
 			var(iv(0))%val(l2)=1d-1
 		enddo
 
-		!! ddw
-		!call gen_var(sg=13,nb=1)
-		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
-		!enddo
-		!do l2=1,size(var(iv(0))%val)
-			!var(iv(0))%val(l2)=1d-1
-		!enddo
+		! ddw
+		call gen_var(sg=13,nb=1)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
+		enddo
+		do l2=1,size(var(iv(0))%val)
+			var(iv(0))%val(l2)=1d-1
+		enddo
 
 		!! sdw
 		!call gen_var(sg=4,nb=0)
@@ -75,15 +76,17 @@ contains
 		! bond order
 		do l=1,size(t)
 			call gen_var(sg=3,nb=l)
-			var(iv(0))%bd=1d0
+			var(iv(0))%bd=-sign(1d0,t(l))
+			!var(iv(0))%bd=1d0
 			do l2=1,size(var(iv(0))%val)
-				var(iv(0))%val(l2)=t(l)
+				!var(iv(0))%val(l2)=t(l)
+				var(iv(0))%val(l2)=abs(t(l))
 			enddo
 		enddo
 
 
 		call var_shrink()
-		var(lbound(var,1))%update => update_var
+		!var(lbound(var,1))%update => update_var
 		call export_data(30)
 	end subroutine
 	subroutine export_data(ut)
@@ -99,59 +102,8 @@ contains
 			write(ut,"(x/)")
 		enddo
 	end subroutine
-	subroutine update_var()
-		integer :: l1,l
-		real(8) :: arg(4,size(t))
-		arg=0d0
-		do l1=lbound(var,1),ubound(var,1)
-			select case(abs(var(l1)%sg))
-			case(2)
-				arg(3,1)=var(l1)%val(1)
-			case(3)
-				arg(1,var(l1)%nb)=var(l1)%val(1)
-			case(13)
-				arg(2,1)=var(l1)%val(1)
-			case(4)
-				arg(4,1)=var(l1)%val(1)
-			end select
-		enddo
-		do l1=lbound(var,1),ubound(var,1)
-			select case(abs(var(l1)%sg))
-			case(2)
-				l=3
-				var(l1)%val=-t(1)*gt(arg(:,1),l)*arg(1,1)&
-					-(DJ*(gxy(arg(:,1))/2d0+gz(arg(:,1))/4d0)-V)*arg(l,1)&
-					-0.5d0*DJ*(gxy(arg(:,1),l)/2d0+gz(arg(:,1),l)/4d0)*sum(arg(1:3,1)**2)&
-					-0.25d0*arg(4,1)**2*gz(arg(:,1),l)/4d0*DJ
-			case(3)
-				l=1
-				var(l1)%val=-t(var(l1)%nb)*gt(arg(:,var(l1)%nb))-t(var(l1)%nb)*gt(arg(:,var(l1)%nb),l)*arg(1,var(l1)%nb)
-				if(var(l1)%nb==1) then
-					var(l1)%val(:)=var(l1)%val(:)&
-						-((gxy(arg(:,1))/2d0+gz(arg(:,1))/4d0)*DJ+V)*arg(l,1)&
-						-0.5d0*DJ*(gxy(arg(:,1),l)/2d0+gz(arg(:,1),l)/4d0)*sum(arg(1:3,1)**2)&
-						-0.25d0*arg(4,1)**2/4d0*gz(arg(:,1),l)*DJ
-				endif
-			case(13)
-				l=2
-				var(l1)%val(:)=-t(var(l1)%nb)*gt(arg(:,var(l1)%nb),l)*arg(1,var(l1)%nb)&
-					-((gxy(arg(:,1))/2d0+gz(arg(:,1))/4d0)*DJ+V)*arg(l,1)&
-					-0.5d0*DJ*(gxy(arg(:,1),l)/2d0+gz(arg(:,1),l)/4d0)*sum(arg(1:3,1)**2)&
-					-0.25d0*arg(4,1)**2/4d0*gz(arg(:,1),l)*DJ
-			case(4)
-				l=4
-				var(l1)%val=-8d0*t(var(l1)%nb)*gt(arg(:,1),l)*arg(1,1)&
-					-4d0*DJ*(gxy(arg(:,1),l)/2d0+gz(arg(:,1),l)/4d0)*sum(arg(1:3,1)**2)&
-					-4d0*arg(4,1)*gz(arg(:,1))/4d0*DJ&
-					-2d0*arg(4,1)**2*gz(arg(:,1),l)/4d0*DJ
-			end select
-		enddo
-		!write(*,"(es14.2$)")arg(:,1),var(:)%val(1)
-		!write(*,"(x)")
-	end subroutine
-	recursive function gt(arg,i)
+	recursive function gt(arg)
 		real(8) :: arg(:)
-		integer, optional :: i
 		real(8) :: gt
 		real(8) :: cr,ci,dt,m
 		real(8) :: X2,a,X,dp,arg_(size(arg))
@@ -159,27 +111,17 @@ contains
 		ci=arg(2)
 		dt=arg(3)
 		m=arg(4)
-		!cr=0d0
-		!ci=0d0
-		!dt=0d0
+		cr=0d0
+		ci=0d0
+		dt=0d0
 		dp=abs(1-nf)
-		if(present(i)) then
-			arg_=arg
-			arg_(i)=arg(i)+1d-6
-			gt=gt(arg_)
-			arg_(i)=arg(i)-1d-6
-			gt=gt-gt(arg_)
-			gt=gt/2d-6
-		else
-			X2=2d0*(dt**2+cr**2+ci**2)
-			X=2d0*dp**2*(dt**2-cr**2-ci**2)+m**2*X2+X2**2/2d0
-			a=1d0+4d0*X/(1d0-dp**2+m**2)**2
-			gt=2d0*dp*(1d0-dp)/(1d0-dp**2+m**2)*((1d0+dp)**2-2d0*X2-m**2)/((1d0+dp)**2-m**2)*a
-		endif
+		X2=2d0*(dt**2+cr**2+ci**2)
+		X=2d0*dp**2*(dt**2-cr**2-ci**2)+m**2*X2+X2**2/2d0
+		a=1d0+4d0*X/(1d0-dp**2+m**2)**2
+		gt=2d0*dp*(1d0-dp)/(1d0-dp**2+m**2)*((1d0+dp)**2-2d0*X2-m**2)/((1d0+dp)**2-m**2)*a
 	end function
-	recursive function gxy(arg,i)
+	recursive function gxy(arg)
 		real(8) :: arg(:)
-		integer, optional :: i
 		real(8) :: gxy
 		real(8) :: cr,ci,dt,m
 		real(8) :: X2,a,X,dp,arg_(size(arg))
@@ -191,23 +133,13 @@ contains
 		!ci=0d0
 		!dt=0d0
 		dp=abs(1-nf)
-		if(present(i)) then
-			arg_=arg
-			arg_(i)=arg(i)+1d-6
-			gxy=gxy(arg_)
-			arg_(i)=arg(i)-1d-6
-			gxy=gxy-gxy(arg_)
-			gxy=gxy/2d-6
-		else
-			X2=2d0*(dt**2+cr**2+ci**2)
-			X=2d0*dp**2*(dt**2-cr**2-ci**2)+m**2*X2+X2**2/2d0
-			a=1d0+4d0*X/(1d0-dp**2+m**2)**2
-			gxy=(2d0*(1d0-dp)/(1d0-dp**2+m**2))**2/a**7
-		endif
+		X2=2d0*(dt**2+cr**2+ci**2)
+		X=2d0*dp**2*(dt**2-cr**2-ci**2)+m**2*X2+X2**2/2d0
+		a=1d0+4d0*X/(1d0-dp**2+m**2)**2
+		gxy=(2d0*(1d0-dp)/(1d0-dp**2+m**2))**2/a**7
 	end function
-	recursive function gz(arg,i)
+	recursive function gz(arg)
 		real(8) :: arg(:)
-		integer, optional :: i
 		real(8) :: gz
 		real(8) :: cr,ci,dt,m
 		real(8) :: X2,a,X,dp,arg_(size(arg))
@@ -219,123 +151,190 @@ contains
 		!ci=0d0
 		!dt=0d0
 		dp=abs(1-nf)
-		if(present(i)) then
-			arg_=arg
-			arg_(i)=arg(i)+1d-6
-			gz=gz(arg_)
-			arg_(i)=arg(i)-1d-6
-			gz=gz-gz(arg_)
-			gz=gz/2d-6
+		X2=2d0*(dt**2+cr**2+ci**2)
+		X=2d0*dp**2*(dt**2-cr**2-ci**2)+m**2*X2+X2**2/2d0
+		a=1d0+4d0*X/(1d0-dp**2+m**2)**2
+		if(abs(m**2+X2)<1d-7) then
+			gz=(2d0*(1d0-dp)/(1d0-dp**2+m**2))**2/a**7
 		else
-			X2=2d0*(dt**2+cr**2+ci**2)
-			X=2d0*dp**2*(dt**2-cr**2-ci**2)+m**2*X2+X2**2/2d0
-			a=1d0+4d0*X/(1d0-dp**2+m**2)**2
-			if(abs(m**2+X2)<1d-7) then
-				gz=(2d0*(1d0-dp)/(1d0-dp**2+m**2))**2/a**7
-			else
-				gz=(2d0*(1d0-dp)/(1d0-dp**2+m**2))**2/a**7/(m**2+X2)*(X2+m**2*(1d0+6d0*X2*(1d0-dp)**2/(1d0-dp**2+m**2)/a**3)**2)
-			endif
+			gz=(2d0*(1d0-dp)/(1d0-dp**2+m**2))**2/a**7/(m**2+X2)*(X2+m**2*(1d0+6d0*X2*(1d0-dp)**2/(1d0-dp**2+m**2)/a**3)**2)
 		endif
 	end function
-	subroutine self_consist()
-		integer :: info,i,l
-		real(8) :: x(sum(var(1:)%n)),v(size(x)),wa(nint((size(x)*(3*size(x)+13))/2.)+10),fE,mfE,mx(size(x)),px(size(x)),err,merr,s
-		common fE,err
-		info=1
-		
-		select case(cs)
-		case(1)
-			mfE=0d0
-			x=0d0
-			do i=1,20
-				call hybrd1(MF_var,size(x(:)),x(:),v(:),1d-7,info,wa,size(wa))
-				call var(1:)%get(x)
-				fE=free_energy()
-				if(fE<mfE) then
-					mfE=fE
-					mx=x
-					merr=err
-				endif
-				write(*,"(i5$)")i
-				write(*,"(es12.4$)")fE,err,var(1:)%val(1)
-				write(*,"(x)")
-				call export_data(30)
-				do l=1,ubound(var,1)
-					call random_number(var(l)%val(:))
-					var(l)%val(:)=(var(l)%val(:)-0.5d0)*0.2d0
-				enddo
-				x=var(1:)%put()
-			enddo
-			call var(1:)%get(mx)
-			write(*,"(es12.4$)")mfE,merr,var(1:)%val(1)
-			write(*,"(x)")
-		case(2)
-			!do l=1,ubound(var,1)
-			do l=2,3
-				call random_number(var(l)%val(:))
-				var(l)%val(:)=(var(l)%val(:)+0.1d0)*0.2d0
-			enddo
-			x=var(1:)%put()
-			i=0
-			do 
-				call var%update()
-				i=i+1
-				!write(*,"(i5$)")i
-				!write(*,"(es12.4$)")v,x
-				!write(*,"(x)")
-				if(var(1)%sg==1) then
-					call hybrd1(MF_var,size(x(1:1)),x(1:1),v(1:1),1d-7,info,wa(:16),16)
-					if(info/=1) then
-						write(*,*)"hybrd1 err, info=",info
-						stop
-					endif
-				endif
-				call MF_var(size(x),x,v,info=-1)
-				if(err<1d-4) then
-					call hybrd1(MF_var,size(x(:)),x(:),v(:),1d-7,info,wa,size(wa))
-					call var(1:)%get(x)
-					!write(*,"(i5$)")i
-					!write(*,"(es12.4$)")fE,err,var(1:)%val(1)
-					!write(*,"(x)")
-					exit
-				endif
-				call var(1:)%get(x)
-			enddo
-		end select
+	subroutine self_consist(fE)
+		real(8), optional :: fE
+		real(8) :: x(sum(var(2:)%n)),minf
+		real(8) :: lb(size(x)),ub(size(x)),cst(1)
+		integer(8) opt
+		integer ires
+
+		lb(1:)=1d-6
+		!lb(1:)=0d0
+		ub(1:)=1.5d0
+		!lb(1)=1d-6
+		!x=abs(var(2:)%put())
+		x=var(2:)%put()
+		!call myfunc(minf,size(x),x)
+		x=1d-1
+		!call random_number(x(1:2))
+		!x(1)=0.1628d0
+		!x(2)=0.1628d0
+		!write(*,"(es12.4$)")minf
+		!write(*,"(x)")
+		!write(*,"(es12.4$)")var(1:)%val(1)
+		!write(*,"(x)")
+		!write(*,"(es12.4$)")var(1)%val(1),x
+		!write(*,"(x)")
+		!stop
+
+		call nlo_create(opt, NLOPT_LN_BOBYQA, size(x))
+		call nlo_set_lower_bounds(ires, opt, lb)
+		call nlo_set_upper_bounds(ires, opt, ub)
+		call nlo_set_min_objective(ires, opt, myfunc, cst)
+		call nlo_set_xtol_abs(ires, opt, 1d-5)
+		!call nlo_set_xtol_rel(ires, opt, 1d-5)
+		call nlo_set_maxeval(ires, opt, size(x)*200)
+
+		call nlo_optimize(ires, opt, x, minf)
+		call nlo_destroy(opt)
+		if(present(fE)) fE=minf
+		!call var(2:)%get(x)
+		!write(*,"(es12.4$)")x
+		!write(*,"(x)")
+		!call var%update()
+		!write(*,"(es12.4$)")var(2:)%val(1)
+		!write(*,"(x)")
+		!write(*,"(A$)")"------------------->"
+		!write(*,"(es12.4$)")var(1)%val(1),x
+		!write(*,"(x)")
+		call update_var(x)
 	end subroutine
-	function free_energy()
-		integer :: l1
-		real(8) :: arg(4,size(t)),free_energy
-		free_energy=0d0
-		arg=0d0
-		do l1=lbound(var,1),ubound(var,1)
-			select case(abs(var(l1)%sg))
-			case(2)
-				arg(3,1)=var(l1)%val(1)
-			case(3)
-				arg(1,var(l1)%nb)=var(l1)%val(1)
-			case(13)
-				arg(2,1)=var(l1)%val(1)
-			case(4)
-				arg(4,1)=var(l1)%val(1)
-			end select
+	subroutine myfunc(val, n, x, grad, need_gradient, f_data)
+		integer :: n
+		real(8) :: val, x(n)
+		real(8), optional :: grad(n),f_data(1)
+		integer, optional :: need_gradient
+
+		complex(8) :: H(latt%Ns*spin,latt%Ns*spin)
+		real(8) :: E(size(H,1)),vr(n),tmp
+		complex(8) :: D(size(H,1),1,n),cH(size(H,1),size(H,2))
+		real(8) :: f(size(E)),err,dE(size(H,1),n)
+		integer :: l,lp,l1,l2,l3,m,i,j,k,info
+		real(8) :: wa(16),mu(1)
+
+		real(8) :: arg(4,size(t))
+		call var(2:)%get(x)
+		!call var%update()
+		info=1
+		mu(1)=0d0
+		call hybrd1(MF_var,1,mu(1),vr(1:1),1d-7,info,wa(:16),16)
+		call var(1:)%get(mu)
+		vr=0d0
+		val=0d0
+		!$OMP PARALLEL DO REDUCTION(+:val,vr) PRIVATE(H,E,cH,f,dE,D)
+		do k=1,size(brizon%k,1)
+			call var%Hamilton(H,brizon%k(k,:))
+			call mat_diag(H,E)
+			cH=transpose(conjg(H))
+			f=1d0/(exp(E/Tk)+1d0)
+			call var(2:)%dHamilton(H,cH,D(:,1:1,:),brizon%k(k,:))
+			dE=real(D(:,1,:))
+			do l=1,size(E)
+				val=val-(f(l)*log(max(f(l),1d-17))+(1d0-f(l))*log(max(1d0-f(l),1d-17)))
+			enddo
+			do l=1,n
+				vr(l)=vr(l)+sum(dE(:,l)*f(:))
+			enddo
 		enddo
-		do l1=lbound(var,1),ubound(var,1)
-			select case(abs(var(l1)%sg))
-			case(2)
-				free_energy=free_energy-4d0*(DJ*(gxy(arg(:,1))/2d0+gz(arg(:,1))/4d0)-V)*arg(3,1)**2
-			case(3)
-				free_energy=free_energy-8d0*t(var(l1)%nb)*gt(arg(:,var(l1)%nb))*arg(1,var(l1)%nb)
-				if(var(l1)%nb==1) then
-					free_energy=free_energy-4d0*(DJ*(gxy(arg(:,1))/2d0+gz(arg(:,1))/4d0)+V)*arg(1,1)**2
+		!$OMP END PARALLEL DO
+		val=val/(size(brizon%k,1)*latt%Ns)
+		vr=vr/size(brizon%k,1)
+
+		l=0
+		do l1=2,ubound(var,1)
+			do l2=1,size(var(l1)%val)
+				l=l+1
+				if(var(l1)%sg==3) then
+					vr(l)=vr(l)*var(l1)%bd(1)
 				endif
-			case(13)
-				free_energy=free_energy-4d0*(DJ*(gxy(arg(:,1))/2d0+gz(arg(:,1))/4d0)+V)*arg(2,1)**2
-			case(4)
-				free_energy=free_energy-2d0*arg(4,1)**2*gz(arg(:,1))/4d0*DJ
-			end select
+				tmp=0d0
+				if(is_sc.and.var(l1)%nb==0) then
+					do l3=1,size(var(l1)%v2i(l2)%i)
+						i=var(l1)%v2i(l2)%i(l3)
+						tmp=tmp+real(var(l1)%bd(i))*var(l1)%Vbd(i)
+					enddo
+					if(mod(abs(var(l1)%sg),10)==4) tmp=-tmp
+				endif
+				if(var(l1)%nb==0) then
+					var(l1)%val(l2)=(vr(l)+tmp)/(size(var(l1)%v2i(l2)%i))
+				else
+					var(l1)%val(l2)=(vr(l)+tmp)/(2*spin*size(var(l1)%v2i(l2)%i))
+				endif
+			enddo
 		enddo
+
+		val=Eavg()-Tk*val
+		!write(*,"(es12.4$)")val,x
+		!write(*,"(x)")
+	end subroutine
+	recursive function Eavg(l)
+		integer, optional :: l
+		real(8) :: Eavg
+		real(8) :: arg(4,size(t))
+		integer :: l1
+		if(present(l)) then
+			var(l)%val(1)=var(l)%val(1)+1d-6
+			Eavg=Eavg()
+			var(l)%val(1)=var(l)%val(1)-2d-6
+			Eavg=Eavg-Eavg()
+			Eavg=Eavg/2d-6
+			var(l)%val(1)=var(l)%val(1)+1d-6
+			Eavg=Eavg/8d0
+		else
+			Eavg=0d0
+			arg=0d0
+			do l1=lbound(var,1),ubound(var,1)
+				select case(abs(var(l1)%sg))
+				case(2)
+					arg(3,1)=var(l1)%val(1)
+				case(3)
+					arg(1,var(l1)%nb)=var(l1)%val(1)
+				case(13)
+					arg(2,1)=var(l1)%val(1)
+				case(4)
+					arg(4,1)=var(l1)%val(1)
+				end select
+			enddo
+			do l1=lbound(var,1),ubound(var,1)
+				select case(abs(var(l1)%sg))
+				case(2)
+					Eavg=Eavg-4d0*(DJ*(gxy(arg(:,1))/2d0+gz(arg(:,1))/4d0)-V)*arg(3,1)**2
+				case(3)
+					Eavg=Eavg-8d0*t(var(l1)%nb)*gt(arg(:,var(l1)%nb))*arg(1,var(l1)%nb)
+					if(var(l1)%nb==1) then
+						Eavg=Eavg-4d0*(DJ*(gxy(arg(:,1))/2d0+gz(arg(:,1))/4d0)+V)*arg(1,1)**2
+					endif
+				case(13)
+					Eavg=Eavg-4d0*(DJ*(gxy(arg(:,1))/2d0+gz(arg(:,1))/4d0)+V)*arg(2,1)**2
+				case(4)
+					Eavg=Eavg-2d0*arg(4,1)**2*gz(arg(:,1))/4d0*DJ
+				end select
+			enddo
+		endif
 	end function
+	subroutine update_var(x)
+		integer :: l1,l
+		real(8) :: x(:),scal
+		do l1=1,size(var)
+			if(var(l1)%sg==3.and.var(l1)%nb==1) then
+				scal=abs(Eavg(l1)/x(l1-1))
+				exit
+			endif
+		enddo
+		var(1)%val=var(1)%val*scal
+		do l1=2,size(var)
+			var(l1)%val=x(l1-1)*scal
+		enddo
+	end subroutine
 	function findTc(l,is,Tm)
 		integer :: l,is
 		real(8) :: findTc,Tm
@@ -445,7 +444,7 @@ program main
 	logical :: f
 	integer :: l,m,i
 	real(8) :: n(45)=(/(0.999d0-i/100d0,i=0,44)/)
-	real(8) :: Ts(size(n),2),Td(size(n),2),Tc(2)
+	real(8) :: Ts(size(n),2),Td(size(n),2),Tc(2),fE,kf(3)
 	real(8), allocatable :: peak(:)
 	f=openfile(unit=10,file='../data/phase.dat')
 	f=openfile(unit=20,file='../data/band.dat')
@@ -461,34 +460,43 @@ program main
 
 	call initial()
 
-	Tk=1d-4
-	do l=1,size(n)
-		nf=n(l)
-		call self_consist()
-		write(*,"(es12.4$)")nf,Tk,var(1:)%val(1)
-		write(*,"(x)")
-		write(100,"(es12.4$)")nf,Tk,var(1:)%val(1)
-		write(100,"(x)")
-	enddo
-	stop
-	do l=1,10
-		nf=8.00d-01
-		Tk=8.0d-02/10d0*l
-		call self_consist()
-		var(2)%val=0d0
-		call var%update()
-		write(*,"(es12.4$)")nf,Tk,var(1:)%val(1)
-		write(*,"(x)")
-		write(100,"(es12.4$)")nf,Tk,var(1:)%val(1)
-		write(100,"(x)")
-		call raman(60,0.01d0,(/0d0,0.8d0/),256,peak)
-		call DOS(50,0.01d0,(/-1.8d0,1.8d0/),256)
-		stop
-	enddo
-	stop
+	!Tk=1d-4
+	!do l=1,size(n)
+		!nf=n(l)
+		!call self_consist(fE)
+		!write(*,"(es12.4$)")nf,Tk,fE,var(2:)%val(1)
+		!write(*,"(x)")
+		!write(100,"(es12.4$)")nf,Tk,fE,var(2:)%val(1)
+		!write(100,"(x)")
+		!!call band(20,(/0d0,0d0,0d0/),(/pi,pi,0d0/),128)
+		!!call band(20,(/pi,pi,0d0/),(/0d0,pi,0d0/),128)
+		!!call band(20,(/0d0,pi,0d0/),(/0d0,0d0,0d0/),128)
+	!enddo
+	!stop
+	!do l=1,10
+		!nf=8.6d-1
+		!!Tk=6.8d-02/10d0*l
+		!Tk=5.5629d-02/10d0*l
+		!call self_consist()
+		!!call var%update()
+		!write(*,"(es12.4$)")nf,Tk,var(1:)%val(1)
+		!write(*,"(x)")
+		!write(100,"(es12.4$)")nf,Tk,var(1:)%val(1)
+		!write(100,"(x)")
+		!call raman(60,0.05d0,(/0d0,0.8d0/),256,peak)
+		!!call DOS(50,0.01d0,(/-1.8d0,1.8d0/),256)
+		!!call fermis(40,0.01d0,o_brizon%k,0d0)
+		!!stop
+		!!call band(20,(/0d0,0d0,0d0/),(/pi,pi,0d0/),128)
+		!!call band(20,(/pi,pi,0d0/),(/0d0,pi,0d0/),128)
+		!!call band(20,(/0d0,pi,0d0/),(/0d0,0d0,0d0/),128)
+		!!kf=(/pi,4.663301595d-01,0d0/)
+		!!call band(20,kf,kf,1)
+	!enddo
+	!stop
 
-	Tc=1d-1
-	do l=10,size(n)-15
+	Tc=2d-1
+	do l=9,size(n)-14
 		nf=n(l)
 		Tc(1)=findTc(2,1,Tc(1)+0.02)
 		!Tc(1)=findTc(2,1,0.12d0)
@@ -500,8 +508,8 @@ program main
 	enddo
 	write(10,"(x/)")
 
-	Tc=1d-1
-	do l=10,size(n)-15
+	Tc=2d-1
+	do l=9,size(n)-14
 		nf=n(l)
 		Tc(1)=findTc(3,1,Tc(1)+0.02)
 		!Tc(1)=findTc(3,1,0.12d0)

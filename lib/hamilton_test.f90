@@ -1,4 +1,4 @@
-module M_Hamilton
+module M_Hamilton_test
 	use M_lattice
 	use M_const
 	use M_utility
@@ -24,11 +24,14 @@ module M_Hamilton
 		integer :: sg   
 						! 1:  chemical potainial
 						! 2:  singlet pair
-						! 3:  charge
-						! 4:  spin
-						! 7: n-n jast
+						! 3:  spin symmetry charge
+						! 4:  spin z
+						! 5:  spin asymmetry charge
+						! 6:  triplet pair
+						! 7:  spin x
+						! 8:  spin y
+						! 9: n-n jast
 						! -: don't do variation
-		procedure(update), pointer, nopass :: update
 	contains
 		procedure :: Hamilton
 		procedure :: dHamilton
@@ -41,9 +44,12 @@ module M_Hamilton
 	integer :: iv(-1:1)=(/1,0,0/)
 	real(8) :: Tk,nf
 	private myswap1
+	procedure(fenergy_interface), pointer :: fenergy
 	interface 
-		subroutine update()
-		end subroutine
+		function fenergy_interface(E,f)
+			real(8) :: E(:),f(:)
+			real(8) :: fenergy_interface
+		end function
 	end interface
 contains
 	function dwave(i)
@@ -146,8 +152,6 @@ contains
 			enddo
 		enddo
 	end function
-	subroutine default_update()
-	end subroutine
 	subroutine var_shrink()
 		integer :: lb
 		type(t_var) :: tmp(iv(-1):iv(1))
@@ -155,7 +159,7 @@ contains
 		deallocate(var)
 		allocate(var(iv(-1):iv(1)))
 		var(iv(-1):iv(1))=tmp(iv(-1):iv(1))
-		var(iv(-1))%update => default_update
+		fenergy => default_fenergy
 	end subroutine
 	subroutine Hamilton(self,H,k,fn,info)
 		class(t_var), intent(in) :: self(:)
@@ -164,16 +168,17 @@ contains
 		complex(8), external, optional :: fn
 		integer, optional, intent(in) :: info
 		complex(8) :: bdc,expk,bd
-		integer :: i,j,l1,l2,l3,n,isc
+		integer :: i,j,l1,l2,l3,n
+		real(8) :: isc
 		! TO-DO: bd is incorrect when nambu space is not used
 		if(.not.present(info)) then
 			H=0d0
 		endif
 		expk=1d0
 		if(is_sc) then
-			isc=-1
+			isc=-1d0
 		else
-			isc=1
+			isc=1d0
 		endif
 		associate(Ns=>latt%Ns)
 			do l1=1,size(self)
@@ -200,27 +205,30 @@ contains
 							if(present(fn)) then
 								cycle
 							endif
-							if(self(l1)%nb/=0) then
-								H(i,j+Ns)=H(i,j+Ns)+bd*bdc*expk
-								H(i+Ns,j)=H(i+Ns,j)+bd*conjg(bdc)*expk
-								H(j+Ns,i)=H(j+Ns,i)+conjg(bd*bdc*expk)
-								H(j,i+Ns)=H(j,i+Ns)+conjg(bd*conjg(bdc)*expk)
+							if(self(l1)%nb==self(l1)%Vn) then
+								H(i,j+Ns)=H(i,j+Ns)+conjg(bd)*bdc*expk
+								H(i+Ns,j)=H(i+Ns,j)+conjg(bd)*conjg(bdc)*expk
+								H(j+Ns,i)=H(j+Ns,i)+bd*conjg(bdc*expk)
+								H(j,i+Ns)=H(j,i+Ns)+bd*conjg(conjg(bdc)*expk)
 							else
 								do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
 									j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
 									bd=self(l1)%val(l2)*self(l1)%bd(i)*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vn)%bond(n))
-									H(j,j+Ns)=H(j,j+Ns)+bd*bdc*expk
-									H(j+Ns,j)=H(j+Ns,j)+bd*conjg(bdc)*expk
+									H(j,j+Ns)=H(j,j+Ns)+conjg(bd)*bdc*expk
+									H(j+Ns,j)=H(j+Ns,j)+bd*conjg(bdc*expk)
 								enddo
 							endif
-						case(3,1,4)
+						case(3,1,4,5)
 							! charge and spin channel
 							if(mod(abs(self(l1)%sg),10)==4) then
+								isc=-isc*0.5d0
+							endif
+							if(mod(abs(self(l1)%sg),10)==5) then
 								isc=-isc
 							endif
-							if(self(l1)%nb/=0) then
-								H(i,j)=H(i,j)+conjg(bd)*bdc*expk
-								H(j,i)=H(j,i)+conjg(conjg(bd)*bdc*expk)
+							if(self(l1)%nb==self(l1)%Vn) then
+								H(i,j)=H(i,j)+abs(isc)*conjg(bd)*bdc*expk
+								H(j,i)=H(j,i)+abs(isc)*bd*conjg(bdc*expk)
 								if(spin==2) then
 									H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+isc*bd*bdc*expk
 									H(j+Ns,i+Ns)=H(j+Ns,i+Ns)+isc*conjg(bd*bdc*expk)
@@ -229,13 +237,16 @@ contains
 								do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
 									j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
 									bd=self(l1)%val(l2)*self(l1)%bd(i)*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vn)%bond(n))
-									H(j,j)=H(j,j)+conjg(bd)*bdc*expk
+									H(j,j)=H(j,j)+abs(isc)*conjg(bd)*bdc*expk
 									if(spin==2) then
 										H(j+Ns,j+Ns)=H(j+Ns,j+Ns)+isc*bd*bdc*expk
 									endif
 								enddo
 							endif
 							if(mod(abs(self(l1)%sg),10)==4) then
+								isc=-isc*2d0
+							endif
+							if(mod(abs(self(l1)%sg),10)==5) then
 								isc=-isc
 							endif
 						end select
@@ -250,12 +261,13 @@ contains
 		real(8), optional, intent(in) :: k(:)
 		complex(8), intent(inout) :: D(:,:,:)
 		complex(8) :: bdc,expk,bd,tmp
-		integer :: i,j,l1,l2,l3,l,m1,m2,m2p,n,isc
+		integer :: i,j,l1,l2,l3,l,m1,m2,m2p,n
+		real(8) :: isc
 		D=0d0
 		if(is_sc) then
-			isc=-1
+			isc=-1d0
 		else
-			isc=1
+			isc=1d0
 		endif
 		expk=1d0
 		l=0
@@ -286,42 +298,46 @@ contains
 								select case(mod(self(l1)%sg,10))
 								case(2)
 									! pair channel
-									if(self(l1)%nb/=0) then
-										tmp=tmp+cH(m1,i)*H(j+Ns,m2)*bd*bdc*expk
-										tmp=tmp+cH(m1,i+Ns)*H(j,m2)*bd*conjg(bdc)*expk
-										tmp=tmp+cH(m1,j+Ns)*H(i,m2)*conjg(bd*bdc*expk)
-										tmp=tmp+cH(m1,j)*H(i+Ns,m2)*conjg(bd*conjg(bdc)*expk)
+									if(self(l1)%nb==self(l1)%Vn) then
+										tmp=tmp+cH(m1,i)*H(j+Ns,m2)*conjg(bd)*bdc*expk
+										tmp=tmp+cH(m1,i+Ns)*H(j,m2)*conjg(bd)*conjg(bdc)*expk
+										tmp=tmp+cH(m1,j+Ns)*H(i,m2)*bd*conjg(bdc*expk)
+										tmp=tmp+cH(m1,j)*H(i+Ns,m2)*bd*conjg(conjg(bdc)*expk)
 									else
 										do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
-											!j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
 											bd=self(l1)%bd(latt%neb(i)%nb(self(l1)%Vn)%neb(n))*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vn)%bond(n))
-											tmp=tmp+cH(m1,j)*H(j+Ns,m2)*bd*bdc*expk
-											tmp=tmp+cH(m1,j+Ns)*H(j,m2)*bd*conjg(bdc)*expk
+											tmp=tmp+cH(m1,i)*H(i+Ns,m2)*conjg(bd)*bdc*expk
+											tmp=tmp+cH(m1,i+Ns)*H(i,m2)*bd*conjg(bdc*expk)
 										enddo
 									endif
-								case(3,1,4)
+								case(3,1,4,5)
 									! charge and spin channel
-									if(mod(self(l1)%sg,10)==4) then
+									if(mod(abs(self(l1)%sg),10)==4) then
+										isc=-isc*0.5d0
+									endif
+									if(mod(abs(self(l1)%sg),10)==5) then
 										isc=-isc
 									endif
-									if(self(l1)%nb/=0) then
-										tmp=tmp+cH(m1,i)*H(j,m2)*conjg(bd)*bdc*expk
-										tmp=tmp+cH(m1,j)*H(i,m2)*conjg(conjg(bd)*bdc*expk)
+									if(self(l1)%nb==self(l1)%Vn) then
+										tmp=tmp+cH(m1,i)*H(j,m2)*abs(isc)*conjg(bd)*bdc*expk
+										tmp=tmp+cH(m1,j)*H(i,m2)*abs(isc)*bd*conjg(bdc*expk)
 										if(spin==2) then
 											tmp=tmp+cH(m1,i+Ns)*H(j+Ns,m2)*isc*bd*bdc*expk
 											tmp=tmp+cH(m1,j+Ns)*H(i+Ns,m2)*isc*conjg(bd*bdc*expk)
 										endif
 									else
 										do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
-											!j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
 											bd=self(l1)%bd(latt%neb(i)%nb(self(l1)%Vn)%neb(n))*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vn)%bond(n))
-											tmp=tmp+cH(m1,j)*H(j,m2)*conjg(bd)*bdc*expk
+											tmp=tmp+cH(m1,i)*H(i,m2)*abs(isc)*conjg(bd)*bdc*expk
 											if(spin==2) then
-												tmp=tmp+cH(m1,j+Ns)*H(j+Ns,m2)*isc*bd*bdc*expk
+												tmp=tmp+cH(m1,i+Ns)*H(i+Ns,m2)*isc*bd*bdc*expk
 											endif
 										enddo
 									endif
-									if(mod(self(l1)%sg,10)==4) then
+									if(mod(abs(self(l1)%sg),10)==4) then
+										isc=-isc*2d0
+									endif
+									if(mod(abs(self(l1)%sg),10)==5) then
 										isc=-isc
 									endif
 								end select
@@ -333,38 +349,30 @@ contains
 			enddo
 		end associate
 	end subroutine
-	subroutine MF_var(n,x,v,info)
-		integer, intent(in) :: n
-		integer, intent(in) :: info
-		real(8), intent(inout) :: x(n),v(n)
+	subroutine  MF_val(ll,v,fE,info)
+		integer :: ll
+		real(8) :: v(:)
+		real(8) :: fE
+		integer :: info
+
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin)
 		real(8) :: E(size(H,1))
-		complex(8) :: D(size(H,1),1,n),cH(size(H,1),size(H,2))
-		real(8) :: f(size(E)),err,dE(size(H,1),n),fE,tmp,mt
+		complex(8) :: D(size(H,1),1,size(v)),cH(size(H,1),size(H,2))
+		real(8) :: f(size(E)),dE(size(H,1),size(v)),tmp,mt,fE1,x(size(v))
 		integer :: l,lp,l1,l2,l3,m,i,j,k
-		common fE,err
 		v=0d0
 		fE=0d0
-		call var(1:)%get(x)
-		if(size(x)>1) then
-			call var%update()
-		endif
 		!$OMP PARALLEL DO REDUCTION(+:fE,v) PRIVATE(H,E,cH,f,dE,D)
 		do k=1,size(brizon%k,1)
 			call var%Hamilton(H,brizon%k(k,:))
-			call mat_diag(H,E)
+			!call mat_diag(H,E)
+			call heev(H,E,"V")
 			cH=transpose(conjg(H))
 			f=1d0/(exp(E/Tk)+1d0)
-			call var(1:)%dHamilton(H,cH,D(:,1:1,:),brizon%k(k,:))
+			call var(ll:)%dHamilton(H,cH,D(:,1:1,:),brizon%k(k,:))
 			dE=real(D(:,1,:))
-			do l=1,size(E)
-				if((-E(l))>1d2*Tk) then
-					fE=fE+E(l)
-				else
-					fE=fE-Tk*log(1d0+exp(-E(l)/Tk))
-				endif
-			enddo
-			do l=1,n
+			fE=fE+fenergy(E,f)
+			do l=1,size(v)
 				v(l)=v(l)+sum(dE(:,l)*f(:))
 			enddo
 		enddo
@@ -372,17 +380,16 @@ contains
 		fE=fE/size(brizon%k,1)
 		v=v/size(brizon%k,1)
 
-		if(var(1)%sg==1) then
-			fE=fE+nf*latt%Ns*var(1)%val(1)
-			v(1)=v(1)+nf*latt%Ns
-		endif
+		fE1=fE/latt%Ns
 
 		!Nambu space
 		l=0
 		if(is_sc) then
 			do l1=1,size(var(1:))
 				do l2=1,size(var(l1)%val)
-					l=l+1
+					if(l1>=ll) then
+						l=l+1
+					endif
 					if(var(l1)%nb==0) then
 						do l3=1,size(var(l1)%v2i(l2)%i)
 							i=var(l1)%v2i(l2)%i(l3)
@@ -390,10 +397,13 @@ contains
 								j=latt%neb(i)%nb(var(l1)%Vn)%neb(m)
 								tmp=real(var(l1)%bd(j))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vn)%bond(m))
 								if(mod(abs(var(l1)%sg),10)==4) then
-									tmp=-tmp
+									tmp=-tmp*0.5d0
+								endif
+								if(var(l1)%Vn==0) then
+									tmp=tmp*2d0
 								endif
 								fE=fE+tmp*var(l1)%val(var(l1)%i2v(j))
-								if(l<=n) v(l)=v(l)+tmp
+								if(l<=size(v).and.l1>=ll) v(l)=v(l)+tmp
 							enddo
 						enddo
 					endif
@@ -402,57 +412,77 @@ contains
 		endif
 
 		l=0
+		x=0d0
 		do l1=1,size(var(1:))
 			do l2=1,size(var(l1)%val)
-				l=l+1
+				if(l1>=ll) then
+					l=l+1
+				endif
+				if(var(l1)%sg==1) then
+					fE=fE-nf*var(1)%val(1)*real(sum(var(1)%bd))*2d0
+					if(l<=size(v).and.l1>=ll) then
+						v(l)=v(l)-nf*real(sum(var(1)%bd))*2d0
+					endif
+					cycle
+				endif
 				mt=0d0
 				if(var(l1)%nb==var(l1)%Vn) then
-					if(var(l1)%sg/=1) then
-						do l3=1,size(var(l1)%v2i(l2)%i)
-							i=var(l1)%v2i(l2)%i(l3)
-							tmp=abs2(var(l1)%bd(i))*var(l1)%Vbd(i)
-							if(var(l1)%nb/=0) then
-								tmp=tmp*spin
-							endif
-							fE=fE-tmp*var(l1)%val(l2)**2
-							if(l<=n) then
-								mt=mt+tmp*2d0
-							endif
-						enddo
-					endif
+					do l3=1,size(var(l1)%v2i(l2)%i)
+						i=var(l1)%v2i(l2)%i(l3)
+						tmp=real(conjg(var(l1)%bd(i))*var(l1)%bd(i)*var(l1)%Vbd(i))
+						if(var(l1)%nb/=0) then
+							tmp=tmp*spin
+						endif
+						fE=fE-tmp*var(l1)%val(l2)**2
+						if(l<=size(v).and.l1>=ll) then
+							mt=mt+tmp*2d0
+						endif
+					enddo
 				else
 					do l3=1,size(var(l1)%v2i(l2)%i)
 						i=var(l1)%v2i(l2)%i(l3)
 						do m=1,size(latt%neb(i)%nb(var(l1)%Vn)%neb)
 							j=latt%neb(i)%nb(var(l1)%Vn)%neb(m)
-							tmp=real(var(l1)%bd(i)*conjg(var(l1)%bd(j)))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vn)%bond(m))
+							tmp=real(var(l1)%bd(i)*var(l1)%bd(j))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vn)%bond(m))
 							fE=fE-tmp*var(l1)%val(l2)*var(l1)%val(var(l1)%i2v(j))/2d0
-							if(l<=n) then
+							if(l<=size(v).and.l1>=ll) then
 								mt=mt+tmp
 							endif
 						enddo
 					enddo
 				endif
-				if(l<=n) then
-					tmp=(v(l)-mt*x(l))/size(var(l1)%v2i(l2)%i)
-					if(info<0.and.var(l1)%sg/=1) then
-						x(l)=1d0/mt*v(l)
-					endif
-					v(l)=tmp
+				if(l<=size(v).and.l1>=ll) then
+					x(l)=1d0/mt*v(l)
+					!v(l)=(v(l)-mt*var(l1)%val(l2))/size(var(l1)%v2i(l2)%i)
+					v(l)=(v(l)-mt*var(l1)%val(l2))/latt%Ns
 				endif
 			enddo
 		enddo
 		fE=fE/latt%Ns
-		err=sum(abs(v))/size(v)
-
-		!if(size(x)==1) then
-			!write(*,"(es12.4$)")fE
-			!write(*,"(es12.4$)")err
-			!write(*,"(es12.4$)")x
-			!write(*,"(es12.4$)")v
-			!write(*,"(x)")
-		!endif
+		if(var(ll)%sg==1.and.size(x)>1) then
+			call var(ll+1:)%get(x(2:))
+		elseif(var(ll)%sg/=1) then
+			call var(ll:)%get(x)
+		endif
+		if(info==1) then
+			fE=fE1
+		endif
 	end subroutine
+	function default_fenergy(E,f)
+		real(8) :: f(:),E(:)
+		integer :: l
+		real(8) :: default_fenergy
+		real(8) :: fE
+		fE=0d0
+		do l=1,size(E)
+			if((-E(l))>1d2*Tk) then
+				fE=fE+E(l)
+			else
+				fE=fE-Tk*log(1d0+exp(-E(l)/Tk))
+			endif
+		enddo
+		default_fenergy=fE
+	end function
 	!function free_energy()
 		!integer :: l,l1,l2,l3,m,i,j
 		!real(8) :: free_energy,tmp
@@ -727,7 +757,7 @@ contains
 			enddo
 			write(ut,"(x)")
 		enddo
-		write(ut,"(x/)")
+		!write(ut,"(x/)")
 	end subroutine
 	subroutine myswap1(self,a)
 		class(t_mysort) :: self
