@@ -1,2 +1,2 @@
-out = RMFT.out
+out = RMFT_m.out
 include ../makefile

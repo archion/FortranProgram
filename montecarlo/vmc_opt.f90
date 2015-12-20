@@ -23,7 +23,7 @@ module global
 					 ! 2 O=cicj
 contains
 	subroutine initial()
-		integer ::i,l2,l3,l
+		integer :: i,l2,l3,l
 		real(8), allocatable :: bd0(:),bd1(:)
 		real(8) :: q(3)
 		allocate(var(-1000:1000))

@@ -41,11 +41,31 @@ module M_Hamilton
 	integer :: iv(-1:1)=(/1,0,0/)
 	real(8) :: Tk,nf
 	private myswap1
-	interface 
+	procedure(real(8)), pointer :: free_energy
+	procedure(mat_diag_interface), pointer :: mat_diag
+	interface
+		subroutine mat_diag_interface(H,E,info)
+			complex(8) :: H(:,:)
+			real(8) :: E(:)
+			integer, optional :: info
+		end subroutine
 		subroutine update()
 		end subroutine
 	end interface
 contains
+	subroutine default_mat_diag(H,E,info)
+		complex(8) :: H(:,:)
+		real(8) :: E(:)
+		integer, optional :: info
+		select case(size(H,1))
+		case(2)
+			call diag2(H,E)
+		case(100:)
+			call heevd(H,E,"V")
+		case default
+			call heev(H,E,"V")
+		end select
+	end subroutine
 	function dwave(i)
 		integer, intent(in) :: i
 		real(8) :: dwave

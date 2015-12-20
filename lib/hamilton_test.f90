@@ -19,7 +19,7 @@ module M_Hamilton_test
 		complex(8), allocatable :: bd(:)
 		real(8), allocatable :: Vbd(:)
 		integer :: n
-		integer :: Vn
+		integer :: Vnb
 		integer :: nb
 		integer :: sg   
 						! 1:  chemical potainial
@@ -28,8 +28,7 @@ module M_Hamilton_test
 						! 4:  spin z
 						! 5:  spin asymmetry charge
 						! 6:  triplet pair
-						! 7:  spin x
-						! 8:  spin y
+						! 7:  spin xy
 						! 9: n-n jast
 						! -: don't do variation
 	contains
@@ -44,28 +43,59 @@ module M_Hamilton_test
 	integer :: iv(-1:1)=(/1,0,0/)
 	real(8) :: Tk,nf
 	private myswap1
-	procedure(fenergy_interface), pointer :: fenergy
-	interface 
-		function fenergy_interface(E,f)
-			real(8) :: E(:),f(:)
-			real(8) :: fenergy_interface
-		end function
+	procedure(real(8)), pointer :: free_energy
+	procedure(mat_diag_interface), pointer :: mat_diag
+	procedure(self_consist_interface), pointer :: self_consist
+	interface
+		subroutine self_consist_interface(fE)
+			real(8), optional :: fE
+		end subroutine
+		subroutine mat_diag_interface(H,E,info)
+			complex(8) :: H(:,:)
+			real(8) :: E(:)
+			integer, optional :: info
+		end subroutine
 	end interface
 contains
-	function dwave(i)
+	subroutine default_mat_diag(H,E,info)
+		complex(8) :: H(:,:)
+		real(8) :: E(:)
+		integer, optional :: info
+		select case(size(H,1))
+		case(2)
+			call diag2(H,E)
+		case(100:)
+			call heevd(H,E,"V")
+		case default
+			call heev(H,E,"V")
+		end select
+	end subroutine
+	function dwave(i,n,th)
 		integer, intent(in) :: i
+		integer, optional, intent(in) :: n
+		real(8), optional, intent(in) :: th
 		real(8) :: dwave
-		if(nint(latt%bond(1)%bd(i)%dr(2))==0) then
-			dwave=1d0
+		integer :: o_n
+		real(8) :: o_th
+		if(present(n)) then
+			o_n=n
 		else
-			dwave=-1d0
+			o_n=1
 		endif
+		if(present(th)) then
+			o_th=th
+		else
+			o_th=0d0
+		endif
+		dwave=cos((theta(latt%bond(o_n)%bd(i)%dr)-o_th)*2d0)
+		!write(*,"(es12.4$)")dwave,latt%bond(o_n)%bd(i)%dr
+		!read(*,*)
 	end function
-	subroutine gen_var(sg,nb,val,V,Vn)
+	subroutine gen_var(sg,nb,val,V,Vnb)
 		integer, intent(in) :: sg,nb
 		real(8), intent(in), optional :: val(:)
 		real(8), intent(in), optional :: V
-		integer, intent(in), optional :: Vn
+		integer, intent(in), optional :: Vnb
 		type(t_mysort), allocatable :: sort(:)
 		integer, allocatable :: collect(:)
 		integer :: i,j
@@ -73,10 +103,10 @@ contains
 		iv(0)=iv(sign(1,sg))
 		var(iv(0))%sg=sg
 		var(iv(0))%nb=nb
-		if(present(Vn)) then
-			var(iv(0))%Vn=Vn
+		if(present(Vnb)) then
+			var(iv(0))%Vnb=Vnb
 		else
-			var(iv(0))%Vn=nb
+			var(iv(0))%Vnb=nb
 		endif
 		if(present(val)) then
 
@@ -87,19 +117,17 @@ contains
 			call sort%collect(collect)
 			allocate(var(iv(0))%i2v(size(val)))
 			allocate(var(iv(0))%bd(size(val)))
-			if(present(Vn)) then
-				allocate(var(iv(0))%Vbd(size(latt%bond(Vn)%bd)))
-			else
-				allocate(var(iv(0))%Vbd(size(val)))
+			if(present(V)) then
+				if(var(iv(0))%Vnb==var(iv(0))%nb) then
+					allocate(var(iv(0))%Vbd(size(val)))
+				else
+					allocate(var(iv(0))%Vbd(size(latt%bond(var(iv(0))%Vnb)%bd)))
+				endif
+				var(iv(0))%Vbd=V
 			endif
 			allocate(var(iv(0))%val(size(collect)-1))
 			allocate(var(iv(0))%v2i(size(collect)-1))
 			var(iv(0))%n=size(collect)-1
-			if(present(V)) then
-				var(iv(0))%Vbd=V
-			else
-				var(iv(0))%Vbd=1d0
-			endif
 
 			do i=1,size(collect)-1
 				allocate(var(iv(0))%v2i(i)%i(collect(i+1)-collect(i)))
@@ -111,18 +139,16 @@ contains
 		else
 			allocate(var(iv(0))%i2v(size(latt%bond(nb)%bd)))
 			allocate(var(iv(0))%bd(size(latt%bond(nb)%bd)))
-			allocate(var(iv(0))%Vbd(size(latt%bond(var(iv(0))%Vn)%bd)))
+			if(present(V)) then
+				allocate(var(iv(0))%Vbd(size(latt%bond(var(iv(0))%Vnb)%bd)))
+				var(iv(0))%Vbd=V
+			endif
 			allocate(var(iv(0))%val(1))
 			allocate(var(iv(0))%v2i(1))
 			allocate(var(iv(0))%v2i(1)%i(size(latt%bond(nb)%bd)))
 			var(iv(0))%v2i(1)%i=(/(i,i=1,size(latt%bond(nb)%bd))/)
 			var(iv(0))%i2v=1
 			var(iv(0))%n=1
-			if(present(V)) then
-				var(iv(0))%Vbd=V
-			else
-				var(iv(0))%Vbd=1d0
-			endif
 		endif
 	end subroutine
 	subroutine get(self,val)
@@ -159,7 +185,8 @@ contains
 		deallocate(var)
 		allocate(var(iv(-1):iv(1)))
 		var(iv(-1):iv(1))=tmp(iv(-1):iv(1))
-		fenergy => default_fenergy
+		free_energy => default_free_energy
+		mat_diag => default_mat_diag
 	end subroutine
 	subroutine Hamilton(self,H,k,fn,info)
 		class(t_var), intent(in) :: self(:)
@@ -188,7 +215,12 @@ contains
 						i=latt%bond(self(l1)%nb)%bd(n)%i(1)
 						j=latt%bond(self(l1)%nb)%bd(n)%i(2)
 						bdc=latt%bond(self(l1)%nb)%bd(n)%bdc
-						bd=self(l1)%val(l2)*self(l1)%bd(n)*self(l1)%Vbd(n)
+						bd=self(l1)%val(l2)*self(l1)%bd(n)
+						if(allocated(self(l1)%Vbd)) then
+							bd=bd*self(l1)%Vbd(n)
+						elseif(self(l1)%nb==0) then
+							bd=bd/2d0
+						endif
 						if(present(k)) then
 							expk=exp(-img*sum(k*latt%bond(self(l1)%nb)%bd(n)%dr))
 						endif
@@ -205,41 +237,50 @@ contains
 							if(present(fn)) then
 								cycle
 							endif
-							if(self(l1)%nb==self(l1)%Vn) then
+							if(self(l1)%nb==self(l1)%Vnb) then
 								H(i,j+Ns)=H(i,j+Ns)+conjg(bd)*bdc*expk
 								H(i+Ns,j)=H(i+Ns,j)+conjg(bd)*conjg(bdc)*expk
 								H(j+Ns,i)=H(j+Ns,i)+bd*conjg(bdc*expk)
 								H(j,i+Ns)=H(j,i+Ns)+bd*conjg(conjg(bdc)*expk)
 							else
-								do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
-									j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
-									bd=self(l1)%val(l2)*self(l1)%bd(i)*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vn)%bond(n))
+								do n=1,size(latt%neb(i)%nb(self(l1)%Vnb)%neb)
+									j=latt%neb(i)%nb(self(l1)%Vnb)%neb(n)
+									bd=self(l1)%val(l2)*self(l1)%bd(i)*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vnb)%bond(n))
 									H(j,j+Ns)=H(j,j+Ns)+conjg(bd)*bdc*expk
 									H(j+Ns,j)=H(j+Ns,j)+bd*conjg(bdc*expk)
 								enddo
 							endif
 						case(3,1,4,5)
-							! charge and spin channel
+							! charge and spin z channel
 							if(mod(abs(self(l1)%sg),10)==4) then
 								isc=-isc*0.5d0
 							endif
 							if(mod(abs(self(l1)%sg),10)==5) then
 								isc=-isc
 							endif
-							if(self(l1)%nb==self(l1)%Vn) then
+							if(self(l1)%nb==self(l1)%Vnb) then
 								H(i,j)=H(i,j)+abs(isc)*conjg(bd)*bdc*expk
 								H(j,i)=H(j,i)+abs(isc)*bd*conjg(bdc*expk)
 								if(spin==2) then
-									H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+isc*bd*bdc*expk
-									H(j+Ns,i+Ns)=H(j+Ns,i+Ns)+isc*conjg(bd*bdc*expk)
+									if(is_sc) then
+										H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+isc*bd*bdc*expk
+										H(j+Ns,i+Ns)=H(j+Ns,i+Ns)+isc*conjg(bd*bdc*expk)
+									else
+										H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+isc*conjg(bd)*bdc*expk
+										H(j+Ns,i+Ns)=H(j+Ns,i+Ns)+isc*bd*conjg(bdc*expk)
+									endif
 								endif
 							else
-								do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
-									j=latt%neb(i)%nb(self(l1)%Vn)%neb(n)
-									bd=self(l1)%val(l2)*self(l1)%bd(i)*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vn)%bond(n))
+								do n=1,size(latt%neb(i)%nb(self(l1)%Vnb)%neb)
+									j=latt%neb(i)%nb(self(l1)%Vnb)%neb(n)
+									bd=self(l1)%val(l2)*self(l1)%bd(i)*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vnb)%bond(n))
 									H(j,j)=H(j,j)+abs(isc)*conjg(bd)*bdc*expk
 									if(spin==2) then
-										H(j+Ns,j+Ns)=H(j+Ns,j+Ns)+isc*bd*bdc*expk
+										if(is_sc) then
+											H(j+Ns,j+Ns)=H(j+Ns,j+Ns)+isc*bd*bdc*expk
+										else
+											H(j+Ns,j+Ns)=H(j+Ns,j+Ns)+isc*conjg(bd)*bdc*expk
+										endif
 									endif
 								enddo
 							endif
@@ -248,6 +289,24 @@ contains
 							endif
 							if(mod(abs(self(l1)%sg),10)==5) then
 								isc=-isc
+							endif
+						case(7)
+							! spin xy channel
+							if(is_sc==.true.) then
+								write(*,*)"is_sc is true while spin xy channel is used"
+							endif
+							if(self(l1)%nb==self(l1)%Vnb) then
+								H(i,i+Ns)=H(i,i+Ns)+0.5d0*bd*bdc*expk
+								H(i+Ns,i)=H(i+Ns,i)+0.5d0*conjg(bd*bdc*expk)
+								H(j,j+Ns)=H(j,j+Ns)+0.5d0*bd*bdc*expk
+								H(j+Ns,j)=H(j+Ns,j)+0.5d0*conjg(bd*bdc*expk)
+							else
+								do n=1,size(latt%neb(i)%nb(self(l1)%Vnb)%neb)
+									j=latt%neb(i)%nb(self(l1)%Vnb)%neb(n)
+									bd=self(l1)%val(l2)*self(l1)%bd(i)*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vnb)%bond(n))
+									H(j,j+Ns)=H(j,j+Ns)+0.5d0*bd*bdc*expk
+									H(j+Ns,j)=H(j+Ns,j)+0.5d0*conjg(bd*bdc*expk)
+								enddo
 							endif
 						end select
 					enddo
@@ -283,7 +342,12 @@ contains
 						i=latt%bond(self(l1)%nb)%bd(n)%i(1)
 						j=latt%bond(self(l1)%nb)%bd(n)%i(2)
 						bdc=latt%bond(self(l1)%nb)%bd(n)%bdc
-						bd=self(l1)%bd(n)*self(l1)%Vbd(n)
+						bd=self(l1)%bd(n)
+						if(allocated(self(l1)%Vbd)) then
+							bd=bd*self(l1)%Vbd(n)
+						elseif(self(l1)%nb==0) then
+							bd=bd/2d0
+						endif
 						if(present(k)) then
 							expk=exp(-img*sum(k*latt%bond(self(l1)%nb)%bd(n)%dr))
 						endif
@@ -295,42 +359,51 @@ contains
 									m2=m2p
 								endif
 								tmp=0d0
-								select case(mod(self(l1)%sg,10))
+								select case(mod(abs(self(l1)%sg),10))
 								case(2)
 									! pair channel
-									if(self(l1)%nb==self(l1)%Vn) then
+									if(self(l1)%nb==self(l1)%Vnb) then
 										tmp=tmp+cH(m1,i)*H(j+Ns,m2)*conjg(bd)*bdc*expk
 										tmp=tmp+cH(m1,i+Ns)*H(j,m2)*conjg(bd)*conjg(bdc)*expk
 										tmp=tmp+cH(m1,j+Ns)*H(i,m2)*bd*conjg(bdc*expk)
 										tmp=tmp+cH(m1,j)*H(i+Ns,m2)*bd*conjg(conjg(bdc)*expk)
 									else
-										do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
-											bd=self(l1)%bd(latt%neb(i)%nb(self(l1)%Vn)%neb(n))*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vn)%bond(n))
+										do n=1,size(latt%neb(i)%nb(self(l1)%Vnb)%neb)
+											bd=self(l1)%bd(latt%neb(i)%nb(self(l1)%Vnb)%neb(n))*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vnb)%bond(n))
 											tmp=tmp+cH(m1,i)*H(i+Ns,m2)*conjg(bd)*bdc*expk
 											tmp=tmp+cH(m1,i+Ns)*H(i,m2)*bd*conjg(bdc*expk)
 										enddo
 									endif
 								case(3,1,4,5)
-									! charge and spin channel
+									! charge and spin z channel
 									if(mod(abs(self(l1)%sg),10)==4) then
 										isc=-isc*0.5d0
 									endif
 									if(mod(abs(self(l1)%sg),10)==5) then
 										isc=-isc
 									endif
-									if(self(l1)%nb==self(l1)%Vn) then
+									if(self(l1)%nb==self(l1)%Vnb) then
 										tmp=tmp+cH(m1,i)*H(j,m2)*abs(isc)*conjg(bd)*bdc*expk
 										tmp=tmp+cH(m1,j)*H(i,m2)*abs(isc)*bd*conjg(bdc*expk)
 										if(spin==2) then
-											tmp=tmp+cH(m1,i+Ns)*H(j+Ns,m2)*isc*bd*bdc*expk
-											tmp=tmp+cH(m1,j+Ns)*H(i+Ns,m2)*isc*conjg(bd*bdc*expk)
+											if(is_sc) then
+												tmp=tmp+cH(m1,i+Ns)*H(j+Ns,m2)*isc*bd*bdc*expk
+												tmp=tmp+cH(m1,j+Ns)*H(i+Ns,m2)*isc*conjg(bd*bdc*expk)
+											else
+												tmp=tmp+cH(m1,i+Ns)*H(j+Ns,m2)*isc*conjg(bd)*bdc*expk
+												tmp=tmp+cH(m1,j+Ns)*H(i+Ns,m2)*isc*bd*conjg(bdc*expk)
+											endif
 										endif
 									else
-										do n=1,size(latt%neb(i)%nb(self(l1)%Vn)%neb)
-											bd=self(l1)%bd(latt%neb(i)%nb(self(l1)%Vn)%neb(n))*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vn)%bond(n))
+										do n=1,size(latt%neb(i)%nb(self(l1)%Vnb)%neb)
+											bd=self(l1)%bd(latt%neb(i)%nb(self(l1)%Vnb)%neb(n))*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vnb)%bond(n))
 											tmp=tmp+cH(m1,i)*H(i,m2)*abs(isc)*conjg(bd)*bdc*expk
 											if(spin==2) then
-												tmp=tmp+cH(m1,i+Ns)*H(i+Ns,m2)*isc*bd*bdc*expk
+												if(is_sc) then
+													tmp=tmp+cH(m1,i+Ns)*H(i+Ns,m2)*isc*bd*bdc*expk
+												else
+													tmp=tmp+cH(m1,i+Ns)*H(i+Ns,m2)*isc*conjg(bd)*bdc*expk
+												endif
 											endif
 										enddo
 									endif
@@ -339,6 +412,20 @@ contains
 									endif
 									if(mod(abs(self(l1)%sg),10)==5) then
 										isc=-isc
+									endif
+								case(7)
+									! spin xy channel
+									if(self(l1)%nb==self(l1)%Vnb) then
+										tmp=tmp+cH(m1,i)*H(i+Ns,m2)*0.5d0*bd*bdc*expk
+										tmp=tmp+cH(m1,i+Ns)*H(i,m2)*0.5d0*conjg(bd*bdc*expk)
+										tmp=tmp+cH(m1,j)*H(j+Ns,m2)*0.5d0*bd*bdc*expk
+										tmp=tmp+cH(m1,j+Ns)*H(j,m2)*0.5d0*conjg(bd*bdc*expk)
+									else
+										do n=1,size(latt%neb(i)%nb(self(l1)%Vnb)%neb)
+											bd=self(l1)%bd(latt%neb(i)%nb(self(l1)%Vnb)%neb(n))*self(l1)%Vbd(latt%neb(i)%nb(self(l1)%Vnb)%bond(n))
+											tmp=tmp+cH(m1,i)*H(i+Ns,m2)*0.5d0*bd*bdc*expk
+											tmp=tmp+cH(m1,i+Ns)*H(i,m2)*0.5d0*conjg(bd*bdc*expk)
+										enddo
 									endif
 								end select
 								D(m1,m2p,l)=D(m1,m2p,l)+tmp
@@ -353,57 +440,60 @@ contains
 		integer :: ll
 		real(8) :: v(:)
 		real(8) :: fE
-		integer :: info
+		integer :: info ! 1: F=<H>-TS; else F=-TlnZ
 
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin)
-		real(8) :: E(size(H,1))
-		complex(8) :: D(size(H,1),1,size(v)),cH(size(H,1),size(H,2))
-		real(8) :: f(size(E)),dE(size(H,1),size(v)),tmp,mt,fE1,x(size(v))
+		real(8) :: E(size(H,1)),av(sum(var%n))
+		complex(8) :: D(size(H,1),1,size(av)),cH(size(H,1),size(H,2))
+		real(8) :: f(size(E)),dE(size(H,1),size(D,3)),tmp,mt,fE1,x(size(av)),px(sum(var(:0)%n))
 		integer :: l,lp,l1,l2,l3,m,i,j,k
-		v=0d0
+		av=0d0
 		fE=0d0
-		!$OMP PARALLEL DO REDUCTION(+:fE,v) PRIVATE(H,E,cH,f,dE,D)
+		!$OMP PARALLEL DO REDUCTION(+:fE,av) PRIVATE(H,E,cH,f,dE,D)
 		do k=1,size(brizon%k,1)
 			call var%Hamilton(H,brizon%k(k,:))
-			!call mat_diag(H,E)
-			call heev(H,E,"V")
+			call mat_diag(H,E)
 			cH=transpose(conjg(H))
-			f=1d0/(exp(E/Tk)+1d0)
-			call var(ll:)%dHamilton(H,cH,D(:,1:1,:),brizon%k(k,:))
+			f=1d0/(exp(min(E/Tk,1d2))+1d0)
+			!call var(ll:)%dHamilton(H,cH,D(:,1:1,:),brizon%k(k,:))
+			call var(:)%dHamilton(H,cH,D(:,1:1,:),brizon%k(k,:))
 			dE=real(D(:,1,:))
-			fE=fE+fenergy(E,f)
-			do l=1,size(v)
-				v(l)=v(l)+sum(dE(:,l)*f(:))
+			if(info==1) then
+				fE=fE+entropy(E,f)
+			else
+				fE=fE+fenergy(E,f)
+			endif
+			do l=1,size(av)
+				av(l)=av(l)+sum(dE(:,l)*f(:))
 			enddo
 		enddo
 		!$OMP END PARALLEL DO
 		fE=fE/size(brizon%k,1)
-		v=v/size(brizon%k,1)
+		av=av/size(brizon%k,1)
 
 		fE1=fE/latt%Ns
 
 		!Nambu space
 		l=0
 		if(is_sc) then
-			do l1=1,size(var(1:))
+			do l1=lbound(var,1),ubound(var,1)
 				do l2=1,size(var(l1)%val)
-					if(l1>=ll) then
-						l=l+1
-					endif
+					l=l+1
 					if(var(l1)%nb==0) then
 						do l3=1,size(var(l1)%v2i(l2)%i)
 							i=var(l1)%v2i(l2)%i(l3)
-							do m=1,size(latt%neb(i)%nb(var(l1)%Vn)%neb)
-								j=latt%neb(i)%nb(var(l1)%Vn)%neb(m)
-								tmp=real(var(l1)%bd(j))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vn)%bond(m))
+							do m=1,size(latt%neb(i)%nb(var(l1)%Vnb)%neb)
+								j=latt%neb(i)%nb(var(l1)%Vnb)%neb(m)
+								tmp=real(var(l1)%bd(j))
+								if(allocated(var(l1)%Vbd)) tmp=tmp*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vnb)%bond(m))
 								if(mod(abs(var(l1)%sg),10)==4) then
 									tmp=-tmp*0.5d0
 								endif
-								if(var(l1)%Vn==0) then
+								if(var(l1)%Vnb==0.and.allocated(var(l1)%Vbd)) then
 									tmp=tmp*2d0
 								endif
 								fE=fE+tmp*var(l1)%val(var(l1)%i2v(j))
-								if(l<=size(v).and.l1>=ll) v(l)=v(l)+tmp
+								av(l)=av(l)+tmp
 							enddo
 						enddo
 					endif
@@ -413,131 +503,210 @@ contains
 
 		l=0
 		x=0d0
-		do l1=1,size(var(1:))
+		do l1=lbound(var,1),ubound(var,1)
 			do l2=1,size(var(l1)%val)
-				if(l1>=ll) then
-					l=l+1
-				endif
+				l=l+1
 				if(var(l1)%sg==1) then
-					fE=fE-nf*var(1)%val(1)*real(sum(var(1)%bd))*2d0
-					if(l<=size(v).and.l1>=ll) then
-						v(l)=v(l)-nf*real(sum(var(1)%bd))*2d0
-					endif
+					fE=fE-nf*var(l1)%val(1)*real(sum(var(1)%bd))
+					av(l)=av(l)-nf*real(sum(var(l1)%bd))
+					x(l)=var(l1)%val(1)
 					cycle
 				endif
 				mt=0d0
-				if(var(l1)%nb==var(l1)%Vn) then
+				if(var(l1)%nb==var(l1)%Vnb) then
 					do l3=1,size(var(l1)%v2i(l2)%i)
 						i=var(l1)%v2i(l2)%i(l3)
-						tmp=real(conjg(var(l1)%bd(i))*var(l1)%bd(i)*var(l1)%Vbd(i))
-						if(var(l1)%nb/=0) then
-							tmp=tmp*spin
-						endif
-						fE=fE-tmp*var(l1)%val(l2)**2
-						if(l<=size(v).and.l1>=ll) then
+						if(allocated(var(l1)%Vbd)) then
+							tmp=real(conjg(var(l1)%bd(i))*var(l1)%bd(i))*var(l1)%Vbd(i)
+							if(var(l1)%nb/=0) then
+								tmp=tmp*spin
+							endif
+							if(l1>0) fE=fE-tmp*var(l1)%val(l2)**2
 							mt=mt+tmp*2d0
+						else
+							i=var(l1)%v2i(l2)%i(1)
+							if(var(l1)%nb/=0) then
+								if(abs(real(var(l1)%bd(i)))>1d-10) then
+									tmp=real(var(l1)%bd(i))*spin*2d0
+								else
+									tmp=imag(var(l1)%bd(i))*spin*2d0
+								endif
+							else
+								if(abs(real(var(l1)%bd(i)))>1d-10) then
+									tmp=real(var(l1)%bd(i))*spin
+								else
+									tmp=imag(var(l1)%bd(i))*spin
+								endif
+							endif
+							mt=mt+tmp
 						endif
 					enddo
 				else
 					do l3=1,size(var(l1)%v2i(l2)%i)
 						i=var(l1)%v2i(l2)%i(l3)
-						do m=1,size(latt%neb(i)%nb(var(l1)%Vn)%neb)
-							j=latt%neb(i)%nb(var(l1)%Vn)%neb(m)
-							tmp=real(var(l1)%bd(i)*var(l1)%bd(j))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vn)%bond(m))
-							fE=fE-tmp*var(l1)%val(l2)*var(l1)%val(var(l1)%i2v(j))/2d0
-							if(l<=size(v).and.l1>=ll) then
-								mt=mt+tmp
-							endif
+						do m=1,size(latt%neb(i)%nb(var(l1)%Vnb)%neb)
+							j=latt%neb(i)%nb(var(l1)%Vnb)%neb(m)
+							tmp=real(var(l1)%bd(i)*var(l1)%bd(j))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vnb)%bond(m))
+							if(l1>0) fE=fE-tmp*var(l1)%val(l2)*var(l1)%val(var(l1)%i2v(j))/2d0
+							mt=mt+tmp
 						enddo
 					enddo
 				endif
-				if(l<=size(v).and.l1>=ll) then
-					x(l)=1d0/mt*v(l)
-					!v(l)=(v(l)-mt*var(l1)%val(l2))/size(var(l1)%v2i(l2)%i)
-					v(l)=(v(l)-mt*var(l1)%val(l2))/latt%Ns
+				if(abs(mt)>1d-10) then
+					x(l)=1d0/mt*av(l)
+					av(l)=av(l)-mt*var(l1)%val(l2)
+				elseif(abs(av(l))>1d-10) then
+					write(*,*)"err: mt is zero, may be you could try to distinct more bound"
 				endif
 			enddo
 		enddo
-		fE=fE/latt%Ns
-		if(var(ll)%sg==1.and.size(x)>1) then
-			call var(ll+1:)%get(x(2:))
-		elseif(var(ll)%sg/=1) then
-			call var(ll:)%get(x)
-		endif
-		if(info==1) then
-			fE=fE1
-		endif
-	end subroutine
-	function default_fenergy(E,f)
-		real(8) :: f(:),E(:)
-		integer :: l
-		real(8) :: default_fenergy
-		real(8) :: fE
-		fE=0d0
-		do l=1,size(E)
-			if((-E(l))>1d2*Tk) then
-				fE=fE+E(l)
-			else
-				fE=fE-Tk*log(1d0+exp(-E(l)/Tk))
+		av=av/latt%Ns
+		px=var(:0)%put()
+		do l1=lbound(var,1),0
+			if(.not.allocated(var(l1)%Vbd)) then
+				do l2=1,size(var(l1)%val)
+					do l3=1,size(var(l1)%v2i(l2)%i)
+						if(abs(var(l1)%val(l2))>1d-17) var(l1)%bd(var(l1)%v2i(l2)%i(l3))=var(l1)%bd(var(l1)%v2i(l2)%i(l3))*var(l1)%val(l2)
+					enddo
+				enddo
 			endif
 		enddo
-		default_fenergy=fE
+		call var%get(x)
+		!fE=fE+MFterm()
+		fE=fE/latt%Ns
+		if(info==1) then
+			fE=fE1+free_energy()
+		endif
+		call var(:0)%get(px)
+		do l1=lbound(var,1),0
+			if(.not.allocated(var(l1)%Vbd)) then
+				do l2=1,size(var(l1)%val)
+					do l3=1,size(var(l1)%v2i(l2)%i)
+						if(abs(var(l1)%val(l2))>1d-17) var(l1)%bd(var(l1)%v2i(l2)%i(l3))=var(l1)%bd(var(l1)%v2i(l2)%i(l3))/var(l1)%val(l2)
+					enddo
+				enddo
+			endif
+		enddo
+		v=av(sum(var(:ll-1)%n)+1:sum(var(:ll-1)%n)+size(v))
+	end subroutine
+	function fenergy(E,f)
+		real(8) :: f(:),E(:)
+		integer :: l
+		real(8) :: fenergy
+		real(8) :: tmp
+		tmp=0d0
+		do l=1,size(E)
+			if((-E(l))>1d2*Tk) then
+				tmp=tmp+E(l)
+			else
+				tmp=tmp-Tk*log(1d0+exp(-E(l)/Tk))
+			endif
+		enddo
+		fenergy=tmp
 	end function
-	!function free_energy()
-		!integer :: l,l1,l2,l3,m,i,j
-		!real(8) :: free_energy,tmp
-		!free_energy=free_energy+nf*latt%Ns*var(1)%val(1)
-		!!Nambu space
-		!l=0
-		!if(is_sc) then
-			!do l1=1,size(var(1:))
-				!do l2=1,size(var(l1)%val)
-					!l=l+1
-					!if(var(l1)%nb==0) then
-						!do l3=1,size(var(l1)%v2i(l2)%i)
-							!i=var(l1)%v2i(l2)%i(l3)
-							!do m=1,size(latt%neb(i)%nb(var(l1)%Vn)%neb)
-								!j=latt%neb(i)%nb(var(l1)%Vn)%neb(m)
-								!tmp=real(var(l1)%bd(j))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vn)%bond(m))
-								!if(mod(abs(var(l1)%sg),10)==4) then
-									!tmp=-tmp
-								!endif
-								!free_energy=free_energy+tmp*var(l1)%val(var(l1)%i2v(j))
-							!enddo
-						!enddo
-					!endif
-				!enddo
-			!enddo
-		!endif
-
-		!l=0
-		!do l1=1,size(var(1:))
-			!do l2=1,size(var(l1)%val)
-				!l=l+1
-				!if(var(l1)%nb==var(l1)%Vn) then
-					!if(var(l1)%sg/=1) then
-						!do l3=1,size(var(l1)%v2i(l2)%i)
-							!i=var(l1)%v2i(l2)%i(l3)
-							!tmp=abs2(var(l1)%bd(i))*var(l1)%Vbd(i)
-							!if(var(l1)%nb/=0) then
-								!tmp=tmp*spin
-							!endif
-							!free_energy=free_energy-tmp*var(l1)%val(l2)**2
-						!enddo
-					!endif
-				!else
-					!do l3=1,size(var(l1)%v2i(l2)%i)
-						!i=var(l1)%v2i(l2)%i(l3)
-						!do m=1,size(latt%neb(i)%nb(var(l1)%Vn)%neb)
-							!j=latt%neb(i)%nb(var(l1)%Vn)%neb(m)
-							!tmp=real(var(l1)%bd(i)*conjg(var(l1)%bd(j)))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vn)%bond(m))
-							!free_energy=free_energy-tmp*var(l1)%val(l2)*var(l1)%val(var(l1)%i2v(j))/2d0
-						!enddo
-					!enddo
-				!endif
-			!enddo
-		!enddo
-	!end function
+	function entropy(E,f)
+		real(8) :: f(:),E(:)
+		integer :: l
+		real(8) :: entropy
+		real(8) :: tmp
+		tmp=0d0
+		do l=1,size(E)
+			tmp=tmp-(f(l)*log(max(f(l),1d-17))+(1d0-f(l))*log(max(1d0-f(l),1d-17)))
+		enddo
+		entropy=-tmp*Tk
+	end function
+	function MFterm()
+		integer :: l1,l2,l3,i,j,m
+		real(8) :: MFterm,tmp,fE
+		do l1=1,ubound(var,1)
+			do l2=1,size(var(l1)%val)
+				if(var(l1)%sg==1) then
+					fE=fE-nf*var(l1)%val(1)*real(sum(var(1)%bd))
+					cycle
+				endif
+				if(var(l1)%nb==var(l1)%Vnb) then
+					do l3=1,size(var(l1)%v2i(l2)%i)
+						i=var(l1)%v2i(l2)%i(l3)
+						if(allocated(var(l1)%Vbd)) then
+							tmp=real(conjg(var(l1)%bd(i))*var(l1)%bd(i))*var(l1)%Vbd(i)
+							if(var(l1)%nb/=0) then
+								tmp=tmp*spin
+							endif
+							if(l1>0) fE=fE-tmp*var(l1)%val(l2)**2
+						endif
+					enddo
+				else
+					do l3=1,size(var(l1)%v2i(l2)%i)
+						i=var(l1)%v2i(l2)%i(l3)
+						do m=1,size(latt%neb(i)%nb(var(l1)%Vnb)%neb)
+							j=latt%neb(i)%nb(var(l1)%Vnb)%neb(m)
+							tmp=real(var(l1)%bd(i)*var(l1)%bd(j))*var(l1)%Vbd(latt%neb(i)%nb(var(l1)%Vnb)%bond(m))
+							if(l1>0) fE=fE-tmp*var(l1)%val(l2)*var(l1)%val(var(l1)%i2v(j))/2d0
+						enddo
+					enddo
+				endif
+			enddo
+		enddo
+		MFterm=fE
+	end function
+	function default_free_energy()
+		integer :: l1,n
+		real(8) :: default_free_energy
+		default_free_energy=0d0
+		do l1=lbound(var,1),ubound(var,1)
+			if(var(l1)%sg==1) then
+				cycle
+			endif
+			do n=1,size(latt%bond(var(l1)%Vnb)%bd)
+				default_free_energy=default_free_energy+Eavg(l1,n)
+			enddo
+		enddo
+		default_free_energy=default_free_energy/latt%Ns
+	end function
+	function Eavg(l1,n)
+		integer :: l1,n
+		real(8) :: Eavg
+		integer :: i,j,vi,vj,m
+		i=latt%bond(var(l1)%Vnb)%bd(n)%i(1)
+		j=latt%bond(var(l1)%Vnb)%bd(n)%i(2)
+		if(var(l1)%nb==var(l1)%Vnb) then
+			vi=var(l1)%i2v(n)
+			if(allocated(var(l1)%Vbd)) then
+				if(var(l1)%nb/=0) then
+					Eavg=real(var(l1)%val(vi)**2*var(l1)%bd(n)*conjg(var(l1)%bd(n))*var(l1)%Vbd(n))*spin
+				else
+					Eavg=real(var(l1)%val(vi)**2*var(l1)%bd(n)*conjg(var(l1)%bd(n))*var(l1)%Vbd(n))
+				endif
+			else
+				if(mod(abs(var(l1)%sg),10)==4.or.mod(abs(var(l1)%sg),10)==7) then
+					if(var(l1)%nb/=0) then
+						write(*,*)"spin bond channel case is not considered"
+					else
+						Eavg=var(l1)%val(vi)*var(l1)%bd(n)
+					endif
+				else
+					m=var(l1)%v2i(vi)%i(1)
+					if(var(l1)%nb/=0) then
+						if(abs(real(var(l1)%bd(m)))>1d-10) then
+							Eavg=var(l1)%val(vi)*real(var(l1)%bd(m))*spin*2d0
+						else
+							Eavg=var(l1)%val(vi)*imag(var(l1)%bd(m))*spin*2d0
+						endif
+					else
+						if(abs(real(var(l1)%bd(m)))>1d-10) then
+							Eavg=var(l1)%val(vi)*real(var(l1)%bd(m))*spin
+						else
+							Eavg=var(l1)%val(vi)*imag(var(l1)%bd(m))*spin
+						endif
+					endif
+				endif
+			endif
+		else
+			vi=var(l1)%i2v(i)
+			vj=var(l1)%i2v(j)
+			Eavg=real(var(l1)%bd(i)*var(l1)%bd(j))*var(l1)%Vbd(n)*var(l1)%val(vi)*var(l1)%val(vj)
+		endif
+	end function
 	function Green(gm,k,omg)
 		real(8) :: k(:),gm,omg
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin),Green
@@ -697,10 +866,8 @@ contains
 		enddo
 		!$OMP END PARALLEL DO
 		do i=1,size(k,1)
-			do j=1,size(E)
-				write(ut,"(es17.9$)")k(i,:),A(i,j),A(i,j+size(E))
-				write(ut,"(x)")
-			enddo
+			write(ut,"(es17.9$)")k(i,:)
+			write(ut,"(es17.9$)")(A(i,j),j=1,size(E)),(A(i,j+size(E)),j=1,size(E))
 			write(ut,"(x)")
 		enddo
 	end subroutine
@@ -759,6 +926,40 @@ contains
 		enddo
 		!write(ut,"(x/)")
 	end subroutine
+	function find_order(l,is,x,rang,z)
+		integer :: l,is
+		real(8) :: find_order,x,rang(3)
+		real(8) :: z
+		real(8) :: pod,order,dx,mdx
+		integer :: isg
+		dx=rang(3)
+		mdx=dx/20d0
+		call self_consist()
+		pod=sum(abs(var(l)%val(:)))/(size(var(l)%val(:)))-z
+		do 
+			x=x-dx*sign(1d0,pod)*is
+			if(x<rang(1).or.x>rang(2)) then
+				if(dx>mdx) then
+					x=x+dx*sign(1d0,pod)*is
+					dx=dx*0.3333d0
+					cycle
+				else
+					find_order=min(max(x,rang(1)),rang(2))
+					exit
+				endif
+			endif
+			call self_consist()
+			order=sum(abs(var(l)%val(:)))/(size(var(l)%val))
+			call is_cross(pod,order-z,isg)
+			if(isg/=0) then
+				if(abs(dx)<mdx) then
+					find_order=x
+					exit
+				endif
+				dx=dx*0.3333d0
+			endif
+		enddo
+	end function
 	subroutine myswap1(self,a)
 		class(t_mysort) :: self
 		class(t_sort) :: a

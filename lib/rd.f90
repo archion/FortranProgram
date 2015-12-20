@@ -29,9 +29,11 @@ contains
 		call random_number(rn)
 		i=1+int(rn*(n))
 	end subroutine
-	subroutine vfisher_yates_shuffle(a,n)
-		integer :: a(:,:),i,j,tmp(size(a,2)),n
+	subroutine vfisher_yates_shuffle(a)
+		integer :: a(:,:),i,j,tmp(size(a,2))
+		integer :: n
 		real(8) :: rn
+		n=size(a,1)
 		do i=n,1,-1
 			call random_number(rn)
 			j=ceiling(rn*i)
@@ -40,9 +42,11 @@ contains
 			a(j,:)=tmp
 		enddo
 	end subroutine
-	subroutine sfisher_yates_shuffle(a,n)
-		integer :: a(:),i,j,tmp,n
+	subroutine sfisher_yates_shuffle(a)
+		integer :: a(:),i,j,tmp
+		integer :: n
 		real(8) :: rn
+		n=size(a)
 		do i=n,1,-1
 			call random_number(rn)
 			j=ceiling(rn*i)

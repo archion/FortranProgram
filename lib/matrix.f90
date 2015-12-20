@@ -358,9 +358,10 @@ contains
 			ia(i+1)=n
 		enddo
 	end subroutine
-	subroutine diag2(A,E)
-		complex(8) :: A(2,2)
-		real(8) :: E(2)
+	subroutine diag2(A,E,info)
+		complex(8) :: A(:,:)
+		real(8) :: E(:)
+		integer, optional :: info
 		real(8) :: tmp
 		if(abs(A(2,1))<1d-7) then
 			E=real((/A(1,1),A(2,2)/))
@@ -376,9 +377,10 @@ contains
 		A(:,2)=A(:,2)/sqrt(A(1,2)**2+A(2,2)*conjg(A(2,2)))
 	end subroutine
 	subroutine diag4(A,E,info)
-		complex(8) :: A(4,4),tmp2(2,2),tmp4(4,4)
+		complex(8) :: A(:,:)
+		real(8) :: E(:)
 		integer, optional :: info
-		real(8) :: E(4)
+		complex(8) :: tmp2(2,2),tmp4(4,4)
 		tmp4=0d0
 		call diag2(A(:2,:2),E(:2))
 		A(4,4)=A(1,1)
@@ -408,36 +410,36 @@ contains
 		tmp4(1,2)=0d0
 		A=matmul(A,tmp4)
 	end subroutine
-	subroutine mat_diag(H,E,info)
-		complex(8) :: H(:,:),tmp(size(H,1),size(H,2))
-		real(8) :: E(:)
-		integer, optional :: info
-		if(present(info)) then
-			tmp=H
-		endif
-		select case(size(E))
-		case(2)
-			call diag2(H,E)
-		case(4)
-			call diag4(H,E)
-		case(100:)
-			call heevd(H,E,"V")
-		case default
-			call heev(H,E,"V")
-		end select
-		if(present(info)) then
-			if(.not.check_diag(tmp,H,E)) then
-				write(*,*)"diag4 err, A is"
-				write(*,*)"real part"
-				write(*,"(4es12.4)")real(tmp)
-				write(*,*)"imag part"
-				write(*,"(4es12.4)")imag(tmp)
-				write(*,*)"E is"
-				write(*,"(4es12.4)")E
-				write(*,*)"UAU is"
-				write(*,"(4es12.4)")real(matmul(transpose(conjg(H)),matmul(tmp,H)))
-				stop
-			endif
-		endif
-	end subroutine
+	!subroutine mat_diag(H,E,info)
+		!complex(8) :: H(:,:),tmp(size(H,1),size(H,2))
+		!real(8) :: E(:)
+		!integer, optional :: info
+		!if(present(info)) then
+			!tmp=H
+		!endif
+		!select case(size(E))
+		!case(2)
+			!call diag2(H,E)
+		!case(4)
+			!call diag4(H,E)
+		!case(100:)
+			!call heevd(H,E,"V")
+		!case default
+			!call heev(H,E,"V")
+		!end select
+		!if(present(info)) then
+			!if(.not.check_diag(tmp,H,E)) then
+				!write(*,*)"diag4 err, A is"
+				!write(*,*)"real part"
+				!write(*,"(4es12.4)")real(tmp)
+				!write(*,*)"imag part"
+				!write(*,"(4es12.4)")imag(tmp)
+				!write(*,*)"E is"
+				!write(*,"(4es12.4)")E
+				!write(*,*)"UAU is"
+				!write(*,"(4es12.4)")real(matmul(transpose(conjg(H)),matmul(tmp,H)))
+				!stop
+			!endif
+		!endif
+	!end subroutine
 end module

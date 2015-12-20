@@ -238,6 +238,7 @@ contains
 					self%neb(i)%nb(j-1)%dr(:,1)=tmp(t(j):t(j+1)-1)%dr(1)
 					self%neb(i)%nb(j-1)%dr(:,2)=tmp(t(j):t(j+1)-1)%dr(2)
 					self%neb(i)%nb(j-1)%dr(:,3)=tmp(t(j):t(j+1)-1)%dr(3)
+					self%neb(i)%nb(j-1)%bond(:)=0
 					do k=2,layer
 						allocate(self%neb(i+Ns/layer*(k-1))%nb(j-1)%neb(t(j+1)-t(j)))
 						allocate(self%neb(i+Ns/layer*(k-1))%nb(j-1)%bond(t(j+1)-t(j)))
@@ -248,6 +249,7 @@ contains
 						self%neb(i+Ns/layer*(k-1))%nb(j-1)%dr(:,1)=self%neb(i)%nb(j-1)%dr(:,1)
 						self%neb(i+Ns/layer*(k-1))%nb(j-1)%dr(:,2)=self%neb(i)%nb(j-1)%dr(:,2)
 						self%neb(i+Ns/layer*(k-1))%nb(j-1)%dr(:,3)=self%neb(i)%nb(j-1)%dr(:,3)
+						self%neb(i+Ns/layer*(k-1))%nb(j-1)%bond=self%neb(i)%nb(j-1)%bond
 					enddo
 				enddo
 				deallocate(t)
@@ -268,6 +270,9 @@ contains
 					endif
 				o:	do m=1,size(self%neb(i)%nb(k)%neb)
 						j=self%neb(i)%nb(k)%neb(m)
+						if(self%neb(i)%nb(k)%bond(m)/=0) then
+							cycle
+						endif
 						do p=1,m-1
 							if(sum(abs(self%neb(i)%nb(k)%dr(p,:)+self%neb(i)%nb(k)%dr(m,:)))<err) then
 								cycle o
@@ -275,7 +280,7 @@ contains
 						enddo
 						n=n+1
 						tmp(n)%i=(/i,j/)
-						tmp(n)%r=(self%i2r(i,:)+self%i2r(j,:))/2d0
+						tmp(n)%r=self%i2r(i,:)+self%neb(i)%nb(k)%dr(m,:)/2d0
 						tmp(n)%dr=self%neb(i)%nb(k)%dr(m,:)
 						tmp(n)%bdc=self%neb(i)%nb(k)%bdc(m)
 						self%neb(i)%nb(k)%bond(m)=n

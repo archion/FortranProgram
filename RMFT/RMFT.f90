@@ -1,8 +1,8 @@
 module pmt
 	use M_const
 	implicit none
-	real(8), parameter :: t(2)=(/1d0,-0.3d0/),&
-		V=0.12d0,DJ=0.30d0
+	real(8), parameter :: t(3)=(/1d0,-0.2d0,0.1d0/),&
+		V=0.02d0,DJ=0.3d0
 		!V=0.04d0,DJ=0.30d0
 end module
 module selfcons
@@ -32,8 +32,8 @@ contains
 		call latt%gen_latt()
 		call latt%gen_neb(size(t))
 		call latt%gen_bond(size(t))
-		!brizon%n1=32
-		brizon%n1=64
+		brizon%n1=32
+		!brizon%n1=64
 		brizon%n2=brizon%n1
 		call latt%gen_brizon(brizon)
 		call latt%gen_origin_brizon((/1d0,0d0,0d0/),(/0d0,1d0,0d0/),o_brizon)
@@ -88,6 +88,7 @@ contains
 		call var_shrink()
 		!var(lbound(var,1))%update => update_var
 		call export_data(30)
+		mat_diag => diag4
 	end subroutine
 	subroutine export_data(ut)
 		integer :: ut,l1,i
@@ -204,9 +205,10 @@ contains
 		!write(*,"(es12.4$)")var(2:)%val(1)
 		!write(*,"(x)")
 		!write(*,"(A$)")"------------------->"
-		!write(*,"(es12.4$)")var(1)%val(1),x
-		!write(*,"(x)")
-		call update_var(x)
+		write(*,"(es12.4$)")Tk,minf,var(2:)%val(1)
+		write(*,"(x)")
+		!stop
+		!call update_var(x)
 	end subroutine
 	subroutine myfunc(val, n, x, grad, need_gradient, f_data)
 		integer :: n
@@ -273,7 +275,7 @@ contains
 		enddo
 
 		val=Eavg()-Tk*val
-		!write(*,"(es12.4$)")val,x
+		!write(*,"(es12.4$)")val,var(:)%val(1)
 		!write(*,"(x)")
 	end subroutine
 	recursive function Eavg(l)
@@ -377,66 +379,6 @@ contains
 			endif
 		enddo
 	end function
-	subroutine raman(ut,gm,omg,m,peak)
-		integer :: ut,m
-		real(8) :: gm,omg(:)
-		real(8), optional, allocatable :: peak(:)
-		complex(8) :: H(latt%Ns*spin,latt%Ns*spin),Bg(size(H,1),size(H,2),2)
-		complex(8) :: cH(size(H,1),size(H,1))
-		real(8) :: E(size(H,1)),f(size(E)),domg,bt
-		complex(8) :: R(m,2)
-		integer :: i,l,n,m1,m2
-		integer, allocatable :: ipeak(:)
-		bt=1d0/Tk
-		domg=(omg(2)-omg(1))/m
-		R=0d0
-		!$OMP PARALLEL DO REDUCTION(+:R) PRIVATE(E,H,cH,f,Bg)
-		do n=1,size(brizon%k,1)
-			call var%Hamilton(H,brizon%k(n,:))
-			call mat_diag(H,E)
-			cH=transpose(conjg(H))
-			f=1d0/(1d0+exp(bt*E))
-
-			call var(:)%Hamilton(Bg(:,:,1),brizon%k(n,:),b1g)
-			call var(:)%Hamilton(Bg(:,:,2),brizon%k(n,:),b2g)
-			do l=1,2
-				Bg(:,:,l)=matmul(cH,matmul(Bg(:,:,l),H))
-			enddo
-			do m1=1,4
-				do m2=1,4
-					do l=1,m
-						R(l,:)=R(l,:)+Bg(m1,m2,:)*Bg(m2,m1,:)*(f(m1)-f(m2))/(omg(1)+domg*l+E(m2)-E(m1)+img*gm)
-					enddo
-				enddo
-			enddo
-		enddo
-		!$OMP END PARALLEL DO
-		do i=1,m
-			write(ut,"(es17.9$)")omg(1)+domg*i,R(i,:)/(size(brizon%k,1)*latt%Ns)
-			write(ut,"(1X)")
-		enddo
-		write(ut,"(1X)")
-		if(present(peak)) then
-			if(allocated(peak)) then
-				deallocate(peak)
-			endif
-			call find_peak(imag(R(:,1)),ipeak)
-			allocate(peak(size(ipeak)))
-			do i=1,size(ipeak)
-				peak(i)=omg(1)+domg*ipeak(i)
-			enddo
-		endif
-	end subroutine
-	function b1g(dr)
-		real(8) :: dr(3)
-		complex(8) :: b1g
-		b1g=(-dr(1)**2+dr(2)**2)/2d0
-	end function
-	function b2g(dr)
-		real(8) :: dr(3)
-		complex(8) :: b2g
-		b2g=(-dr(1)*dr(2))
-	end function
 end module
 program main
 	use selfcons
@@ -460,19 +402,19 @@ program main
 
 	call initial()
 
-	!Tk=1d-4
-	!do l=1,size(n)
-		!nf=n(l)
-		!call self_consist(fE)
-		!write(*,"(es12.4$)")nf,Tk,fE,var(2:)%val(1)
-		!write(*,"(x)")
-		!write(100,"(es12.4$)")nf,Tk,fE,var(2:)%val(1)
-		!write(100,"(x)")
-		!!call band(20,(/0d0,0d0,0d0/),(/pi,pi,0d0/),128)
-		!!call band(20,(/pi,pi,0d0/),(/0d0,pi,0d0/),128)
-		!!call band(20,(/0d0,pi,0d0/),(/0d0,0d0,0d0/),128)
-	!enddo
-	!stop
+	Tk=1d-1
+	do l=1,size(n)
+		nf=n(l)
+		call self_consist(fE)
+		write(*,"(es12.4$)")nf,Tk,fE,var(2:)%val(1)
+		write(*,"(x)")
+		write(100,"(es12.4$)")nf,Tk,fE,var(2:)%val(1)
+		write(100,"(x)")
+		!call band(20,(/0d0,0d0,0d0/),(/pi,pi,0d0/),128)
+		!call band(20,(/pi,pi,0d0/),(/0d0,pi,0d0/),128)
+		!call band(20,(/0d0,pi,0d0/),(/0d0,0d0,0d0/),128)
+	enddo
+	stop
 	!do l=1,10
 		!nf=8.6d-1
 		!!Tk=6.8d-02/10d0*l
@@ -495,18 +437,18 @@ program main
 	!enddo
 	!stop
 
-	Tc=2d-1
-	do l=9,size(n)-14
-		nf=n(l)
-		Tc(1)=findTc(2,1,Tc(1)+0.02)
-		!Tc(1)=findTc(2,1,0.12d0)
-		Tc(2)=findTc(2,-1,Tc(1))
-		write(10,"(es12.4$)")nf,Tc
-		write(*,"(es12.4$)")nf,Tc
-		write(10,"(x)")
-		write(*,"(x)")
-	enddo
-	write(10,"(x/)")
+	!Tc=2d-1
+	!do l=9,size(n)-14
+		!nf=n(l)
+		!Tc(1)=findTc(2,1,Tc(1)+0.02)
+		!!Tc(1)=findTc(2,1,0.12d0)
+		!Tc(2)=findTc(2,-1,Tc(1))
+		!write(10,"(es12.4$)")nf,Tc
+		!write(*,"(es12.4$)")nf,Tc
+		!write(10,"(x)")
+		!write(*,"(x)")
+	!enddo
+	!write(10,"(x/)")
 
 	Tc=2d-1
 	do l=9,size(n)-14
