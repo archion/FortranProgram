@@ -208,6 +208,28 @@ contains
 			endif
 		endif
 	end subroutine
+	function det(A,info)
+		complex(8) :: A(:,:)
+		integer, optional :: info
+		complex(8) :: det
+		integer :: i,ipiv(size(A,1))
+		if(present(info)) then
+			call getrf(A,ipiv,info)
+			if(info/=0) then
+				stop "determinant err"
+			endif
+		else
+			call getrf(A,ipiv)
+		endif
+		det=1d0
+		do i=1,size(A,1)
+			if(ipiv(i)/=i) then
+				det=-det*A(i,i)
+			else
+				det=det*A(i,i)
+			endif
+		enddo
+	end function
 	function mdiag(a)
 		real(8) :: a(:) 
 		real(8) :: mdiag(size(a),size(a))

@@ -1,9 +1,9 @@
 module pmt
 	use M_const
 	implicit none
-	real(8), parameter :: t(3)=(/1d0,0.25d0,-0.1d0/),&
+	real(8), parameter :: t(3)=(/1d0,-0.30d0,0.1d0/),&
 		!V=0.0325d0,DJ=0.35d0
-		V=0.07d0,DJ=0.35d0
+		V=0.0325d0,DJ=0.35d0
 		!V=-0.25d0/4d0,DJ=0.25d0
 		!V=0d0,DJ=0.25d0
 end module
@@ -32,7 +32,7 @@ contains
 		latt%layer=1
 		call latt%gen_latt()
 		call latt%gen_bond(size(t))
-		brizon%n1=32
+		brizon%n1=64
 		brizon%n2=brizon%n1
 		call latt%gen_brizon(brizon)
 		!call check_lattice(101)
@@ -183,9 +183,9 @@ contains
 			write(*,"(A$)")"ires is negetive"
 			write(*,"(i3$)")ires
 			write(*,"(es12.4)")cst
-			if(cst(1)>1d-5) then
-				stop
-			endif
+			!if(cst(1)>1d-5) then
+				!stop
+			!endif
 			!x=var(2:)%put()
 			!call nlo_optimize(ires, opt, x, minf)
 			!if(cst(1)>1d-4) then
@@ -195,7 +195,7 @@ contains
 		call nlo_destroy(opt)
 		if(present(fE)) fE=minf
 		write(*,"(i3$)")ires
-		write(*,"(es12.4$)")Tk,minf,x,cst
+		write(*,"(es12.4$)")nf,Tk,minf,x,cst
 		write(*,"(x)")
 	end subroutine
 	subroutine nlopt_fn(val, n, x, grad, need_gradient, f_data)
@@ -432,19 +432,20 @@ program main
 	implicit none
 	logical :: f,flag=.true.
 	integer :: l,m,i
-	real(8) :: n(0:60)=(/(min(1d0-0.005d0*i,0.999d0),i=0,60)/)
-	real(8) :: Ts(size(n),2),Td(size(n),2),Tc(2),Tnc,dnf,pnf
+	real(8) :: n(0:48)=(/(min(1d0-0.005d0*i,0.999d0),i=0,48)/)
+	real(8) :: Ts(size(n),2),Td(size(n),2),Tc(2),Tnc,dnf,pnf,pTk(2)
 	real(8), allocatable :: peak(:)
 	f=openfile(unit=10,file='../data/phase.dat')
 	!f=openfile(unit=20,file='../data/band.dat')
 	!f=openfile(unit=30,file='../data/order.dat')
 	!f=openfile(unit=40,file='../data/fermis.dat')
 	!f=openfile(unit=50,file='../data/DOS.dat')
-	f=openfile(unit=60,file='../data/raman.dat')
+	!f=openfile(unit=60,file='../data/raman.dat')
 	!f=openfile(unit=70,file='../data/map_raman.dat')
 	!f=openfile(unit=80,file='../data/map_band.dat')
 	!f=openfile(unit=90,file='../data/energy.dat')
-	f=openfile(unit=100,file='../data/gap.dat')
+	!f=openfile(unit=100,file='../data/gap.dat')
+	f=openfile(unit=110,file='../data/bb.dat')
 	!f=openfile(unit=101,file='../data/lattice.dat')
 
 	call initial()
@@ -525,48 +526,52 @@ program main
 		Tc(1)=find_order(3,-1,Tk,(/1d-4,0.3d0,2d-3/),1d-3)
 		Tk=Tc(2)
 		Tc(2)=find_order(3,1,Tk,(/1d-4,Tc(1),2d-3/),1d-3)
+		if((Tc(2)>2d-4.or.Tc(1)<2d-4).and.flag) then
+			flag=.false.
+			Tk=1d-4
+			nf=find_order(3,1,nf,(/abs(nf),pnf,abs(pnf-nf)/20d0/),1d-3)
+			write(110,"(es12.4$)")nf
+			Tk=pTk(1)
+			!Tnc=find_order(2,-1,Tk,(/1d-4,0.25d0,2d-3/),1d-3)
+			Tk=find_order(3,-1,Tk,(/1d-4,0.25d0,1d-4/),1d-3)
+			write(10,"(es12.4$)")nf,Tk,3d-4
+			write(*,"(es12.4$)")nf,Tk,3d-4
+			write(10,"(x)")
+			write(*,"(x)")
+			pnf=n(l)
+			!do i=1,10
+				!Tk=Tnc/10d0*i
+				!call self_consist()
+				!write(*,"(es12.4$)")nf,Tk,var(2:3)%val(1)*(/8d0,4d0/)*abs(var(2:3)%V)
+				!write(*,"(x)")
+				!write(100,"(es12.4$)")nf,Tk,var(2:3)%val(1)*(/8d0,4d0/)*abs(var(2:3)%V)
+				!write(100,"(x)")
+				!call raman(60,0.05d0,(/0d0,0.8d0/),256,peak)
+			!enddo
+		endif
 		if(Tc(1)<2d-4) then
-			call swap(nf,pnf)
+			if(nf<pnf) call swap(nf,pnf)
 			dnf=abs(nf-pnf)
-			Tc(1)=1d-1
+			Tc=pTk
 			do
 				nf=nf-dnf/10d0
 				Tk=Tc(1)
-				Tc(1)=find_order(3,-1,Tk,(/1d-4,0.25d0,2d-3/),1d-3)
+				Tc(1)=find_order(3,-1,Tk,(/Tc(2),0.25d0,1d-4/),1d-3)
 				Tk=Tc(2)
-				Tc(2)=find_order(3,1,Tk,(/1d-4,Tc(1),2d-3/),1d-3)
+				Tc(2)=find_order(3,1,Tk,(/1d-4,Tc(1),1d-4/),1d-3)
 				write(10,"(es12.4$)")nf,Tc
 				write(*,"(es12.4$)")nf,Tc
 				write(10,"(x)")
 				write(*,"(x)")
-				if((nf<=pnf).or.(Tc(1)<2d-4).or.(Tc(1)>2d-4.and.(Tc(1)-Tc(2))<1d-4)) then
+				if((nf<=pnf).or.(Tc(1)-Tc(2))<1d-4) then
+					write(110,"(es12.4$)")nf
 					exit
 				endif
 			enddo
 			exit
 		endif
 		pnf=nf
-		if(Tc(2)>2d-4.and.flag) then
-			flag=.false.
-			Tk=1d-4
-			nf=find_order(3,1,nf,(/nf-0.1d0,1d0,2d-2/),1d-3)
-			Tk=0.5d0*(Tc(1)+Tc(2))
-			Tnc=find_order(2,-1,Tk,(/1d-4,0.25d0,2d-3/),1d-3)
-			Tk=find_order(3,-1,Tk,(/1d-4,0.25d0,2d-3/),1d-3)
-			write(10,"(es12.4$)")nf,Tk,3d-4
-			write(*,"(es12.4$)")nf,Tk,3d-4
-			write(10,"(x)")
-			write(*,"(x)")
-			do i=1,10
-				Tk=Tnc/10d0*i
-				call self_consist()
-				write(*,"(es12.4$)")nf,Tk,var(2:3)%val(1)*(/8d0,4d0/)*abs(var(2:3)%V)
-				write(*,"(x)")
-				write(100,"(es12.4$)")nf,Tk,var(2:3)%val(1)*(/8d0,4d0/)*abs(var(2:3)%V)
-				write(100,"(x)")
-				call raman(60,0.05d0,(/0d0,0.8d0/),256,peak)
-			enddo
-		endif
+		pTk=Tc
 		write(10,"(es12.4$)")n(l),Tc
 		write(*,"(es12.4$)")n(l),Tc
 		write(10,"(x)")

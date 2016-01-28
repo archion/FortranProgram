@@ -324,8 +324,8 @@ contains
 		do l=1,size(t)
 			!$omp parallel do private(i,j,k,m,pb) reduction(+:get_energy) if(.not.omp_in_parallel())
 			do n=1,size(latt%sb(1)%nb(l)%bd)
-				i=latt%sb(1)%nb(1)%bd(n)%i(1)
-				j=latt%sb(1)%nb(1)%bd(n)%i(2)
+				i=latt%sb(1)%nb(l)%bd(n)%i(1)
+				j=latt%sb(1)%nb(l)%bd(n)%i(2)
 				if(cfg(i,1)<cfg(j,1)) call swap(i,j)
 				k=0; m=0
 				select case(ieor(cfg(i,1),cfg(j,1)))
