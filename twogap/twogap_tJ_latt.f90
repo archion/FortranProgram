@@ -1,10 +1,10 @@
 module pmt
 	use M_const
 	implicit none
-	real(8), parameter :: t(3)=(/1d0,-0.30d0,0.1d0/),&
+	real(8), parameter :: t(3)=(/1d0,-0.25d0,0.1d0/),&
 		!V=0.0325d0,DJ=0.35d0
-		V=0.0325d0,DJ=0.35d0
-		!V=-0.25d0/4d0,DJ=0.25d0
+		!V=0.0325d0,DJ=0.35d0
+		V=-0.25d0/4d0,DJ=0.25d0
 		!V=0d0,DJ=0.25d0
 end module
 module selfcons
@@ -62,19 +62,19 @@ contains
 		enddo
 		var(iv(0))%val=1d-1
 
-		! ddw
-		call gen_var(sg=3,nb=1,V=(-DJ*0.75d0-V))
-		do i=1,size(var(iv(0))%bd)
-			var(iv(0))%bd(i)=img*ab(latt%sb(1)%nb(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
-		enddo
-		var(iv(0))%val=1d-1
-
-		!! sdw
-		!call gen_var(sg=4,nb=0,val=bd0,V=DJ,Vnb=1)
+		!! ddw
+		!call gen_var(sg=3,nb=1,V=(-DJ*0.75d0-V))
 		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=ab(i)
+			!var(iv(0))%bd(i)=img*ab(latt%sb(1)%nb(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
 		!enddo
 		!var(iv(0))%val=1d-1
+
+		! sdw
+		call gen_var(sg=4,nb=0,val=bd0,V=DJ,Vnb=1)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=ab(i)
+		enddo
+		var(iv(0))%val=1d-1
 
 		! bond order
 		call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))

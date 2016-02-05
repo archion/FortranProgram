@@ -3,7 +3,7 @@ module global
 	use ifport
 	implicit none
 	real(8) :: t(1)=(/1d0/)
-	real(8), parameter :: DJ=1d0/3d0,V=0d0,U=0d0
+	real(8), parameter :: DJ=0.25d0,V=-DJ/4d0,U=0d0
 	integer :: Nmc(4)
 	integer :: n_omp=1
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
@@ -641,11 +641,11 @@ contains
 					cfgl(mod(abs(dcfg(i:i+1))-1,Ns)+1,1)=ieor(cfgl(mod(abs(dcfg(i:i+1))-1,Ns)+1,1),(abs(dcfg(i))-1)/Ns+1)
 					call swap(cfgl(mod(abs(dcfg(i+1))-1,Ns)+1,2+(dcfg(i)-1)/Ns),cfgl(mod(abs(dcfg(i))-1,Ns)+1,2+(abs(dcfg(i))-1)/Ns))
 				enddo
-				call get_pb(k,shape(0),pb,WA)
+				!call get_pb(k,shape(0),pb,WA)
 				call update(k,WA,iA,AW,WAW,A,wf)
 				!if(abs(pb)<1d-10.or.abs(pb)>5d2) then
 					!call mat_inv(A(:,:sum(ne)),info)
-					write(*,"(4es12.4)")sum(abs(matmul(A(:,:sum(ne)),iA)-diag(1d0,size(A,1)))),sum(abs(matmul(wf(:,:sum(ne)),iA)-WA)),sum(abs(matmul(A(:,:sum(ne)),AW)-A)),sum(abs(matmul(wf(:,:sum(ne)),AW)-WAW))
+					!write(*,"(4es12.4)")sum(abs(matmul(A(:,:sum(ne)),iA)-diag(1d0,size(A,1)))),sum(abs(matmul(wf(:,:sum(ne)),iA)-WA)),sum(abs(matmul(A(:,:sum(ne)),AW)-A)),sum(abs(matmul(wf(:,:sum(ne)),AW)-WAW))
 					!write(*,*)sum(abs(matmul(iA,A)-diag(1d0,sum(ne))))
 					!if(any(abs(matmul(iA,A)-diag(1d0,sum(ne)))>2d-6)) then
 						!write(*,*)"warn!",n
@@ -678,17 +678,17 @@ contains
 					Ek2p=Ek2p+Ek2l
 					Ok2p=Ok2p+Ok2l
 				endif
-				if(mod(ac,8)==0) then
-					write(*,"(i6,es12.4$)")ac,real(n)/c!,real(sum(Ek2p))/ac,sum(abs(Ek2p-conjg(transpose(Ek2p))))/ac
-					!write(*,"(i6,4es12.4)")ac,real(n)/c,Sq_pmp/ac,real(Ep/ac)
-					write(*,"(x)")
-					if(mod(ac,256)==0) then
-						rewind(50)
-						write(50,*)ac
-						write(50,*)Ok2p/ac,Ek2p/ac
-					endif
-				endif
-				read(*,*)
+				!if(mod(ac,8)==0) then
+					!write(*,"(i6,es12.4$)")ac,real(n)/c!,real(sum(Ek2p))/ac,sum(abs(Ek2p-conjg(transpose(Ek2p))))/ac
+					!!write(*,"(i6,4es12.4)")ac,real(n)/c,Sq_pmp/ac,real(Ep/ac)
+					!write(*,"(x)")
+					!if(mod(ac,256)==0) then
+						!rewind(50)
+						!write(50,*)ac
+						!write(50,*)Ok2p/ac,Ek2p/ac
+					!endif
+				!endif
+				!read(*,*)
 			endif
 			if(c>=(Nmc(1)+Nmc(2)*Nmc(3))) then
 
@@ -761,6 +761,42 @@ contains
 			write(50,*)"finial"
 			write(50,*)Ok2,Ek2
 		end select
+	end subroutine
+	subroutine variation()
+		real(8) :: x(sum(var(1:)%n)),dx,El(200),er,grad(size(x)),pgrad(size(x))
+		integer :: i
+		dx=5d0
+		i=0
+		if(size(x)==0) then
+			return
+		endif
+		x=var(1:)%put()
+		do 
+			i=i+1
+			pgrad=grad
+			call var(1:)%get(x)
+			write(*,"(i4$)")i
+			call vmc(2,grad)
+			El(i)=E
+			er=er*1.5d0
+			if((El(i)-er)>El(max(i-1,1))) then
+				grad=pgrad
+				x=x+grad*dx
+				dx=dx*0.8d0
+				write(*,"(' err',es10.2$)")dx,(El(i)-er),El(max(i-1,1))
+				i=i-1
+			endif
+			if(all(abs(grad*dx/x)<1d-3).or.dx<1d-3.or.i==size(El)) then
+				if(minval(El(:i))<(El(i)-er)) then
+					write(*,*)"var err, min E is ", minval(El(:i))
+				endif
+				exit
+			endif
+			x=x-grad*dx
+			write(*,"(x)")
+		enddo
+		write(*,*)"finished"
+		E=minval(El(:i))
 	end subroutine
 	subroutine spect(ut,gm,omg,m)
 		integer :: ut,m
@@ -843,7 +879,8 @@ program main
 	!Nmc=(/5000000,Ns,1024*1024,32/)
 	!Nmc=(/500000,Ns,1024*1024,32/)
 	!Nmc=(/500000,Ns,1024*1024,32/)
-	Nmc=(/5000,Ns,1024*1024,32/)
+	!Nmc=(/5000,Ns,1024*1024,32/)
+	Nmc=(/50000,Ns,1024*4,32/)
 	!Nmc=(/10000,Ns,1000,32/)
 	!var(1:)%val(1)=(/-9.3d-1,1.45d-1,-3.4d-1/)
 
@@ -854,36 +891,33 @@ program main
 	!stop
 	!call spect(70,0.1d0,(/-50d0,-30d0/),500)
 	!stop
-	do i=0,20
-		!read(60,*)ne(1),var(1:)%val(1)
-		ne(1)=Ns/2-ne(1)
-		!var(2)%val=10d0**(-2d0+i/4d0)
-		ne(1)=Ns/2-5
-		ne(2)=Ns-ne(1)
-		ne=ne+1
-		call set_cfg()
-		call vmc(3)
-		!call spect(70,0.1d0,(/E2(1),E2(size(E2))/),100)
-		write(*,"(x)")
-		write(10,"(x)")
-		stop
-	enddo
-	stop
+	!do i=0,20
+		!!read(60,*)ne(1),var(1:)%val(1)
+		!ne(1)=Ns/2-ne(1)
+		!!var(2)%val=10d0**(-2d0+i/4d0)
+		!ne(1)=Ns/2-5
+		!ne(2)=Ns-ne(1)
+		!ne=ne+1
+		!call set_cfg()
+		!call vmc(3)
+		!!call spect(70,0.1d0,(/E2(1),E2(size(E2))/),100)
+		!write(*,"(x)")
+		!write(10,"(x)")
+		!stop
+	!enddo
+	!stop
 	!do 
 		!read(*,*)var(1:)%val(1)
 		!call vmc(1)
 	!enddo
-	do i=-10,10
-		var(1)%val(1)=0.1d0*i
-		do j=1,20
-			var(2)%val(1)=0.01d0*j
-			do k=-8,8
-				var(3)%val(1)=-0.02d0*k
-				call vmc(1)
-				write(*,"(x)")
-				write(10,"(x)")
-			enddo
-		enddo
+	ne(1)=Ns/2-6
+	ne(2)=Ns-ne(1)
+	call set_cfg()
+	do j=0,20
+		var(2)%val(1)=10d0**(-2d0+0.2*j)
+		call vmc(1)
+		write(*,"(x)")
+		write(10,"(x)")
 	enddo
 			
 end program
