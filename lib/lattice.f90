@@ -219,8 +219,8 @@ contains
 						enddo
 					enddo
 				enddo
-				call tmp(:k)%qsort()
-				call tmp(:k)%collect(t)
+				call qsort(tmp(:k))
+				call collect(tmp(:k),t)
 				do k=1,layer
 					allocate(self%neb(i+Ns/layer*(k-1))%nb(0:l))
 				enddo
@@ -232,7 +232,7 @@ contains
 					do k=t(j),t(j+1)-1
 						tmp(k)%val=theta(tmp(k)%dr)
 					enddo
-					call tmp(t(j):t(j+1)-1)%qsort()
+					call qsort(tmp(t(j):t(j+1)-1))
 					self%neb(i)%nb(j-1)%neb(:)=tmp(t(j):t(j+1)-1)%idx
 					self%neb(i)%nb(j-1)%bdc(:)=tmp(t(j):t(j+1)-1)%bdc
 					self%neb(i)%nb(j-1)%dr(:,1)=tmp(t(j):t(j+1)-1)%dr(1)
@@ -337,8 +337,8 @@ contains
 					st(n)%val=theta(st(n)%dr)
 				enddo
 			enddo
-			call st(1:n)%qsort()
-			call st(1:n)%collect(ist)
+			call qsort(st(1:n))
+			call collect(st(1:n),ist)
 			do i=1,size(ist)-1
 				st(i)=st(ist(i))
 				do j=ist(i)+1,ist(i+1)-1

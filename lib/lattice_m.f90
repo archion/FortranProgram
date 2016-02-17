@@ -192,8 +192,8 @@ contains
 						enddo
 					enddo
 				enddo
-				call tmp(:k)%qsort()
-				call tmp(:k)%collect(c)
+				call qsort(tmp(:k))
+				call collect(tmp(:k),c)
 				allocate(self%sb(n)%nb(0:l))
 				do l1=1,l+1
 					k=0
@@ -284,8 +284,8 @@ contains
 					st(n)%val=theta(st(n)%dr)
 				enddo
 			enddo
-			call st(1:n)%qsort()
-			call st(1:n)%collect(ist)
+			call qsort(st(1:n))
+			call collect(st(1:n),ist)
 			do i=1,size(ist)-1
 				st(i)=st(ist(i))
 				do j=ist(i)+1,ist(i+1)-1

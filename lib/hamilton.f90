@@ -29,11 +29,11 @@ module M_Hamilton
 						! 7: n-n jast
 						! -: don't do variation
 		procedure(update), pointer, nopass :: update
-	contains
-		procedure :: Hamilton
-		procedure :: dHamilton
-		procedure :: put
-		procedure :: get
+	!contains
+		!procedure :: Hamilton
+		!procedure :: dHamilton
+		!procedure :: put
+		!procedure :: get
 	end type
 	type(t_var), allocatable :: var(:)
 	integer :: spin=2
@@ -49,7 +49,8 @@ module M_Hamilton
 			real(8) :: E(:)
 			integer, optional :: info
 		end subroutine
-		subroutine update()
+		subroutine update(opt)
+			integer, optional :: opt
 		end subroutine
 	end interface
 contains
@@ -81,7 +82,7 @@ contains
 		real(8), intent(in), optional :: V
 		integer, intent(in), optional :: Vn
 		type(t_mysort), allocatable :: sort(:)
-		integer, allocatable :: collect(:)
+		integer, allocatable :: coll(:)
 		integer :: i,j
 		iv(sign(1,sg))=iv(sign(1,sg))+sign(1,sg)
 		iv(0)=iv(sign(1,sg))
@@ -97,8 +98,8 @@ contains
 			allocate(sort(size(val)))
 			sort(:)%val=val
 			sort(:)%idx=(/(i,i=1,size(sort))/)
-			call sort%qsort()
-			call sort%collect(collect)
+			call qsort(sort)
+			call collect(sort,coll)
 			allocate(var(iv(0))%i2v(size(val)))
 			allocate(var(iv(0))%bd(size(val)))
 			if(present(Vn)) then
@@ -106,19 +107,19 @@ contains
 			else
 				allocate(var(iv(0))%Vbd(size(val)))
 			endif
-			allocate(var(iv(0))%val(size(collect)-1))
-			allocate(var(iv(0))%v2i(size(collect)-1))
-			var(iv(0))%n=size(collect)-1
+			allocate(var(iv(0))%val(size(coll)-1))
+			allocate(var(iv(0))%v2i(size(coll)-1))
+			var(iv(0))%n=size(coll)-1
 			if(present(V)) then
 				var(iv(0))%Vbd=V
 			else
 				var(iv(0))%Vbd=1d0
 			endif
 
-			do i=1,size(collect)-1
-				allocate(var(iv(0))%v2i(i)%i(collect(i+1)-collect(i)))
-				var(iv(0))%v2i(i)%i=sort(collect(i):collect(i+1)-1)%idx
-				do j=collect(i),collect(i+1)-1
+			do i=1,size(coll)-1
+				allocate(var(iv(0))%v2i(i)%i(coll(i+1)-coll(i)))
+				var(iv(0))%v2i(i)%i=sort(coll(i):coll(i+1)-1)%idx
+				do j=coll(i),coll(i+1)-1
 					var(iv(0))%i2v(sort(j)%idx)=i
 				enddo
 			enddo
@@ -166,7 +167,8 @@ contains
 			enddo
 		enddo
 	end function
-	subroutine default_update()
+	subroutine default_update(opt)
+		integer, optional :: opt
 	end subroutine
 	subroutine var_shrink()
 		integer :: lb
@@ -365,17 +367,17 @@ contains
 		common fE,err
 		v=0d0
 		fE=0d0
-		call var(1:)%get(x)
+		call get(var(1:),x)
 		if(size(x)>1) then
 			call var%update()
 		endif
 		!$OMP PARALLEL DO REDUCTION(+:fE,v) PRIVATE(H,E,cH,f,dE,D)
 		do k=1,size(brizon%k,1)
-			call var%Hamilton(H,brizon%k(k,:))
+			call Hamilton(var,H,brizon%k(k,:))
 			call mat_diag(H,E)
 			cH=transpose(conjg(H))
 			f=1d0/(exp(E/Tk)+1d0)
-			call var(1:)%dHamilton(H,cH,D(:,1:1,:),brizon%k(k,:))
+			call dHamilton(var(1:),H,cH,D(:,1:1,:),brizon%k(k,:))
 			dE=real(D(:,1,:))
 			do l=1,size(E)
 				if((-E(l))>1d2*Tk) then
@@ -533,7 +535,7 @@ contains
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin),Green
 		real(8) :: E(size(H,1))
 		integer :: n,i,j
-		call var%Hamilton(H,k)
+		call Hamilton(var,H,k)
 		call mat_diag(H,E)
 		Green=0d0
 		do i=1,latt%Ns
@@ -570,7 +572,7 @@ contains
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin)
 		real(8) :: E(size(H,1)),domg,A(m)
 		integer :: i,j,l
-		call var%Hamilton(H,k)
+		call Hamilton(var,H,k)
 		call mat_diag(H,E)
 		domg=(omg(2)-omg(1))/m
 		A=0d0
@@ -600,7 +602,7 @@ contains
 		D=0d0
 		!$OMP PARALLEL DO PRIVATE(H,E) REDUCTION(+:D)
 		do k=1,size(brizon%k,1)
-			call var%Hamilton(H,brizon%k(k,:))
+			call Hamilton(var,H,brizon%k(k,:))
 			call mat_diag(H,E)
 			do l=1,m
 				do i=1,latt%Ns
@@ -635,7 +637,7 @@ contains
 		nk=size(brizon%k,1)
 		!$OMP PARALLEL DO PRIVATE(H,E,G,q)
 		do m=1,nk
-			call var%Hamilton(H,brizon%k(m,:))
+			call Hamilton(var,H,brizon%k(m,:))
 			call mat_diag(H,E)
 			do i=1,latt%Ns
 				do j=1,latt%Ns
@@ -668,7 +670,7 @@ contains
 		nk=size(brizon%k,1)
 		!$OMP PARALLEL DO PRIVATE(H,E,G,q)
 		do m=1,nk
-			call var%Hamilton(H,brizon%k(m,:))
+			call Hamilton(var,H,brizon%k(m,:))
 			call mat_diag(H,E)
 			do i=1,latt%Ns
 				do j=1,latt%Ns
@@ -705,7 +707,7 @@ contains
 		A=0d0
 		!$OMP PARALLEL DO PRIVATE(H,E) REDUCTION(+:A)
 		do l1=1,n
-			call var%Hamilton(H,ki+dk*l1)
+			call Hamilton(var,H,ki+dk*l1)
 			call mat_diag(H,E)
 			do l2=1,m
 				do i=1,latt%Ns
@@ -733,7 +735,7 @@ contains
 		dk=(kf-ki)/n
 		do m=0,n-1
 			k=ki+dk*m
-			call var%Hamilton(H,k)
+			call Hamilton(var,H,k)
 			call mat_diag(H,E)
 			do l=1,size(E)
 				G=0d0

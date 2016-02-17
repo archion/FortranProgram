@@ -1,7 +1,7 @@
 module global
 	use M_hamilton_m
 	implicit none
-	real(8) :: t(2)=(/1d0,-0.25d0/)
+	real(8) :: t(1)=(/1d0/)
 	real(8) :: DJ=1d0/3d0,V=-1d0/3d0/4d0,U=0d0
 	integer :: Nmc(4)
 	integer :: n_omp=1
@@ -13,6 +13,10 @@ module global
 	real(8), allocatable :: g(:)
 	complex(8), allocatable :: S(:,:)
 	real(8), allocatable :: grad(:)
+	integer :: map(0:3),Ns
+	integer :: mc_sg=1 ! 1 static physical 
+					   ! 2 energy and grad
+					   ! 3 dynamic physical
 	include 'nlopt.f'
 contains
 	subroutine initial()
@@ -24,8 +28,8 @@ contains
 		latt%a2=(/0d0,1d0,0d0/)
 		!latt%T1=(/9d0,1d0,0d0/)
 		!latt%T2=(/-1d0,9d0,0d0/)
-		latt%T1=(/1d0,0d0,0d0/)*16
-		latt%T2=(/0d0,1d0,0d0/)*16
+		latt%T1=(/1d0,0d0,0d0/)*10
+		latt%T2=(/0d0,1d0,0d0/)*10
 		latt%bdc=(/1d0,-1d0,0d0/)
 		allocate(latt%sub(1,3))
 		latt%sub(1,:)=(/0d0,0d0,0d0/)
@@ -49,12 +53,12 @@ contains
 		enddo
 		var(iv(0))%val=1d-01
 
-		! ssc
-		call gen_var(sg=-2,nb=0)
-		do i=1,size(var(iv(0))%bd)
-			var(iv(0))%bd(i)=1d0
-		enddo
-		var(iv(0))%val=1d-3
+		!! ssc
+		!call gen_var(sg=-2,nb=0)
+		!do i=1,size(var(iv(0))%bd)
+			!var(iv(0))%bd(i)=1d0
+		!enddo
+		!var(iv(0))%val=1d-3
 
 		!! ddw
 		!call gen_var(sg=3,nb=1)
@@ -90,6 +94,7 @@ contains
 		allocate(grad(sum(var(1:)%n)))
 		allocate(g(sum(var(1:)%n)))
 		allocate(S(sum(var(1:)%n),sum(var(1:)%n)))
+		map=(/b"10",b"11",b"00",b"01"/)
 	end subroutine
 	subroutine ini_wf(wf,dwf)
 		complex(8) :: wf(:,:)
@@ -97,7 +102,7 @@ contains
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin),cH(size(H,1),size(H,2)),D(size(H,1),size(H,2),sum(var(1:vn)%n)),Q(size(H,1)-sum(ne),sum(ne))
 		real(8) :: E(size(H,1))
 		integer :: l,i,j
-		call var%Hamilton(H)
+		call Hamilton(var,H)
 		if(any(abs(var(:)%sg)==1.or.abs(var(:)%sg)==2)) then
 			call mat_diag(H,E)
 		else
@@ -109,11 +114,11 @@ contains
 				call swap(E(ne(1)+i),E(latt%Ns+i))
 			enddo
 		endif
-		wf=H(:,:sum(ne))
+		wf=H
 		if(present(dwf)) then
 			cH=transpose(conjg(H))
 			dwf=0d0
-			call var(1:vn)%dHamilton(H,cH,D)
+			call dHamilton(var(1:vn),H,cH,D)
 
 			do l=1,size(dwf,3)
 				select case(opt)
@@ -156,268 +161,7 @@ contains
 	end function
 end module
 
-module mc_utility
-	use global
-	implicit none
-contains
-	subroutine get_pb(k,m,D,pb)
-		complex(8) :: D(:,:),pb
-		integer :: k(:),m(:)
-		if(k(2)==0) then
-			pb=D(m(1),k(1))
-		else
-			pb=(D(m(1),k(1))*D(m(2),k(2))-D(m(1),k(2))*D(m(2),k(1)))
-		endif
-	end subroutine
-	subroutine update(k,m,D,iA)
-		complex(8) :: D(:,:)
-		complex(8), optional :: iA(:,:)
-		integer :: k(:),m(:)
-		complex(8) :: tmp(size(D,1),size(D,2)),ipb(2,2),pb,tmp2(2),tmpA(latt%Ns,latt%Ns)
-		integer :: i,j
-		tmp=D
-		if(present(iA)) then
-			tmpA=iA
-		endif
-		if(k(2)==0) then
-			pb=1d0/D(m(1),k(1))
-			!$omp parallel do private(tmp2) if(.not.omp_in_parallel())
-			do j=1,size(D,2)
-				if(j==k(1)) then
-					tmp2(1)=pb*(tmp(m(1),j)-1d0)
-				else
-					tmp2(1)=pb*tmp(m(1),j)
-				endif
-				do i=1,size(D,1)
-					D(i,j)=tmp(i,j)-tmp(i,k(1))*tmp2(1)
-					if(present(iA)) then
-						if(i<=size(iA,1)) then
-							iA(i,j)=tmpA(i,j)-tmpA(i,k(1))*tmp2(1)
-						endif
-					endif
-				enddo
-			enddo
-			!$omp end parallel do
-		else
-			pb=1d0/(D(m(1),k(1))*D(m(2),k(2))-D(m(1),k(2))*D(m(2),k(1)))
-			ipb(1,1)=pb*D(m(2),k(2))
-			ipb(1,2)=-pb*D(m(1),k(2))
-			ipb(2,1)=-pb*D(m(2),k(1))
-			ipb(2,2)=pb*D(m(1),k(1))
-			!$omp parallel do private(tmp2) if(.not.omp_in_parallel())
-			do j=1,size(D,2)
-				if(k(1)==j) then
-					tmp2=matmul(ipb,(/tmp(m(1),j)-1d0,tmp(m(2),j)/))
-				elseif(k(2)==j) then
-					tmp2=matmul(ipb,(/tmp(m(1),j),tmp(m(2),j)-1d0/))
-				else
-					tmp2=matmul(ipb,(/tmp(m(1),j),tmp(m(2),j)/))
-				endif
-				do i=1,size(D,1)
-					D(i,j)=tmp(i,j)-sum((/tmp(i,k(1)),tmp(i,k(2))/)*tmp2)
-					if(present(iA)) then
-						if(i<=size(iA,1)) then
-							iA(i,j)=tmpA(i,j)-sum((/tmpA(i,k(1)),tmpA(i,k(2))/)*tmp2)
-						endif
-					endif
-				enddo
-			enddo
-			!$omp end parallel do
-		endif
-	end subroutine
-end module
-
-module model
-	use mc_utility
-	implicit none
-contains
-	function get_af(cfg)
-		integer :: cfg(:,:)
-		real(8) :: get_af
-		integer :: n
-		!$omp parallel do reduction(+:get_af) if(.not.omp_in_parallel())
-		do n=1,size(latt%sb(1)%nb(0)%bd)
-			select case(cfg(n,1))
-			case(1:2)
-				get_af=get_af+ab(n)
-			case(3)
-				get_af=get_af+2d0*ab(n)
-			end select
-			get_af=get_af-ab(n)
-		enddo
-		!$omp end parallel do
-		get_af=get_af*0.5d0/latt%Ns
-	end function
-	function get_ddw(cfg,D)
-		complex(8) :: D(:,:)
-		integer :: cfg(:,:)
-		complex(8) :: get_ddw
-		complex(8) :: pb
-		integer :: n,i,j,k(2),m(2)
-		get_ddw=0d0
-		!$omp parallel do private(i,j,k,m,pb) reduction(+:get_ddw) if(.not.omp_in_parallel())
-		do n=1,size(latt%sb(1)%nb(1)%bd)
-			i=latt%sb(1)%nb(1)%bd(n)%i(1)
-			j=latt%sb(1)%nb(1)%bd(n)%i(2)
-			if(cfg(i,1)<cfg(j,1)) call swap(i,j)
-			k=0; m=0
-			select case(ieor(cfg(i,1),cfg(j,1)))
-			case(1)
-				k(1)=cfg(i,2)
-				m(1)=j
-			case(2)
-				k(1)=cfg(i,3)
-				m(1)=j+latt%Ns
-			end select
-			call get_pb(k,m,D,pb)
-			get_ddw=get_ddw+pb*dwave(n)*ab(i)*(1.5d0-ieor(cfg(i,1),cfg(j,1)))
-		enddo
-		!$omp end parallel do
-		get_ddw=get_ddw/latt%Ns
-	end function
-	function get_dsc(cfg,D)
-		complex(8) :: D(:,:)
-		integer :: cfg(:,:)
-		complex(8) :: get_dsc
-		complex(8) :: pb
-		integer :: i1,i2,j1,j2,n1,n2,n,k(2),m(2)
-		get_dsc=0d0
-		!$omp parallel do private(i1,i2,j1,j2,k,m,pb) reduction(+:get_dsc) if(.not.omp_in_parallel())
-		do n1=1,size(latt%sb(1)%nb(1)%bd)
-			i1=latt%sb(1)%nb(1)%bd(n1)%i(1)
-			i2=latt%sb(1)%nb(1)%bd(n1)%i(2)
-			do n2=1,size(latt%sb(1)%nb(1)%bd)
-				j1=latt%sb(1)%nb(1)%bd(n2)%i(1)
-				j2=latt%sb(1)%nb(1)%bd(n2)%i(2)
-				if(cfg(j1,1)==2.and.cfg(j2,1)==2.and.ieor(cfg(i1,1),cfg(i2,1))==3) then
-					do n=1,2
-						k=0; m=0
-						select case(cfg(i1,1))
-						case(3)
-							k(1)=cfg(i1,2)
-							m(1)=j1
-							k(2)=cfg(j2,3)
-							m(2)=i2+latt%Ns
-						case(0)
-							k(1)=cfg(j1,3)
-							m(1)=i1+latt%Ns
-							k(2)=cfg(i2,2)
-							m(2)=j2
-						end select
-						call get_pb(k,m,D,pb)
-						get_dsc=get_dsc+dwave(n1)*dwave(n2)*pb
-						call swap(j1,j2)
-					enddo
-				endif
-			enddo
-		enddo
-		!$omp end parallel do
-		get_dsc=get_dsc*0.25d0/latt%Ns**2
-	end function
-	function get_energy(cfg,D)
-		complex(8) :: D(:,:)
-		integer :: cfg(:,:)
-		complex(8) :: get_energy
-		complex(8) :: pb
-		integer :: i,j,n,l,k(2),m(2)
-		get_energy=0d0
-		do l=1,size(t)
-			!$omp parallel do private(i,j,k,m,pb) reduction(+:get_energy) if(.not.omp_in_parallel())
-			do n=1,size(latt%sb(1)%nb(l)%bd)
-				i=latt%sb(1)%nb(l)%bd(n)%i(1)
-				j=latt%sb(1)%nb(l)%bd(n)%i(2)
-				if(cfg(i,1)<cfg(j,1)) call swap(i,j)
-				k=0; m=0
-				select case(ieor(cfg(i,1),cfg(j,1)))
-				case(1)
-					k(1)=cfg(i,2)
-					m(1)=j
-					call get_pb(k,m,D,pb)
-					get_energy=get_energy-t(l)*conjg(pb)*latt%sb(1)%nb(1)%bd(n)%bdc
-				case(2)
-					k(1)=cfg(i,3)
-					m(1)=j+latt%Ns
-					call get_pb(k,m,D,pb)
-					get_energy=get_energy+t(l)*conjg(pb)*latt%sb(1)%nb(1)%bd(n)%bdc
-				case(3)
-					if(l==1) then
-						k(1)=cfg(i,2)
-						m(1)=j
-						k(2)=cfg(i,3)
-						m(2)=j+latt%Ns
-						call get_pb(k,m,D,pb)
-						get_energy=get_energy+0.5d0*DJ*conjg(pb)-0.25d0*DJ+V
-					endif
-				case(0)
-					if(l==1.and.cfg(i,1)/=2) then
-						get_energy=get_energy+0.25d0*DJ+V
-					endif
-				end select
-			enddo
-			!$omp end parallel do
-		enddo
-		get_energy=get_energy/latt%Ns
-	end function
-	subroutine get_O(cfg,D,iA,dwf,O)
-		complex(8) :: D(:,:),iA(:,:),dwf(:,:,:),O(:)
-		integer :: cfg(:,:)
-		integer :: i,Ns
-		Ns=latt%Ns
-		O=0d0
-		select case(opt)
-		case(1)
-			!$omp parallel do reduction(+:O) if(.not.omp_in_parallel())
-			do i=1,size(cfg,1)
-				if(btest(cfg(i,1),0)) then
-					O=O+matmul(iA(:,cfg(i,2)),dwf(i,:sum(ne),:))
-				endif
-				if(btest(cfg(i,1),1)) then
-					O=O+matmul(iA(:,cfg(i,3)),dwf(i+Ns,:sum(ne),:))
-				endif
-			enddo
-			!$omp end parallel do
-		case(2)
-			!$omp parallel do reduction(+:O) if(.not.omp_in_parallel())
-			do i=1,size(cfg,1)
-				if(btest(cfg(i,1),0)) then
-					O=O+matmul(D(:,cfg(i,2)),dwf(i,:,:))
-				endif
-				if(btest(cfg(i,1),1)) then
-					O=O+matmul(D(:,cfg(i,3)),dwf(i+Ns,:,:))
-				endif
-			enddo
-			!$omp end parallel do
-		end select
-	end subroutine
-	subroutine two(cfg,i,j)
-		integer :: cfg(:,:),i,j
-		call random_number(i,size(cfg,1))
-		do 
-			call random_number(j,size(cfg,1))
-			if(ieor(cfg(i,1),cfg(j,1))/=0) then
-				exit
-			endif
-		enddo
-	end subroutine
-	function get_A(cfg,wf)
-		integer :: cfg(:,:)
-		complex(8) :: wf(:,:)
-		complex(8) :: get_A(sum(ne),sum(ne))
-		integer :: n,Ns
-		Ns=latt%Ns
-		do n=1,Ns
-			select case(cfg(n,1))
-			case(1)
-				get_A(cfg(n,2),:)=wf(n,:)
-			case(2)
-				get_A(cfg(n,3),:)=wf(n+Ns,:)
-			case(3)
-				get_A(cfg(n,2),:)=wf(n,:)
-				get_A(cfg(n,3),:)=wf(n+Ns,:)
-			end select
-		enddo
-	end function
-end module
+include 'common.f90'
 
 module vmc_main
 	use model
@@ -446,8 +190,7 @@ contains
 			end select
 		enddo
 	end subroutine
-	subroutine mc(sg,wf,dwf)
-		integer :: sg
+	subroutine mc(wf,dwf)
 		complex(8) :: wf(:,:)
 		complex(8), optional :: dwf(:,:,:)
 		complex(8) :: Ep
@@ -457,7 +200,8 @@ contains
 		complex(8) :: iA(sum(ne),sum(ne)),D(size(wf,1),size(wf,2)),El,pb,A(sum(ne),sum(ne))
 		complex(8) :: Op(size(g)),Ol(size(g)),Sl(size(g),size(g)),SEp(size(g),size(g)),SEl(size(g),size(g))
 		real(8) :: rd,gl(size(g))
-		integer :: i,j,n,l,l1,l2,Ns,info,k(2),m(2),ncfg(2,size(cfg,2)),c,cfgl(size(cfg,1),size(cfg,2))
+		integer :: i,j,n,l,l1,l2,Ns,info,c,cfgl(size(cfg,1),size(cfg,2)),wcfg(size(A,1)),ac,sg
+		integer, allocatable :: k(:),dcfg(:)
 		logical :: is_update
 		Ns=latt%Ns
 		Ep=0d0; Eb=0d0; Eb2=0d0
@@ -465,68 +209,43 @@ contains
 		Sp=0d0; gp=0d0; Op=0d0; SEp=0d0
 		cfgl=cfg
 		!call fisher_yates_shuffle(cfgl)
-		iA=get_A(cfgl,wf)
+		A=get_A(cfgl,wf,wcfg)
+		iA=A(:,:sum(ne))
 		call mat_inv(iA,info); if(info/=0) stop "err info"
-		D=matmul(wf,iA)
+		WA=matmul(wf(:,:sum(ne)),iA)
 		c=0
+		n=0
+		ac=0
 		is_update=.true.
 		do
 			c=c+1
-			call two(cfgl,i,j)
-			!call random_number(n,size(latt%sb(1)%nb(1)%bd))
-			!i=latt%sb(1)%nb(1)%bd(n)%i(1)
-			!j=latt%sb(1)%nb(1)%bd(n)%i(2)
-			if(cfgl(i,1)<cfgl(j,1)) call swap(i,j)
-			ncfg(1,:)=cfgl(i,:)
-			ncfg(2,:)=cfgl(j,:)
-			k=0; m=0
-			select case(ieor(cfgl(i,1),cfgl(j,1)))
-			case(1)
-				ncfg(1,1)=ibclr(ncfg(1,1),0)
-				ncfg(2,1)=ibset(ncfg(2,1),0)
-				call swap(ncfg(1,2),ncfg(2,2))
-				k(1)=cfgl(i,2)
-				m(1)=j
-				call get_pb(k,m,D,pb)
-			case(2)
-				ncfg(1,1)=ibclr(ncfg(1,1),1)
-				ncfg(2,1)=ibset(ncfg(2,1),1)
-				call swap(ncfg(1,3),ncfg(2,3))
-				k(1)=cfgl(i,3)
-				m(1)=j+Ns
-				call get_pb(k,m,D,pb)
-			case(3)
-				call swap(ncfg(1,1:3),ncfg(2,1:3))
-				k(1)=cfgl(i,2)
-				m(1)=j
-				k(2)=cfgl(i,3)
-				m(2)=j+Ns
-				call get_pb(k,m,D,pb)
-			case(0)
-				pb=0d0
-			end select
+			call two(cfgl,dcfg)
+			!call two_all(cfgl,dcfg)
+			call get_row(cfgl,dcfg,k,sg)
 
+			call get_pb(k,shape(0),pb,WA)
+			pb=pb*conjg(pb)
 			call random_number(rd)
-			if(rd<real(pb*conjg(pb))) then
+			if(rd<real(pb)) then
+				n=n+1
+				do i=1,size(dcfg),2
+					cfgl(mod(abs(dcfg(i:i+1))-1,Ns)+1,1)=ieor(cfgl(mod(abs(dcfg(i:i+1))-1,Ns)+1,1),(abs(dcfg(i))-1)/Ns+1)
+					call swap(cfgl(mod(abs(dcfg(i+1))-1,Ns)+1,2+(dcfg(i)-1)/Ns),cfgl(mod(abs(dcfg(i))-1,Ns)+1,2+(abs(dcfg(i))-1)/Ns))
+				enddo
 				if(sg==2.and.opt==1) then
-					call update(k,m,D,iA)
+					call update(k,m,WA,iA)
 				else
-					call update(k,m,D)
+					call update(k,m,WA)
 				endif
-				cfgl(i,:)=ncfg(1,:)
-				cfgl(j,:)=ncfg(2,:)
 				is_update=.true.
 			endif
 			if(c>Nmc(1).and.mod(c-Nmc(1),Nmc(2))==0) then
 				if(is_update) then
 					is_update=.false.
-					El=get_energy(cfgl,D)
+					El=get_energy(cfgl,WA)
 					if(sg==3) then
-						dscl=real(get_dsc(cfgl,D))
-						ddwl=real(get_ddw(cfgl,D))
-						afl=real(get_af(cfgl))
 					elseif(sg==2) then
-						call get_O(cfgl,D,iA,dwf,Ol(:size(dwf,3)))
+						call get_O(cfgl,WA,iA,dwf,Ol(:size(dwf,3)))
 						do l1=1,size(Ol)
 							do l2=1,size(Ol)
 								Sl(l1,l2)=conjg(Ol(l1))*Ol(l2)
@@ -550,11 +269,11 @@ contains
 			endif
 			if(c>=(Nmc(1)+Nmc(2)*Nmc(3))) then
 				! check
-				A=get_A(cfgl,wf)
-				call mat_inv(A,info)
-				if(sum(abs(D-matmul(wf,A)))>1d-5) then
+				iA=get_A(cfgl,wf(:,sum(ne)))
+				pb=sum(abs(wf(:,:sum(ne))-matmul(WA,iA)))
+				if(abs(pb)>1d-5) then
 					!$omp critical
-					write(*,*)"warn!!!!!",sum(abs(D-matmul(wf,A)))
+					write(*,*)"warn!!!!!",abs(pb)
 					!$omp end critical
 				endif
 
@@ -587,11 +306,11 @@ contains
 		if(size(x)==0) then
 			return
 		endif
-		x=var(1:)%put()
+		x=put(var(1:))
 		do 
 			i=i+1
 			pgrad=grad
-			call var(1:)%get(x)
+			call get(var(1:),x)
 			write(*,"(i4$)")i
 			call vmc(2,grad)
 			El(i)=E
@@ -619,15 +338,16 @@ contains
 		integer :: sg
 		real(8), optional :: grad(:)
 		real(8) :: eg(size(g))
-		complex(8) :: wf(latt%Ns*spin,sum(ne))
+		complex(8) :: wf(latt%Ns*spin,latt%Ns*spin)
 		complex(8) :: dwf(latt%Ns*spin,latt%Ns*spin,size(g))
 		integer :: k,l,l1,l2
+		mc_sg=sg
 		if(sg==2) then
 			call ini_wf(wf,dwf)
 			E=0d0; S=0d0; g=0d0; er=0d0
 			!$omp parallel do if(n_omp>1)
 			do k=1,n_omp
-				call mc(sg,wf,dwf)
+				call mc(wf,dwf)
 			enddo
 			!$omp end parallel do
 			call mat_diag(S,eg)
@@ -648,7 +368,7 @@ contains
 			E=0d0; er=0d0; dsc=0d0; ddw=0d0; af=0d0
 			!$omp parallel do if(n_omp>1)
 			do k=1,n_omp
-				call mc(sg,wf)
+				call mc(wf)
 			enddo
 			!$omp end parallel do
 			write(*,"(es12.4$)")var(1:)%val(1),E,er
@@ -708,7 +428,7 @@ contains
 		write(*,"(i3$)")ires
 		write(*,"(es12.4$)")minf,x,cst
 		write(*,"(x)")
-		call var(1:)%get(x)
+		call get(var(1:),x)
 	end subroutine
 	subroutine nlopt_precond(n, x, v, vpre, cst)
 		integer :: n
@@ -724,7 +444,7 @@ contains
 		real(8), optional :: cst(:)
 		integer, optional :: need_gradient
 		real(8) :: er
-		call var(1:)%get(x)
+		call get(var(1:),x)
 		if(need_gradient/=0) then
 			call vmc(2,grad)
 		else
@@ -780,7 +500,7 @@ program main
 		call vmc(3)
 		write(*,"(es12.4$)")2d0*ne(1)/latt%Ns,E,er,dsc,af
 		write(*,"(x)")
-		write(40,"(es12.4$)")2d0*ne(1)/latt%Ns,E,er,var(1:)%put(),dsc,af
+		write(40,"(es12.4$)")2d0*ne(1)/latt%Ns,E,er,put(var(1:)),dsc,af
 		write(40,"(x)")
 	enddo
 	stop

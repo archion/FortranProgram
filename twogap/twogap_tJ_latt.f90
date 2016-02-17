@@ -129,7 +129,7 @@ contains
 		!info=1
 		!var(2)%val=1d-1
 		!var(3)%val=1d-1
-		!x=var(1:)%put()
+		!x=put(var(1:))
 		!x=x+1d-5
 		!call hybrd1(minpack_fn,size(x),x,v,1d-7,info,wa,size(wa))
 		!write(*,"(i3$)")info
@@ -141,7 +141,7 @@ contains
 		real(8) :: rg(:),fE
 		real(8) :: x(sum(var(2:)%n)),grad(size(x)),f_data(1)
 		call self_consist()
-		x=var(2:)%put()
+		x=put(var(2:))
 		x(l-1)=rg(1)
 		do while(x(l-1)<=rg(2))
 			call nlopt_fn(fE, size(x), x, grad, 0, f_data)
@@ -163,7 +163,7 @@ contains
 		ub=1d0
 		var(2)%val=1d-1
 		var(3)%val=1d-1
-		x=var(2:)%put()
+		x=put(var(2:))
 		x=1d-1
 
 		!call nlo_create(opt, NLOPT_LN_BOBYQA, size(x))
@@ -186,7 +186,7 @@ contains
 			!if(cst(1)>1d-5) then
 				!stop
 			!endif
-			!x=var(2:)%put()
+			!x=put(var(2:))
 			!call nlo_optimize(ires, opt, x, minf)
 			!if(cst(1)>1d-4) then
 				!stop
@@ -205,7 +205,7 @@ contains
 		integer :: need_gradient
 		integer :: info,i,j,t
 		real(8) :: mu(1),vmu(1),wa(16),v(n),val_
-		call var(2:)%get(x)
+		call get(var(2:),x)
 		mu(1)=var(1)%val(1)-1d-1
 		t=0
 		do
@@ -226,18 +226,18 @@ contains
 				exit
 			endif
 		enddo
-		call var(1:1)%get(mu)
+		call get(var(1:1),mu)
 		call MF_val(2,v,val,0)
 		!write(*,"(es12.4$)")val,v
-		!call var(2:)%get(x)
+		!call get(var(2:),x)
 		!call MF_val(2,v,val,1)
 		!i=2
 		!j=1
 		!write(*,"(es12.4$)")val,v(sum(var(2:i-1)%n)+j)
-		!call var(2:)%get(x)
+		!call get(var(2:),x)
 		!var(i)%val(j)=var(i)%val(j)-1d-7
 		!call MF_val(2,v,val,1)
-		!call var(2:)%get(x)
+		!call get(var(2:),x)
 		!var(i)%val(j)=var(i)%val(j)+1d-7
 		!call MF_val(2,v,val_,1)
 		!write(*,"(es12.4$)")(val_-val)/2d-7
@@ -261,11 +261,11 @@ contains
 		real(8), intent(inout) :: x(n),v(n)
 		real(8) :: fE,px(sum(var(2:)%n))
 		common fE
-		px=var(2:)%put()
-		call var(1:)%get(x)
+		px=put(var(2:))
+		call get(var(1:),x)
 		call MF_val(1,v,fE,0)
 		if(n==1) then
-			call var(2:)%get(px)
+			call get(var(2:),px)
 		endif
 		!write(*,"(es12.4$)")x,v
 		!write(*,"(x)")
@@ -283,14 +283,14 @@ contains
 		nk=size(brizon%k,1)
 		!$OMP PARALLEL DO PRIVATE(E,H,cH,f,Bg,BgU,Bgk,q,eH,ceH)
 		do n=1,nk
-			call var%Hamilton(H,brizon%k(n,:))
+			call Hamilton(var,H,brizon%k(n,:))
 			call mat_diag(H,E)
 			cH=transpose(conjg(H))
 			f=1d0/(1d0+exp(bt*E))
-			!call var%Hamilton(Bg(:,:,1),brizon%k(n,:),b1g)
-			!call var%Hamilton(Bg(:,:,2),brizon%k(n,:),b2g)
-			call var(:0)%Hamilton(Bg(:,:,1),brizon%k(n,:),b1g)
-			call var(:0)%Hamilton(Bg(:,:,2),brizon%k(n,:),b2g)
+			!call Hamilton(var,Bg(:,:,1),brizon%k(n,:),b1g)
+			!call Hamilton(var,Bg(:,:,2),brizon%k(n,:),b2g)
+			call Hamilton(var(:0),Bg(:,:,1),brizon%k(n,:),b1g)
+			call Hamilton(var(:0),Bg(:,:,2),brizon%k(n,:),b2g)
 			do m=1,2
 				BgU(:,:,m)=matmul(cH,matmul(Bg(:,:,m),H))
 			enddo
@@ -337,13 +337,13 @@ contains
 		R=0d0
 		!$OMP PARALLEL DO REDUCTION(+:R) PRIVATE(E,H,cH,f,Bg)
 		do n=1,size(brizon%k,1)
-			call var%Hamilton(H,brizon%k(n,:))
+			call Hamilton(var,H,brizon%k(n,:))
 			call mat_diag(H,E)
 			cH=transpose(conjg(H))
 			f=1d0/(1d0+exp(bt*E))
 
-			call var(:0)%Hamilton(Bg(:,:,1),brizon%k(n,:),b1g)
-			call var(:0)%Hamilton(Bg(:,:,2),brizon%k(n,:),b2g)
+			call Hamilton(var(:0),Bg(:,:,1),brizon%k(n,:),b1g)
+			call Hamilton(var(:0),Bg(:,:,2),brizon%k(n,:),b2g)
 			do l=1,2
 				Bg(:,:,l)=matmul(cH,matmul(Bg(:,:,l),H))
 			enddo
@@ -391,14 +391,14 @@ contains
 		!$OMP PARALLEL DO REDUCTION(+:superfluid) PRIVATE(k,mm,vv,E,H,cH,f,df)
 		do n=1,size(brizon%k,1)
 			k=brizon%k(n,:)
-			call var%Hamilton(H,k)
+			call Hamilton(var,H,k)
 			call mat_diag(H,E)
 			cH=transpose(conjg(H))
 			f=1d0/(1d0+exp(bt*E))
 			df=-bt/((1d0+cosh(bt*E))*2)
 
-			call var%Hamilton(vv,k,V)
-			call var%Hamilton(mm,k,M)
+			call Hamilton(var,vv,k,V)
+			call Hamilton(var,mm,k,M)
 			vv(:,:)=matmul(cH,matmul(vv,H))
 			vv(:,:)=vv*transpose(vv)
 			mm(:,:)=matmul(cH,matmul(mm,H))

@@ -5,8 +5,6 @@ module M_utility
 		real(8) :: val
 	contains
 		procedure :: swap_sort
-		procedure :: qsort
-		procedure :: collect
 	end type
 	interface mwrite
 		module procedure cmwrite,rmwrite,imwrite
@@ -211,8 +209,8 @@ contains
 			else
 				marker=left
 			endif
-			call self(1:marker-1)%qsort()
-			call self(marker:n)%qsort()
+			call qsort(self(1:marker-1))
+			call qsort(self(marker:n))
 		endif
 	end subroutine
 	subroutine collect(self,a)

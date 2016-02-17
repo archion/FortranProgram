@@ -6,7 +6,7 @@ module global
 	real(8), parameter :: DJ=0.25d0,V=-DJ/4d0,U=0d0
 	integer :: Nmc(4)
 	integer :: n_omp=1
-	integer, parameter :: opt=2 ! 1: Tr(AdA)
+	integer, parameter :: opt=1 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer :: ne(2),vn
 	integer, allocatable :: cfg(:,:)
@@ -43,7 +43,12 @@ contains
 		brizon%n2=1
 		call latt%gen_brizon(brizon)
 		call latt%gen_origin_brizon(brizon_o)
-		brizon_o%k(:,2)=brizon_o%k(:,2)+pi/10d0
+		if(abs(latt%bdc(2)+1d0)<1d-7) then
+			brizon_o%k(:,2)=brizon_o%k(:,2)+pi/latt%T2(2)
+		endif
+		if(abs(latt%bdc(1)+1d0)<1d-7) then
+			brizon_o%k(:,1)=brizon_o%k(:,1)+pi/latt%T1(1)
+		endif
 		!call check_lattice(101)
 		write(*,*)"Total site number is: ",latt%Ns
 
@@ -57,7 +62,7 @@ contains
 		do i=1,size(var(iv(0))%bd)
 			var(iv(0))%bd(i)=dwave(i)
 		enddo
-		var(iv(0))%val=1d-3
+		var(iv(0))%val=1d-1
 
 		!! ssc
 		!call gen_var(sg=-2,nb=0)
@@ -99,8 +104,8 @@ contains
 		Ns=latt%Ns
 		allocate(cfg(Ns,3))
 		allocate(grad(sum(var(1:)%n)))
-		allocate(g(sum(var(1:)%n)))
-		allocate(S(sum(var(1:)%n),sum(var(1:)%n)))
+		allocate(g(size(grad)))
+		allocate(S(size(grad),size(grad)))
 		allocate(Ok2(Ns/2,Ns/2),Ek2(Ns/2,Ns/2),E2(Ns/2),psi0(Ns/2))
 		map=(/b"10",b"11",b"00",b"01"/)
 	end subroutine
@@ -110,7 +115,8 @@ contains
 		complex(8) :: H(Ns*spin,Ns*spin),cH(size(H,1),size(H,2)),D(size(H,1),size(H,2),sum(var(1:vn)%n)),DQ(size(H,1)-sum(ne),sum(ne)),Uk(size(H,1),size(H,2)),tmp
 		real(8) :: E(size(H,1))
 		integer :: l,i,j
-		call var%Hamilton(H)
+		call Hamilton(var,H)
+
 		Uk=0d0
 		do i=1,Ns
 			Uk(:Ns,i)=exp(-img*(latt%i2r(:,1)*brizon_o%k(i,1)+latt%i2r(:,2)*brizon_o%k(i,2)))
@@ -131,14 +137,16 @@ contains
 		do i=1,Ns,2
 			psi0((i-1)/2+1)=H(i,Ns+i)*H(Ns+i+1,Ns+i+1)
 		enddo
-		H=matmul(Uk,H)
+		H=matmul(Uk,H)/sqrt(real(Ns))
+
+		!call heev(H,E,"V")
 
 		wf=H
 
 		if(present(dwf)) then
 			cH=transpose(conjg(H))
 			dwf=0d0
-			call var(1:vn)%dHamilton(H,cH,D)
+			call dHamilton(var(1:vn),H,cH,D)
 
 			do l=1,size(dwf,3)
 				select case(opt)
@@ -427,6 +435,29 @@ contains
 		!$omp end parallel do
 		get_spin_zz=get_spin_zz/Ns
 	end function
+	function get_sc(cfg,D)
+		complex(8) :: D(:,:)
+		integer :: cfg(:,:)
+		complex(8) :: get_sc
+		complex(8) :: pb
+		integer :: i1,j1,i2,j2,sg,l,n1,n2
+		integer, allocatable :: k(:)
+		get_sc=0d0
+		!$omp parallel do collapse(2) reduction(+:get_sc) private(pb,k,sg,i1,j1,i2,j2) if(.not.omp_in_parallel())
+		do n1=1,size(latt%sb(1)%nb(1)%bd)
+			do n2=1,size(latt%sb(1)%nb(1)%bd)
+				i1=latt%sb(1)%nb(1)%bd(n1)%i(1)
+				j1=latt%sb(1)%nb(1)%bd(n1)%i(2)
+				i2=latt%sb(1)%nb(1)%bd(n2)%i(1)
+				j2=latt%sb(1)%nb(1)%bd(n2)%i(2)
+				call get_row(cfg,(/i1,-j1-Ns,i2+Ns,-j2/),k,sg)
+				call get_pb(k,shape(0),pb,D)
+				get_sc=get_sc+pb*sg*dwave(n1)*dwave(n2)
+			enddo
+		enddo
+		!$omp end parallel do
+		get_sc=get_sc/(Ns**2)
+	end function
 	function get_energy(cfg,D)
 		complex(8) :: D(:,:)
 		integer :: cfg(:,:)
@@ -477,6 +508,37 @@ contains
 			enddo
 		enddo
 	end function
+	subroutine get_O(cfg,WA,iA,dwf,O)
+		complex(8) :: WA(:,:),iA(:,:),dwf(:,:,:),O(:)
+		integer :: cfg(:,:)
+		integer :: i,Ns
+		Ns=latt%Ns
+		O=0d0
+		select case(opt)
+		case(1)
+			!$omp parallel do reduction(+:O) if(.not.omp_in_parallel())
+			do i=1,size(cfg,1)
+				if(btest(cfg(i,1),0)) then
+					O=O+matmul(iA(:,cfg(i,2)),dwf(i,:sum(ne),:))
+				endif
+				if(btest(cfg(i,1),1)) then
+					O=O+matmul(iA(:,cfg(i,3)),dwf(i+Ns,:sum(ne),:))
+				endif
+			enddo
+			!$omp end parallel do
+		case(2)
+			!$omp parallel do reduction(+:O) if(.not.omp_in_parallel())
+			do i=1,size(cfg,1)
+				if(btest(cfg(i,1),0)) then
+					O=O+matmul(WA(:,cfg(i,2)),dwf(i,:,:))
+				endif
+				if(btest(cfg(i,1),1)) then
+					O=O+matmul(WA(:,cfg(i,3)),dwf(i+Ns,:,:))
+				endif
+			enddo
+			!$omp end parallel do
+		end select
+	end subroutine
 	subroutine get_Spb(cfg,dcfg,pb,WA,iA,AW,WAW,wf)
 		integer :: cfg(:,:),dcfg(:)
 		complex(8) :: WA(:,:),AW(:,:),WAW(:,:),iA(:,:),wf(:,:)
@@ -642,7 +704,13 @@ contains
 					call swap(cfgl(mod(abs(dcfg(i+1))-1,Ns)+1,2+(dcfg(i)-1)/Ns),cfgl(mod(abs(dcfg(i))-1,Ns)+1,2+(abs(dcfg(i))-1)/Ns))
 				enddo
 				!call get_pb(k,shape(0),pb,WA)
-				call update(k,WA,iA,AW,WAW,A,wf)
+				if(mc_sg==2.and.opt==1) then
+					call update(k,WA,iA)
+				elseif(mc_sg/=3) then
+					call update(k,WA)
+				else
+					call update(k,WA,iA,AW,WAW,A,wf)
+				endif
 				!if(abs(pb)<1d-10.or.abs(pb)>5d2) then
 					!call mat_inv(A(:,:sum(ne)),info)
 					!write(*,"(4es12.4)")sum(abs(matmul(A(:,:sum(ne)),iA)-diag(1d0,size(A,1)))),sum(abs(matmul(wf(:,:sum(ne)),iA)-WA)),sum(abs(matmul(A(:,:sum(ne)),AW)-A)),sum(abs(matmul(wf(:,:sum(ne)),AW)-WAW))
@@ -667,6 +735,15 @@ contains
 						El=get_energy(cfgl,WA)
 						!Sq_pml=get_spin_pm(cfgl,WA,q)
 						!Sq_zzl=get_spin_zz(cfgl,q)
+					case(2)
+						El=get_energy(cfgl,WA)
+						call get_O(cfgl,WA,iA,dwf,Ol(:size(dwf,3)))
+						do l1=1,size(Ol)
+							do l2=1,size(Ol)
+								Sl(l1,l2)=conjg(Ol(l1))*Ol(l2)
+							enddo
+						enddo
+						gl=real(El*Ol)
 					case(3)
 						call get_overlap(cfgl,WA,iA,AW,WAW,wf,Ok2l,Ek2l)
 					end select
@@ -674,10 +751,15 @@ contains
 				Ep=Ep+El
 				Sq_pmp=Sq_pmp+Sq_pml
 				Sq_zzp=Sq_zzp+Sq_zzl
-				if(mc_sg==3) then
+				select case(mc_sg)
+				case(1)
+					dscp=dscp+dscl; ddwp=ddwp+ddwl; afp=afp+afl
+				case(2)
+					gp=gp+gl; Op=Op+Ol; Sp=Sp+Sl; SEp=SEp+SEl
+				case(3)
 					Ek2p=Ek2p+Ek2l
 					Ok2p=Ok2p+Ok2l
-				endif
+				end select
 				!if(mod(ac,8)==0) then
 					!write(*,"(i6,es12.4$)")ac,real(n)/c!,real(sum(Ek2p))/ac,sum(abs(Ek2p-conjg(transpose(Ek2p))))/ac
 					!!write(*,"(i6,4es12.4)")ac,real(n)/c,Sq_pmp/ac,real(Ep/ac)
@@ -691,14 +773,34 @@ contains
 				!read(*,*)
 			endif
 			if(c>=(Nmc(1)+Nmc(2)*Nmc(3))) then
+				! check
+				iA=get_A(cfgl,wf(:,:sum(ne)),wcfg)
+				pb=sum(abs(wf(:,:sum(ne))-matmul(WA,iA)))
+				if(abs(pb)>1d-5) then
+					!$omp critical
+					write(*,*)"warn!!!!!",abs(pb)
+					!$omp end critical
+				endif
 
+				Ep=Ep/Nmc(3)
+				dscp=dscp/Nmc(3); ddwp=ddwp/Nmc(3); afp=afp/Nmc(3)
+				Sq_pmp=Sq_pmp/Nmc(3); Sq_zzp=Sq_zzp/Nmc(3)
+				Sp=Sp/Nmc(3); gp=gp/Nmc(3); Op=Op/Nmc(3); SEp=SEp/Nmc(3)
+				do l1=1,size(Op)
+					do l2=1,size(Op)
+						!S(l1,l2)=2d0*SE(l1,l2)-O(l1)*g(l2)-O(l2)*g(l1)-2d0*E*S(l1,l2) ! maybe works
+						!S(l1,l2)=2d0*(SE(l1,l2)-S(l1,l2)*E-O(l1)*g(l2)-O(l2)*g(l1))
+						Sp(l1,l2)=Sp(l1,l2)-conjg(Op(l1))*Op(l2)
+					enddo
+				enddo
+				gp=2d0*(gp-real(Ep*Op))
 				Ek2p=Ek2p/Nmc(3)
 				Ok2p=Ok2p/Nmc(3)
-				Ep=Ep/Nmc(3); Sq_pmp=Sq_pmp/Nmc(3); Sq_zzp=Sq_zzp/Nmc(3)
 
 				!$omp critical
 				cfg=cfgl
-				E=E+real(Ep)/n_omp
+				E=E+real(Ep)/n_omp; dsc=dsc+dscp/n_omp; ddw=ddw+ddwp/n_omp; af=af+afp/n_omp; S=S+Sp/n_omp; g=g+gp/n_omp
+				!er=er+sqrt(abs((real(Eb2)-real(Ep)**2/(Nmc(3)/Nmc(4)-1))))/n_omp
 				Sq_pm=Sq_pm+real(Sq_pmp)/n_omp
 				Sq_zz=Sq_zz+real(Sq_zzp)/n_omp
 				Ek2=Ek2+Ek2p/n_omp
@@ -725,18 +827,23 @@ contains
 				call mc(wf,dwf)
 			enddo
 			!$omp end parallel do
-			call mat_diag(S,eg)
+			call heev(S,eg)
 			write(*,"(es12.4$)")var(1:)%val(1),E,er,g
 			write(10,"(es12.4$)")var(1:)%val(1),E,er,g
+			!write(*,*)eg
 			eg=eg+abs(min(eg(1),0d0))+1d-2
 			do l=1,size(g)
 				grad(l)=0d0
 				do l1=1,size(g)
 					do l2=1,size(g)
+						if(abs(eg(l2)/eg(size(g)))<1d-3) then
+							cycle
+						endif
 						grad(l)=grad(l)+real(S(l,l2)*conjg(S(l1,l2))*g(l1)/eg(l2))
 					enddo
 				enddo
 			enddo
+			write(*,"(es12.4$)")grad
 			!grad=g
 		case(1)
 			call ini_wf(wf)
@@ -765,33 +872,33 @@ contains
 	subroutine variation()
 		real(8) :: x(sum(var(1:)%n)),dx,El(200),er,grad(size(x)),pgrad(size(x))
 		integer :: i
-		dx=5d0
+		dx=0.03d0
 		i=0
 		if(size(x)==0) then
 			return
 		endif
-		x=var(1:)%put()
+		x=put(var(1:))
 		do 
 			i=i+1
 			pgrad=grad
-			call var(1:)%get(x)
+			call get(var(1:),x)
 			write(*,"(i4$)")i
 			call vmc(2,grad)
 			El(i)=E
 			er=er*1.5d0
-			if((El(i)-er)>El(max(i-1,1))) then
-				grad=pgrad
-				x=x+grad*dx
-				dx=dx*0.8d0
-				write(*,"(' err',es10.2$)")dx,(El(i)-er),El(max(i-1,1))
-				i=i-1
-			endif
-			if(all(abs(grad*dx/x)<1d-3).or.dx<1d-3.or.i==size(El)) then
-				if(minval(El(:i))<(El(i)-er)) then
-					write(*,*)"var err, min E is ", minval(El(:i))
-				endif
-				exit
-			endif
+			!if((El(i)-er)>El(max(i-1,1))) then
+				!grad=pgrad
+				!x=x+grad*dx
+				!dx=dx*0.8d0
+				!write(*,"(' err',es10.2$)")dx,(El(i)-er),El(max(i-1,1))
+				!i=i-1
+			!endif
+			!if(all(abs(grad*dx/x)<1d-5).or.dx<1d-3.or.i==size(El)) then
+				!if(minval(El(:i))<(El(i)-er)) then
+					!write(*,*)"var err, min E is ", minval(El(:i))
+				!endif
+				!exit
+			!endif
 			x=x-grad*dx
 			write(*,"(x)")
 		enddo
@@ -870,18 +977,7 @@ program main
 
 	call initial()
 
-	!Nmc=(/1,1,100000/)
-	!Nmc=(/10000,Ns,100000/)
-	!Nmc=(/10000,Ns,16384,2**i/)
-	!Nmc=(/10000,Ns,16384,32/)
-	!Nmc=(/10000,Ns*50,1024*16,32/)
-	!Nmc=(/100000,Ns,1024,32/)
-	!Nmc=(/5000000,Ns,1024*1024,32/)
-	!Nmc=(/500000,Ns,1024*1024,32/)
-	!Nmc=(/500000,Ns,1024*1024,32/)
-	!Nmc=(/5000,Ns,1024*1024,32/)
 	Nmc=(/50000,Ns,1024*4,32/)
-	!Nmc=(/10000,Ns,1000,32/)
 	!var(1:)%val(1)=(/-9.3d-1,1.45d-1,-3.4d-1/)
 
 	!read(50,*)i
@@ -910,12 +1006,15 @@ program main
 		!read(*,*)var(1:)%val(1)
 		!call vmc(1)
 	!enddo
-	ne(1)=Ns/2-6
+	ne(1)=Ns/2
 	ne(2)=Ns-ne(1)
 	call set_cfg()
+	call variation()
+	stop
 	do j=0,20
-		var(2)%val(1)=10d0**(-2d0+0.2*j)
-		call vmc(1)
+		!var(2)%val(1)=10d0**(-2d0+0.2*j)
+		var(2)%val(1)=1d-2+j*0.04
+		call vmc(2,grad)
 		write(*,"(x)")
 		write(10,"(x)")
 	enddo

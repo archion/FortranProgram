@@ -109,7 +109,7 @@ contains
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin),cH(size(H,1),size(H,2)),D(size(H,1),size(H,2),sum(var(1:vn)%n)),Q(size(H,1)-sum(ne),sum(ne))
 		real(8) :: E(size(H,1))
 		integer :: l,i,j
-		call var%Hamilton(H)
+		call Hamilton(var,H)
 		if(any(abs(var(:)%sg)==1.or.abs(var(:)%sg)==2)) then
 			call mat_diag(H,E)
 		else
@@ -125,7 +125,7 @@ contains
 		if(present(dwf)) then
 			cH=transpose(conjg(H))
 			dwf=0d0
-			call var(1:vn)%dHamilton(H,cH,D)
+			call dHamilton(var(1:vn),H,cH,D)
 
 			do l=1,size(dwf,3)
 				select case(opt)

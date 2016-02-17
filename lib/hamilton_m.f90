@@ -30,11 +30,11 @@ module M_Hamilton_m
 						! 9: n-n jast
 						! -: don't do variation
 		integer :: n
-	contains
-		procedure :: Hamilton
-		procedure :: dHamilton
-		procedure :: put
-		procedure :: get
+	!contains
+		!procedure :: Hamilton
+		!procedure :: dHamilton
+		!procedure :: put
+		!procedure :: get
 	end type
 	type(t_var), allocatable :: var(:)
 	integer :: spin=2
@@ -100,7 +100,7 @@ contains
 		real(8), intent(in), optional :: V
 		integer, intent(in), optional :: Vnb,sb
 		type(t_mysort), allocatable :: sort(:)
-		integer, allocatable :: collect(:)
+		integer, allocatable :: coll(:)
 		integer :: i,j
 		iv(sign(1,sg))=iv(sign(1,sg))+sign(1,sg)
 		iv(0)=iv(sign(1,sg))
@@ -127,15 +127,15 @@ contains
 			allocate(sort(size(val)))
 			sort(:)%val=val
 			sort(:)%idx=(/(i,i=1,size(sort))/)
-			call sort%qsort()
-			call sort%collect(collect)
+			call qsort(sort)
+			call collect(sort,coll)
 
 			allocate(var(iv(0))%bd2v(size(val)))
 			allocate(var(iv(0))%bd(size(val)))
-			allocate(var(iv(0))%val(size(collect)-1))
-			var(iv(0))%n=size(collect)-1
-			do i=1,size(collect)-1
-				do j=collect(i),collect(i+1)-1
+			allocate(var(iv(0))%val(size(coll)-1))
+			var(iv(0))%n=size(coll)-1
+			do i=1,size(coll)-1
+				do j=coll(i),coll(i+1)-1
 					var(iv(0))%bd2v(sort(j)%idx)=i
 				enddo
 			enddo
@@ -486,11 +486,11 @@ contains
 		fE=0d0
 		!$omp parallel do reduction(+:fe,av) private(h,e,ch,f,d) schedule(runtime) if (size(brizon_k,1)>1)
 		do k=1,size(brizon_k,1)
-			call var%Hamilton(H,brizon_k(k,:))
+			call Hamilton(var,H,brizon_k(k,:))
 			call mat_diag(H,E)
 			cH=transpose(conjg(H))
 			f=1d0/(exp(min(E/Tk,1d2))+1d0)
-			call var(:)%dHamilton(H,cH,D(:,1:1,:),brizon_k(k,:))
+			call dHamilton(var,H,cH,D(:,1:1,:),brizon_k(k,:))
 			if(info==1) then
 				fE=fE+entropy(E,f)
 			else
@@ -588,7 +588,7 @@ contains
 		av=av/latt%Ns
 		v=av(sum(var(:ll)%n)-var(ll)%n+1:sum(var(:ll)%n)-var(ll)%n+size(v))
 
-		px=var(:0)%put()
+		px=put(var(:0))
 		do l=lbound(var,1),0
 			do n=1,size(var(l)%bd)
 				if(abs(var(l)%val(var(l)%bd2v(n)))>1d-17) then
@@ -596,13 +596,13 @@ contains
 				endif
 			enddo
 		enddo
-		call var%get(x)
+		call get(var,x)
 		if(info==1) then
 			fE=fE1+free_energy()
 		else
 			fE=fE/latt%Ns
 		endif
-		call var(:0)%get(px)
+		call get(var(:0),px)
 		do l=lbound(var,1),0
 			do n=1,size(var(l)%bd)
 				if(abs(var(l)%val(var(l)%bd2v(n)))>1d-17) then
@@ -662,7 +662,7 @@ contains
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin),Green
 		real(8) :: E(size(H,1))
 		integer :: n,i,j
-		call var%Hamilton(H,k)
+		call Hamilton(var,H,k)
 		call mat_diag(H,E)
 		Green=0d0
 		do i=1,latt%Ns
@@ -699,7 +699,7 @@ contains
 		complex(8) :: H(latt%Ns*spin,latt%Ns*spin)
 		real(8) :: E(size(H,1)),domg,A(m)
 		integer :: i,j,l
-		call var%Hamilton(H,k)
+		call Hamilton(var,H,k)
 		call mat_diag(H,E)
 		domg=(omg(2)-omg(1))/m
 		A=0d0
@@ -729,7 +729,7 @@ contains
 		D=0d0
 		!$omp parallel do private(h,e) reduction(+:d)
 		do k=1,size(brizon_k,1)
-			call var%Hamilton(H,brizon_k(k,:))
+			call Hamilton(var,H,brizon_k(k,:))
 			call mat_diag(H,E)
 			do l=1,m
 				do i=1,latt%Ns
@@ -764,7 +764,7 @@ contains
 		nk=size(brizon_k,1)
 		!$omp parallel do private(h,e,g,q)
 		do m=1,nk
-			call var%Hamilton(H,brizon_k(m,:))
+			call Hamilton(var,H,brizon_k(m,:))
 			call mat_diag(H,E)
 			do i=1,latt%Ns
 				do j=1,latt%Ns
@@ -797,7 +797,7 @@ contains
 		nk=size(brizon_k,1)
 		!$omp parallel do private(h,e,g,q)
 		do m=1,nk
-			call var%Hamilton(H,brizon_k(m,:))
+			call Hamilton(var,H,brizon_k(m,:))
 			call mat_diag(H,E)
 			do i=1,latt%Ns
 				do j=1,latt%Ns
@@ -832,7 +832,7 @@ contains
 		A=0d0
 		!$omp parallel do private(h,e) reduction(+:a)
 		do l1=1,n
-			call var%Hamilton(H,ki+dk*l1)
+			call Hamilton(var,H,ki+dk*l1)
 			call mat_diag(H,E)
 			do l2=1,m
 				do i=1,latt%Ns
@@ -860,7 +860,7 @@ contains
 		dk=(kf-ki)/n
 		do m=0,n-1
 			k=ki+dk*m
-			call var%Hamilton(H,k)
+			call Hamilton(var,H,k)
 			call mat_diag(H,E)
 			do l=1,size(E)
 				G=0d0
