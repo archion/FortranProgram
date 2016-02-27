@@ -2,7 +2,7 @@ module M_matrix
 	use lapack95, only : getrf, getri, heevd, heev, heevx, heevr, sysv
 	implicit none
 	interface diag
-		module procedure mdiag, ndiag
+		module procedure mdiag, ndiag, mcdiag, ncdiag
 	end interface
 	interface crsmv
 		module procedure c_crsmv,r_crsmv
@@ -247,6 +247,25 @@ contains
 		ndiag=0d0
 		do i=1,n
 			ndiag(i,i)=a
+		enddo
+	end function
+	function mcdiag(a)
+		complex(8) :: a(:) 
+		complex(8) :: mcdiag(size(a),size(a))
+		integer :: i
+		mcdiag=0d0
+		do i=1,size(a)
+			mcdiag(i,i)=a(i)
+		enddo
+	end function
+	function ncdiag(a,n)
+		complex(8) :: a
+		integer :: n
+		complex(8) :: ncdiag(n,n)
+		integer :: i
+		ncdiag=0d0
+		do i=1,n
+			ncdiag(i,i)=a
 		enddo
 	end function
 	function Tr(A,B)

@@ -152,22 +152,14 @@ contains
 		logical :: openfile,flag
 		character(*), optional :: access
 		integer, optional :: recl
-		inquire(file=file, exist=flag) 
-		if(flag) then
-			write(*,"(A$)")"File '",file,"' already exit, enter a new name: " 
-			read(*,"(A)")nf
-			if(len(trim(adjustl(nf)))>0) then
-				if(present(access)) then
-					open(unit,file=file(1:scan(file,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat",access=access,recl=recl,form="formatted")
-				else
-					open(unit,file=file(1:scan(file,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat")
-				endif
+		!inquire(file=file, exist=flag) 
+		write(*,"(A$)")"Using default '",file,"' or enter a new name: " 
+		read(*,"(A)")nf
+		if(len(trim(adjustl(nf)))>0) then
+			if(present(access)) then
+				open(unit,file=file(1:scan(file,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat",access=access,recl=recl,form="formatted")
 			else
-				if(present(access)) then
-					open(unit,file=file,access=access,recl=recl,form="formatted")
-				else
-					open(unit,file=file)
-				endif
+				open(unit,file=file(1:scan(file,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat")
 			endif
 		else
 			if(present(access)) then
