@@ -1,4 +1,5 @@
 module M_utility
+	USE IFPORT, only : GETENVQQ
 	use M_rd
 	implicit none
 	type t_sort

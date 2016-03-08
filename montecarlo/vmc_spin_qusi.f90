@@ -32,8 +32,8 @@ contains
 		latt%a2=(/0d0,1d0,0d0/)
 		!latt%T1=(/9d0,1d0,0d0/)
 		!latt%T2=(/-1d0,9d0,0d0/)
-		latt%T1=(/1d0,0d0,0d0/)*14
-		latt%T2=(/0d0,1d0,0d0/)*14
+		latt%T1=(/1d0,0d0,0d0/)*10
+		latt%T2=(/0d0,1d0,0d0/)*10
 		latt%bdc=(/1d0,-1d0,0d0/)
 		allocate(latt%sub(1,3))
 		latt%sub(1,:)=(/0d0,0d0,0d0/)
@@ -437,7 +437,8 @@ contains
 		integer :: i,j,sg
 		integer, allocatable :: k(:)
 		get_spin_pm=0d0
-		!$omp parallel do collapse(2) reduction(+:get_spin_pm) private(pb,k,sg) if(.not.omp_in_parallel())
+		!$omp parallel if(.not.omp_in_parallel())
+		!$omp do collapse(2) reduction(+:get_spin_pm) private(pb,k,sg)
 		do i=1,Ns
 			do j=1,Ns
 				call get_row(cfg,(/j,j+Ns,-i-Ns,-i/),k,sg)
@@ -445,7 +446,9 @@ contains
 				get_spin_pm=get_spin_pm+pb*exp(img*sum(q*(latt%i2r(i,:)-latt%i2r(j,:))))*sg
 			enddo
 		enddo
-		!$omp end parallel do
+		!$omp end do
+		if(allocated(k)) deallocate(k)
+		!$omp end parallel
 		get_spin_pm=get_spin_pm/Ns
 	end function
 	function get_spin_zz(cfg,q)
@@ -471,7 +474,8 @@ contains
 		integer :: i1,j1,i2,j2,sg,l,n1,n2,p1,p2
 		integer, allocatable :: k(:)
 		get_dsc=0d0
-		!$omp parallel do collapse(2) reduction(+:get_dsc) private(pb,k,sg,i1,j1,i2,j2) if(.not.omp_in_parallel())
+		!$omp parallel if(.not.omp_in_parallel())
+		!$omp do collapse(2) reduction(+:get_dsc) private(pb,k,sg,i1,j1,i2,j2)
 		do n1=1,size(latt%sb(1)%nb(1)%bd)
 			do n2=1,size(latt%sb(1)%nb(1)%bd)
 				i1=latt%sb(1)%nb(1)%bd(n1)%i(1)
@@ -490,7 +494,9 @@ contains
 				enddo
 			enddo
 		enddo
-		!$omp end parallel do
+		!$omp end do
+		if(allocated(k)) deallocate(k)
+		!$omp end parallel
 		get_dsc=get_dsc/(Ns**2)
 	end function
 	function get_energy(cfg,D)
@@ -501,7 +507,8 @@ contains
 		integer :: i,j,n,l,ci,cj,p,sg
 		integer, allocatable :: k(:)
 		get_energy=0d0
-		!$omp parallel do collapse(2) reduction(+:get_energy) private(i,j,ci,cj,k,pb,sg) if(.not.omp_in_parallel())
+		!$omp parallel if(.not.omp_in_parallel())
+		!$omp do collapse(2) reduction(+:get_energy) private(i,j,ci,cj,k,pb,sg)
 		do l=1,size(t)
 			do n=1,size(latt%sb(1)%nb(l)%bd)
 				i=latt%sb(1)%nb(l)%bd(n)%i(1)
@@ -526,7 +533,9 @@ contains
 				if(l==1) get_energy=get_energy+V*(ibits(ci,0,1)+ibits(ci,1,1))*(ibits(cj,0,1)+ibits(cj,1,1))+0.25d0*DJ*(ibits(ci,0,1)-ibits(ci,1,1))*(ibits(cj,0,1)-ibits(cj,1,1))!*-4
 			enddo
 		enddo
-		!$omp end parallel do
+		!$omp end do
+		if(allocated(k)) deallocate(k)
+		!$omp end parallel
 		get_energy=get_energy/Ns
 	end function
 	function get_A(cfg,wf,wcfg)
@@ -586,7 +595,8 @@ contains
 		integer, allocatable :: k(:)
 		!write(*,*)"get_Oq"
 		pbs=0d0
-		!$omp parallel do private(pb2,k,sg) reduction(+:pbs) if(.not.omp_in_parallel())
+		!$omp parallel if(.not.omp_in_parallel())
+		!$omp do private(pb2,k,sg) reduction(+:pbs)
 		do i=1,Ns
 			call get_row(cfg,shape(0),k,sg)
 			call get_pb(k,(/Ns+1,Ns+i,Ns+2,Ns+kq(i)/),pb2(1),WA,iA,AW,WAW,wf)
@@ -597,7 +607,9 @@ contains
 			!pbs=pbs+exp(img*sum(q*latt%i2r(i,:)))*pb2
 			pbs=pbs+pb2*conjg(pb2)
 		enddo
-		!$omp end parallel do
+		!$omp end do
+		if(allocated(k)) deallocate(k)
+		!$omp end parallel
 		!write(*,*)real(pbs)
 		pb=pbs(2)/pbs(1)
 	end subroutine
@@ -611,7 +623,8 @@ contains
 		iNs=1d0/Ns
 		!Ok=0d0
 		!Ek=0d0
-		!$omp parallel do private(i,j,ci,cj,pb,O_,E_,k,sg) if(.not.omp_in_parallel())
+		!$omp parallel if(.not.omp_in_parallel())
+		!$omp do private(i,j,ci,cj,pb,O_,E_,k,sg)
 		do i1=1,Ns
 			call get_row(cfg,shape(0),k,sg)
 			call get_pb(k,(/Ns+1,Ns+i1,Ns+2,Ns+kq(i1)/),O_,WA,iA,AW,WAW,wf)
@@ -644,7 +657,9 @@ contains
 			Ek(i1)=E_
 			Ok(i1)=O_
 		enddo
-		!$omp end parallel do
+		!$omp end do
+		if(allocated(k)) deallocate(k)
+		!$omp end parallel
 		Oq=1d0/sum(Ok*conjg(Ok))
 		!!$omp parallel do if(.not.omp_in_parallel())
 		do i=1,Ns
@@ -796,7 +811,8 @@ contains
 					Ok2p=Ok2p+Ok2l
 				end select
 				if(mod(ac,32)==0.and.mc_sg==3) then
-					write(*,"(i7,es16.5$)")ac,real(n)/c,real(sum(Ek2p/ac)),sum(abs(Ek2p-conjg(transpose(Ek2p)))/ac)
+					write(*,"(i7$)")ac
+					write(*,"(es16.5$)")real(n)/c,sum(abs(Ek2p-conjg(transpose(Ek2p)))/ac)
 					!write(*,"(i6,4es12.4)")ac,real(n)/c,Sq_pmp/ac,real(Ep/ac)
 					write(*,"(x)")
 					if(mod(ac,256)==0) then
@@ -833,12 +849,16 @@ contains
 
 					!$omp critical
 					cfg=cfgl
-					E=E+real(Ep)/n_omp; dsc=dsc+dscp/n_omp; ddw=ddw+ddwp/n_omp; af=af+afp/n_omp; S=S+Sp/n_omp; g=g+gp/n_omp
-					!er=er+sqrt(abs((real(Eb2)-real(Ep)**2/(Nmc(3)/Nmc(4)-1))))/n_omp
-					Sq_pm=Sq_pm+real(Sq_pmp)/n_omp
-					Sq_zz=Sq_zz+real(Sq_zzp)/n_omp
-					Ek2=Ek2+Ek2p/n_omp
-					Ok2=Ok2+Ok2p/n_omp
+					select case(mc_sg)
+					case(1:2)
+						E=E+real(Ep)/n_omp; dsc=dsc+dscp/n_omp; ddw=ddw+ddwp/n_omp; af=af+afp/n_omp; S=S+Sp/n_omp; g=g+gp/n_omp
+						!er=er+sqrt(abs((real(Eb2)-real(Ep)**2/(Nmc(3)/Nmc(4)-1))))/n_omp
+						Sq_pm=Sq_pm+real(Sq_pmp)/n_omp
+						Sq_zz=Sq_zz+real(Sq_zzp)/n_omp
+					case(3)
+						Ek2=Ek2+Ek2p/n_omp
+						Ok2=Ok2+Ok2p/n_omp
+					end select
 					!$omp end critical
 					exit
 				endif
@@ -968,6 +988,7 @@ contains
 		do i=1,Ns
 			if(EO(i)>1d-9) then
 				n0=i
+				write(*,*)n0
 				exit
 			endif
 		enddo
@@ -1002,10 +1023,8 @@ program main
 	f=openfile(20,"../data/var.dat")
 	!f=openfile(30,"../data/alg.dat")
 	!f=openfile(40,"../data/phyvar.dat")
-	f=openfile(50,"../data/matrix.dat")
-	open(unit=60,file="../data/input_vmc.dat")
-	open(unit=70,file="../data/spect.dat")
-	open(unit=80,file="../data/matrix_read.dat")
+	f=openfile(50,"../data/matrix_qusi.dat")
+	f=openfile(70,"../data/spect.dat")
 
 	call initial()
 
@@ -1016,32 +1035,42 @@ program main
 	!!4%
 	!var(1:)%val(1)=(/-4.6190d-01,3.0090d-01,-2.6875d-01/)
 	!E=-2.8843E-01
+	!var(1:)%val(1)=(/-0.62d0,0.235d0,-0.315d0/)
+	!E=-3.9796d-01
+	var(1:)%val(1)=(/-0.93d0,0.145d0,-0.34d0/)
+	ne(1)=Ns/2-10
+	ne(2)=Ns-ne(1)
+	ne=ne+1
+	E=-5.5710d-01
 
-	read(60,*)ne(1),var(1:)%val(1),E
-	rewind(50)
-	read(50,*)i
-	read(50,*)Ok2,Ek2
-	write(*,*)i
-	call spect(70,0.1d0,E*Ns+(/-10d0,10d0/),500)
-	Ek2=transpose(conjg(Ek2))
-	call spect(70,0.1d0,E*Ns+(/-10d0,10d0/),500)
-	stop
-	do i=0,20
-		read(60,*)ne(1),var(1:)%val(1)
-		ne(1)=Ns/2-ne(1)
-		ne(2)=Ns-ne(1)
+	!!read(60,*)ne(1),var(1:)%val(1),E
+	!rewind(50)
+	!read(50,*)i
+	!read(50,*)Ok2,Ek2
+	!write(*,*)i
+	!call spect(70,0.1d0,E*Ns+(/-10d0,10d0/),500)
+	!Ek2=transpose(conjg(Ek2))
+	!call spect(70,0.1d0,E*Ns+(/-10d0,10d0/),500)
+	!stop
+	do i=4,-4,-1
+		!read(60,*)ne(1),var(1:)%val(1)
+		!ne(1)=Ns/2-ne(1)
+		!ne(1)=Ns/2-10
 		!Nmc(1)=0
-		call set_cfg()
-		call vmc(1)
+		!call set_cfg()
+		!call vmc(1)
+		q=(/pi,pi,0d0/)-real(i)/10d0*2d0*(/pi,pi,0d0/)
+		!write(*,*)q
 
-		ne=ne+1
 		call set_cfg()
 		Nmc(3)=1024*128
 		call vmc(3)
 		call spect(70,0.1d0,E*Ns+(/-10d0,10d0/),500)
+		Ek2=transpose(conjg(Ek2))
+		call spect(70,0.1d0,E*Ns+(/-10d0,10d0/),500)
 		write(*,"(x)")
 		write(10,"(x)")
-		stop
+		!stop
 	enddo
 	stop
 	ne(1)=Ns/2-20
