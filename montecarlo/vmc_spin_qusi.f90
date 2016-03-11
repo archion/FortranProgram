@@ -437,18 +437,16 @@ contains
 		integer :: i,j,sg
 		integer, allocatable :: k(:)
 		get_spin_pm=0d0
-		!$omp parallel if(.not.omp_in_parallel())
-		!$omp do collapse(2) reduction(+:get_spin_pm) private(pb,k,sg)
+		!$omp parallel do collapse(2) reduction(+:get_spin_pm) private(pb,k,sg) if(.not.omp_in_parallel())
 		do i=1,Ns
 			do j=1,Ns
 				call get_row(cfg,(/j,j+Ns,-i-Ns,-i/),k,sg)
 				call get_pb(k,shape(0),pb,D)
 				get_spin_pm=get_spin_pm+pb*exp(img*sum(q*(latt%i2r(i,:)-latt%i2r(j,:))))*sg
+				if(allocated(k)) deallocate(k)
 			enddo
 		enddo
-		!$omp end do
-		if(allocated(k)) deallocate(k)
-		!$omp end parallel
+		!$omp end parallel do
 		get_spin_pm=get_spin_pm/Ns
 	end function
 	function get_spin_zz(cfg,q)
@@ -474,8 +472,7 @@ contains
 		integer :: i1,j1,i2,j2,sg,l,n1,n2,p1,p2
 		integer, allocatable :: k(:)
 		get_dsc=0d0
-		!$omp parallel if(.not.omp_in_parallel())
-		!$omp do collapse(2) reduction(+:get_dsc) private(pb,k,sg,i1,j1,i2,j2)
+		!$omp parallel do collapse(2) reduction(+:get_dsc) private(pb,k,sg,i1,j1,i2,j2) if(.not.omp_in_parallel())
 		do n1=1,size(latt%sb(1)%nb(1)%bd)
 			do n2=1,size(latt%sb(1)%nb(1)%bd)
 				i1=latt%sb(1)%nb(1)%bd(n1)%i(1)
@@ -492,11 +489,10 @@ contains
 					enddo
 					call swap(i1,j1)
 				enddo
+				if(allocated(k)) deallocate(k)
 			enddo
 		enddo
-		!$omp end do
-		if(allocated(k)) deallocate(k)
-		!$omp end parallel
+		!$omp end parallel do
 		get_dsc=get_dsc/(Ns**2)
 	end function
 	function get_energy(cfg,D)
@@ -507,8 +503,7 @@ contains
 		integer :: i,j,n,l,ci,cj,p,sg
 		integer, allocatable :: k(:)
 		get_energy=0d0
-		!$omp parallel if(.not.omp_in_parallel())
-		!$omp do collapse(2) reduction(+:get_energy) private(i,j,ci,cj,k,pb,sg)
+		!$omp parallel do collapse(2) reduction(+:get_energy) private(i,j,ci,cj,k,pb,sg) if(.not.omp_in_parallel())
 		do l=1,size(t)
 			do n=1,size(latt%sb(1)%nb(l)%bd)
 				i=latt%sb(1)%nb(l)%bd(n)%i(1)
@@ -531,11 +526,10 @@ contains
 				ci=map(cfg(i,1))
 				cj=map(cfg(j,1))
 				if(l==1) get_energy=get_energy+V*(ibits(ci,0,1)+ibits(ci,1,1))*(ibits(cj,0,1)+ibits(cj,1,1))+0.25d0*DJ*(ibits(ci,0,1)-ibits(ci,1,1))*(ibits(cj,0,1)-ibits(cj,1,1))!*-4
+				if(allocated(k)) deallocate(k)
 			enddo
 		enddo
-		!$omp end do
-		if(allocated(k)) deallocate(k)
-		!$omp end parallel
+		!$omp end parallel do
 		get_energy=get_energy/Ns
 	end function
 	function get_A(cfg,wf,wcfg)
@@ -595,8 +589,7 @@ contains
 		integer, allocatable :: k(:)
 		!write(*,*)"get_Oq"
 		pbs=0d0
-		!$omp parallel if(.not.omp_in_parallel())
-		!$omp do private(pb2,k,sg) reduction(+:pbs)
+		!$omp parallel do private(pb2,k,sg) reduction(+:pbs) if(.not.omp_in_parallel())
 		do i=1,Ns
 			call get_row(cfg,shape(0),k,sg)
 			call get_pb(k,(/Ns+1,Ns+i,Ns+2,Ns+kq(i)/),pb2(1),WA,iA,AW,WAW,wf)
@@ -606,10 +599,9 @@ contains
 			pb2(2)=pb2(2)*sg
 			!pbs=pbs+exp(img*sum(q*latt%i2r(i,:)))*pb2
 			pbs=pbs+pb2*conjg(pb2)
+			if(allocated(k)) deallocate(k)
 		enddo
-		!$omp end do
-		if(allocated(k)) deallocate(k)
-		!$omp end parallel
+		!$omp end parallel do
 		!write(*,*)real(pbs)
 		pb=pbs(2)/pbs(1)
 	end subroutine
@@ -623,8 +615,7 @@ contains
 		iNs=1d0/Ns
 		!Ok=0d0
 		!Ek=0d0
-		!$omp parallel if(.not.omp_in_parallel())
-		!$omp do private(i,j,ci,cj,pb,O_,E_,k,sg)
+		!$omp parallel do private(i,j,ci,cj,pb,O_,E_,k,sg) if(.not.omp_in_parallel())
 		do i1=1,Ns
 			call get_row(cfg,shape(0),k,sg)
 			call get_pb(k,(/Ns+1,Ns+i1,Ns+2,Ns+kq(i1)/),O_,WA,iA,AW,WAW,wf)
@@ -656,10 +647,9 @@ contains
 			enddo
 			Ek(i1)=E_
 			Ok(i1)=O_
+			if(allocated(k)) deallocate(k)
 		enddo
-		!$omp end do
-		if(allocated(k)) deallocate(k)
-		!$omp end parallel
+		!$omp end parallel do
 		Oq=1d0/sum(Ok*conjg(Ok))
 		!!$omp parallel do if(.not.omp_in_parallel())
 		do i=1,Ns
@@ -810,6 +800,7 @@ contains
 					Ek2p=Ek2p+Ek2l
 					Ok2p=Ok2p+Ok2l
 				end select
+				!$omp critical
 				if(mod(ac,32)==0.and.mc_sg==3) then
 					write(*,"(i7$)")ac
 					write(*,"(es16.5$)")real(n)/c,sum(abs(Ek2p-conjg(transpose(Ek2p)))/ac)
@@ -821,6 +812,7 @@ contains
 						write(50,*)Ok2p/ac,Ek2p/ac
 					endif
 				endif
+				!$omp end critical
 				!read(*,*)
 				if(ac==Nmc(3)) then
 					! check
@@ -1052,6 +1044,7 @@ program main
 	!Ek2=transpose(conjg(Ek2))
 	!call spect(70,0.1d0,E*Ns+(/-10d0,10d0/),500)
 	!stop
+	!$omp parallel do private(Ok2,Ek2,q,cfg,psi0)
 	do i=4,-4,-1
 		!read(60,*)ne(1),var(1:)%val(1)
 		!ne(1)=Ns/2-ne(1)
@@ -1060,18 +1053,21 @@ program main
 		!call set_cfg()
 		!call vmc(1)
 		q=(/pi,pi,0d0/)-real(i)/10d0*2d0*(/pi,pi,0d0/)
-		!write(*,*)q
 
 		call set_cfg()
 		Nmc(3)=1024*128
 		call vmc(3)
+		!$omp critical
+		write(10,"('#',3e12.4)")q
 		call spect(70,0.1d0,E*Ns+(/-10d0,10d0/),500)
 		Ek2=transpose(conjg(Ek2))
 		call spect(70,0.1d0,E*Ns+(/-10d0,10d0/),500)
 		write(*,"(x)")
 		write(10,"(x)")
+		!$omp end critical
 		!stop
 	enddo
+	!$omp end parallel do
 	stop
 	ne(1)=Ns/2-20
 	ne(2)=Ns-ne(1)
