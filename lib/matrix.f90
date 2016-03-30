@@ -1,5 +1,6 @@
 module M_matrix
 	use lapack95, only : getrf, getri, heevd, heev, heevx, heevr, sysv
+	use M_const
 	implicit none
 	interface diag
 		module procedure mdiag, ndiag, mcdiag, ncdiag
@@ -209,24 +210,25 @@ contains
 		endif
 	end subroutine
 	function det(A,info)
-		complex(8) :: A(:,:)
+		complex(8) :: A(:,:),A_(size(A,1),size(A,2))
 		integer, optional :: info
 		complex(8) :: det
 		integer :: i,ipiv(size(A,1))
+		A_=A
 		if(present(info)) then
-			call getrf(A,ipiv,info)
+			call getrf(A_,ipiv,info)
 			if(info/=0) then
 				stop "determinant err"
 			endif
 		else
-			call getrf(A,ipiv)
+			call getrf(A_,ipiv)
 		endif
 		det=1d0
 		do i=1,size(A,1)
 			if(ipiv(i)/=i) then
-				det=-det*A(i,i)
+				det=-det*A_(i,i)
 			else
-				det=det*A(i,i)
+				det=det*A_(i,i)
 			endif
 		enddo
 	end function
@@ -406,16 +408,24 @@ contains
 		real(8) :: tmp
 		if(abs(A(2,1))<1d-7) then
 			E=real((/A(1,1),A(2,2)/))
-			A(1,1)=1d0
-			A(2,2)=1d0
-			return
+			if(E(1)<=E(2)) then
+				A(1,1)=1d0
+				A(2,2)=1d0
+			else
+				E=real((/A(2,2),A(1,1)/))
+				A(1,2)=1d0
+				A(2,1)=1d0
+				A(1,1)=0d0
+				A(2,2)=0d0
+			endif
+		else
+			tmp=sqrt((A(1,1)-A(2,2))**2+4d0*A(1,2)*A(2,1))
+			E=0.5d0*(A(1,1)+A(2,2)+(/-tmp,tmp/))
+			A(1,:)=E-A(2,2)
+			A(2,:)=A(2,1)
+			A(:,1)=A(:,1)/sqrt(A(1,1)**2+A(2,1)*conjg(A(2,1)))
+			A(:,2)=A(:,2)/sqrt(A(1,2)**2+A(2,2)*conjg(A(2,2)))
 		endif
-		tmp=sqrt((A(1,1)-A(2,2))**2+4d0*A(1,2)*A(2,1))
-		E=0.5d0*(A(1,1)+A(2,2)+(/-tmp,tmp/))
-		A(1,:)=E-A(2,2)
-		A(2,:)=A(2,1)
-		A(:,1)=A(:,1)/sqrt(A(1,1)**2+A(2,1)*conjg(A(2,1)))
-		A(:,2)=A(:,2)/sqrt(A(1,2)**2+A(2,2)*conjg(A(2,2)))
 	end subroutine
 	subroutine diag4(A,E,info)
 		complex(8) :: A(:,:)

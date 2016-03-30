@@ -29,11 +29,13 @@ module M_lattice_m
 		type(t_sb), allocatable :: sb(:)
 		real(8), allocatable :: sub(:,:)
 		real(8), allocatable :: i2r(:,:)
+		integer, allocatable :: nsub(:)
 	contains
 		procedure gen_latt
 		procedure gen_bond
 		procedure gen_brizon
 		procedure gen_origin_brizon
+		procedure get_sb
 	end type
 	type t_brizon
 		integer :: n1,n2
@@ -41,10 +43,9 @@ module M_lattice_m
 		real(8), allocatable :: k(:,:)
 		real(8), allocatable :: T(:,:)
 	end type
-	integer, allocatable :: nsub(:)
 	type(t_latt), public :: latt
 	type(t_brizon), public, target :: brizon,brizon_o
-	public t_latt,t_brizon,check_lattice,sb,theta
+	public t_latt,t_brizon,check_lattice,theta
 contains
 	subroutine myswap(self,a)
 		class(t_mysort) :: self
@@ -135,8 +136,8 @@ contains
 		class(t_latt) :: self
 		integer :: i,j,l,n
 		real(8) :: x(4),y(4),r(3),tmp(10000000,3),tf(2,2),T(4,3)
-		allocate(nsub(size(self%sub,1)+1))
-		nsub=1
+		allocate(self%nsub(size(self%sub,1)+1))
+		self%nsub=1
 		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,Ns=>self%Ns,layer=>self%layer,bdc=>self%bdc)
 			tf=reshape((/a2(2),-a1(2),-a2(1),a1(1)/)/(a1(1)*a2(2)-a1(2)*a2(1)),(/2,2/))
 			T(1,:)=0d0
@@ -146,11 +147,11 @@ contains
 			n=0
 			do l=1,size(self%sub,1)
 				if(l>1) then
-					nsub(l)=n+1
+					self%nsub(l)=n+1
 				endif
 				call gen_grid(a1,a2,self%sub(l,:),T,tmp,n)
 			enddo
-			nsub(size(nsub))=n+1
+			self%nsub(size(self%nsub))=n+1
 			Ns=n
 			allocate(self%i2r(Ns*layer,3))
 			self%i2r(1:Ns,:)=tmp
@@ -178,8 +179,8 @@ contains
 			T(3,:)=T1+T2-(T1+T2)/2d0
 			T(4,:)=T2-(T1+T2)/2d0
 			allocate(self%sb(size(latt%sub,1)))
-			do n=1,size(nsub)-1
-				r=self%i2r(nsub(n),:)
+			do n=1,size(self%nsub)-1
+				r=self%i2r(self%nsub(n),:)
 				k=0
 				do j=1,Ns
 					do n1=-l1,l1
@@ -197,10 +198,10 @@ contains
 				allocate(self%sb(n)%nb(0:l))
 				do l1=1,l+1
 					k=0
-					do i=nsub(n),nsub(n+1)-1
+					do i=self%nsub(n),self%nsub(n+1)-1
 					o:	do m=c(l1),c(l1+1)-1
 							do p=c(l1),m-1
-								if(sum(abs(tmp(m)%dr(:)+tmp(p)%dr(:)))<err.and.sb(tmp(m)%idx)==n) then
+								if(sum(abs(tmp(m)%dr(:)+tmp(p)%dr(:)))<err.and.self%get_sb(tmp(m)%idx)==n) then
 									cycle o
 								endif
 							enddo
@@ -233,13 +234,14 @@ contains
 			enddo
 		end associate
 	end subroutine
-	function sb(i)
+	function get_sb(self,i)
+		class(t_latt) :: self
 		integer, intent(in) :: i
-		integer :: sb
+		integer :: get_sb
 		integer :: n
-		do n=1,size(nsub)-1
-			if(i>=nsub(n).and.i<nsub(n+1)) then
-				sb=n
+		do n=1,size(self%nsub)-1
+			if(i>=self%nsub(n).and.i<self%nsub(n+1)) then
+				get_sb=n
 				exit
 			endif
 		enddo
@@ -343,7 +345,7 @@ contains
 		class(t_latt) :: self
 		type(t_brizon) :: brizon_o
 		type(t_latt) :: latt_
-		real(8) :: dr(2),a(2,3),tmp(1000,3)
+		real(8) :: dr(2),a(2,3),tmp(2000,3)
 		integer :: nk,i,j,n
 		nk=size(brizon%k,1)
 		latt_%T1=self%a1

@@ -180,8 +180,9 @@ contains
 		integer :: marker
 		n=size(self)
 		if(n>1) then
-			call random_number(random)
-			pivot=self(int(random*real(n-1))+1)%val   !random pivor (not best performance, but avoids worst-case)
+			!call random_number(random)
+			!pivot=self(int(random*real(n-1))+1)%val   !random pivor (not best performance, but avoids worst-case)
+			pivot=self((size(self)+1)/2)%val   !random pivor (not best performance, but avoids worst-case)
 			left=0
 			right=n+1
 			do while (left < right)
