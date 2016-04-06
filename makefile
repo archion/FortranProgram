@@ -1,6 +1,6 @@
 ARCH := $(shell getconf LONG_BIT)
 FCC = ifort
-OMPFLAG= -openmp
+#OMPFLAG= -openmp
 CFLAG=-warn nounused
 CFLAG=-warn nounused -traceback
 #CFLAG=-warn nounused -check bounds -g -check all -fpe0 -traceback -debug extended

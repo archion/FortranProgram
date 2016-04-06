@@ -62,14 +62,14 @@ contains
 		! cp
 		call gen_var(sg=1,nb=0)
 		var(iv(0))%val=-1.39752d+00
-		var(iv(0))%bd_sg=-1d0
+		var(iv(0))%bd=-1d0
 
 		! ddw
 		!call gen_var(sg=3,nb=1,val=bd1)
 		call gen_var(sg=3,nb=1)
-		do i=1,size(var(iv(0))%bd_sg)
-			var(iv(0))%bd_sg(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)*&
-					!1d0
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=img*ab(latt%bond(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)*&
+					1d0
 					!!cos(2d0*pi*sum(q*(latt%bond(var(iv(0))%nb)%bd(i)%r-(/0.5d0,0d0,0d0/))))
 		enddo
 		var(iv(0))%val=2d-1
@@ -78,14 +78,14 @@ contains
 		! d-wave sc
 		!call gen_var(sg=2,nb=1,val=bd1)
 		call gen_var(sg=2,nb=1)
-		do i=1,size(var(iv(0))%bd_sg)
-			var(iv(0))%bd_sg(i)=dwave(i)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=dwave(i)
 		enddo
 		var(iv(0))%val=1d-1
 
 		!call gen_var(sg=2,nb=1)
-		!do i=1,size(var(iv(0))%bd_sg)
-			!var(iv(0))%bd_sg(i)=dwave(i)*&
+		!do i=1,size(var(iv(0))%bd)
+			!var(iv(0))%bd(i)=dwave(i)*&
 					!cos(2d0*pi*sum(q*(latt%bond(var(iv(0))%nb)%bd(i)%r-(/0.5d0,0d0,0d0/))))
 		!enddo
 		!var(iv(0))%val=1d-5
@@ -94,13 +94,13 @@ contains
 		!! s-wave sc
 		!call gen_var(sg=2,nb=1,val=bd1)
 		!var(iv(0))%val=1d-1
-		!var(iv(0))%bd_sg=1d0
+		!var(iv(0))%bd=1d0
 
 		! sdw
 		!call gen_var(sg=4,nb=0,val=bd0)
 		call gen_var(sg=4,nb=0)
-		do i=1,size(var(iv(0))%bd_sg)
-			var(iv(0))%bd_sg(i)=ab(i)*&
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=ab(i)*&
 					1d0
 					!sin(2d0*pi*sum(q*(latt%bond(var(iv(0))%nb)%bd(i)%r+(/0.5d0,0d0,0d0/))))
 					!sin(2d0*pi*sum(q*(latt%bond(var(iv(0))%nb)%bd(i)%r)))
@@ -110,34 +110,34 @@ contains
 		!!call gen_var(sg=3,nb=1,bd1)
 		!call gen_var(sg=3,nb=1)
 		!var(iv(0))%val=1d-1
-		!do i=1,size(var(iv(0))%bd_sg)
-			!var(iv(0))%bd_sg(i)=dwave(i)
+		!do i=1,size(var(iv(0))%bd)
+			!var(iv(0))%bd(i)=dwave(i)
 		!enddo
 
 		!! on site cdw
 		!!call gen_var(sg=3,nb=0,bd0)
 		!call gen_var(sg=3,nb=0)
 		!var(iv(0))%val=1.32678d-02
-		!do i=1,size(var(iv(0))%bd_sg)
-				!var(iv(0))%bd_sg(k)=&
+		!do i=1,size(var(iv(0))%bd)
+				!var(iv(0))%bd(k)=&
 					!!cos(2d0*pi*sum(2d0*q*(latt%bond(var(iv(0))%nb)%bd(i)%r+(/0.5d0,0d0,0d0/))))
 					!cos(2d0*pi*sum(2d0*q*(latt%bond(var(iv(0))%nb)%bd(i)%r)))
 			!enddo
 		!enddo
 
 		! bond order
-		call gen_var(sg=3,nb=1,bd1(2:))
+		call gen_var(sg=3,nb=1,val=bd1(2:))
 		var(iv(0))%val=-2.00021d-01
-		var(iv(0))%bd_sg=-1d0
+		var(iv(0))%bd=-1d0
 
 		call gen_var(sg=3,nb=2)
 		var(iv(0))%val=-2.00021d-01
-		var(iv(0))%bd_sg=-1d0
+		var(iv(0))%bd=-1d0
 
 		! hp
 		do l=1,size(t)
 			call gen_var(sg=-3,nb=l)
-			var(iv(0))%bd_sg=-1d0
+			var(iv(0))%bd=-1d0
 			var(iv(0))%val=t(l)
 		enddo
 
@@ -153,11 +153,11 @@ contains
 	subroutine export_data(ut)
 		integer :: ut,l1,i
 		do l1=2,size(var(1:))
-			do i=1,size(var(l1)%bd_sg)
+			do i=1,size(var(l1)%bd)
 				write(ut,"(es17.9$)")latt%bond(var(l1)%nb)%bd(i)%r,&
 					latt%bond(var(l1)%nb)%bd(i)%dr,&
 					var(l1)%val(var(l1)%i2v(i)),&
-					var(l1)%bd_sg(i)
+					var(l1)%bd(i)
 				write(ut,"(x)")
 			enddo
 			write(ut,"(x/)")
@@ -171,7 +171,7 @@ module M_wf
 	implicit none
 contains
 	subroutine iniwf(wf,dwf,cp)
-		complex(8) :: H(latt%Ns*2,latt%Ns*2),cH(size(H,1),size(H,2)),D(size(H,1),size(H,2)),wf(:,:),tmp(latt%Ns),Q(latt%Ns,latt%Ns)
+		complex(8) :: H(latt%Ns*2,latt%Ns*2),cH(size(H,1),size(H,2)),D(size(H,1),size(H,2),vn),wf(:,:),tmp(latt%Ns),Q(latt%Ns,latt%Ns)
 		complex(8), optional :: dwf(:,:,:)
 		real(8) :: E(size(H,1)),r,cp1
 		type(t_var), optional :: cp
@@ -181,7 +181,7 @@ contains
 			return
 		endif
 
-		call var%Hamilton(H)
+		call Hamilton(var,H)
 
 		associate(Ns=>latt%Ns)
 			if(present(cp)) then
@@ -208,8 +208,8 @@ contains
 				cH=transpose(conjg(H))
 				dwf=0d0
 
+				call dHamilton(var,H,cH,D)
 				do l=1,vn
-					call dHamilton(var(l),H,cH,D)
 					select case(opt)
 					case(1)
 						!method 1
@@ -219,7 +219,7 @@ contains
 								if(abs(E(i)-E(j))<1d-8) then
 									cycle
 								endif
-								dwf(:,i,l)=dwf(:,i,l)+D(j,i)*H(:,j)/(E(i)-E(j))
+								dwf(:,i,l)=dwf(:,i,l)+D(j,i,l)*H(:,j)/(E(i)-E(j))
 							enddo
 						enddo
 						!$OMP END PARALLEL DO
@@ -232,7 +232,7 @@ contains
 									Q(i,j)=0d0
 									cycle
 								endif
-								Q(i,j)=D(i+Ns,j)/(E(j)-E(i+Ns))
+								Q(i,j)=D(i+Ns,j,l)/(E(j)-E(i+Ns))
 							enddo
 						enddo
 						!$OMP END PARALLEL DO
@@ -288,7 +288,7 @@ contains
 			pb=D(m(1),k(1))
 		end select
 	end subroutine
-	subroutine update(D,k,m,sg,iA)
+	subroutine update1(D,k,m,sg,iA)
 		complex(8) :: D(:,:),tmp(size(D,1),size(D,2)),ipb(2,2),pb,tmp2(2),tmpA(latt%Ns,latt%Ns)
 		complex(8), optional :: iA(:,:)
 		integer :: i,j,sg,m(:),k(:)
@@ -1003,14 +1003,14 @@ contains
 				select case(opt)
 				case(1)
 					if(flag) then
-						call update(D,k,m,sg,A)
+						call update1(D,k,m,sg,A)
 						call update_swap(i,j,nd,cfg,icfg,D,sg,A)
 					else
-						call update(D,k,m,sg)
+						call update1(D,k,m,sg)
 						call update_swap(i,j,nd,cfg,icfg,D,sg)
 					endif
 				case(2)
-					call update(D,k,m,sg)
+					call update1(D,k,m,sg)
 					call update_swap(i,j,nd,cfg,icfg,D,sg)
 				end select
 				!if(mod(acp,500)) then
@@ -1370,7 +1370,7 @@ contains
 					write(101,"(x/)")
 				endif
 				do k=1,size(var(l)%n)
-					write(101,"(es13.2$)")latt%bond(var(l)%nb)%bd(var(l)%n(k))%r,latt%bond(var(l)%nb)%bd(var(l)%n(k))%dr,var(l)%bd_sg(k)*var(l)%val
+					write(101,"(es13.2$)")latt%bond(var(l)%nb)%bd(var(l)%n(k))%r,latt%bond(var(l)%nb)%bd(var(l)%n(k))%dr,var(l)%bd(k)*var(l)%val
 					write(101,"(x)")
 				enddo
 			enddo
