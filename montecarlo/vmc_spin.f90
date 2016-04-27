@@ -27,7 +27,7 @@ contains
 	subroutine initial()
 		integer :: i,l
 		allocate(var(-1000:1000))
-		!call init_random_seed()
+		call init_random_seed()
 		! lattice
 		latt%a1=(/1d0,0d0,0d0/)
 		latt%a2=(/0d0,1d0,0d0/)
@@ -35,8 +35,8 @@ contains
 		!latt%c2=(/-1d0,1d0,0d0/)
 		latt%c1=latt%a1
 		latt%c2=latt%a2
-		latt%T1=(/1d0,0d0,0d0/)*10
-		latt%T2=(/0d0,1d0,0d0/)*10
+		latt%T1=(/1d0,0d0,0d0/)*8
+		latt%T2=(/0d0,1d0,0d0/)*8
 		latt%bdc=(/-1d0,1d0,0d0/)
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=(/0d0,0d0,0d0/)
@@ -717,10 +717,16 @@ contains
 		enddo
 		A=wf(icfg,:)
 		iA=A(:,iEcfg)
-		call mat_inv(iA,info); if(info/=0) stop "err info"
+		call mat_inv(iA,info)
 		WA=matmul(wf(:,iEcfg),iA)
 		AW=matmul(iA,wf(icfg,:))
 		WAW=matmul(wf(:,iEcfg),AW)
+		pb=sum(abs(wf(:,iEcfg)-matmul(WA,wf(icfg,iEcfg))))
+		if(abs(pb)>1d-5) then
+			!$omp critical
+			write(*,*)"warn!!!!!",abs(pb)
+			!$omp end critical
+		endif
 		c=0
 		n=0
 		ac=0
@@ -839,53 +845,53 @@ contains
 					if(mod(ac,10000)==0) then
 						if(sum(abs(matmul(A(:,iEcfg),iA)-diag(1d0,size(A,1))))>1d-4) stop "update err"
 					endif
-					!rewind(50)
-					!write(50,*)ac,size(psi0),Ns
-					!write(50,*)E,psi0,Ok2p/ac,Ek2p/ac
+					rewind(50)
+					write(50,*)ac,size(psi0),Ns
+					write(50,*)E,Sq_pm,psi0,Ok2p/ac,Ek2p/ac
 				endif
 				!$omp end critical
 				!read(*,*)
 				if(ac==Nmc(3)) then
-					! check
-					pb=sum(abs(wf(:,iEcfg)-matmul(WA,wf(icfg,iEcfg))))
-					if(abs(pb)>1d-5) then
-						!$omp critical
-						write(*,*)"warn!!!!!",abs(pb)
-						!$omp end critical
-					endif
-
-					Ep=Ep/Nmc(3)
-					dscp=dscp/Nmc(3); ddwp=ddwp/Nmc(3); afp=afp/Nmc(3)
-					Sq_pmp=Sq_pmp/Nmc(3); Sq_zzp=Sq_zzp/Nmc(3)
-					Sp=Sp/Nmc(3); gp=gp/Nmc(3); Op=Op/Nmc(3); SEp=SEp/Nmc(3)
-					do l1=1,size(Op)
-						do l2=1,size(Op)
-							!S(l1,l2)=2d0*SE(l1,l2)-O(l1)*g(l2)-O(l2)*g(l1)-2d0*E*S(l1,l2) ! maybe works
-							!S(l1,l2)=2d0*(SE(l1,l2)-S(l1,l2)*E-O(l1)*g(l2)-O(l2)*g(l1))
-							Sp(l1,l2)=Sp(l1,l2)-conjg(Op(l1))*Op(l2)
-						enddo
-					enddo
-					gp=2d0*(gp-real(Ep*Op))
-					Ek2p=Ek2p/Nmc(3)
-					Ok2p=Ok2p/Nmc(3)
-
-					!$omp critical
-					cfg=cfgl
-					select case(mc_sg)
-					case(1:2)
-						E=E+real(Ep)/n_omp; dsc=dsc+dscp/n_omp; ddw=ddw+ddwp/n_omp; af=af+afp/n_omp; S=S+Sp/n_omp; g=g+gp/n_omp
-						!er=er+sqrt(abs((real(Eb2)-real(Ep)**2/(Nmc(3)/Nmc(4)-1))))/n_omp
-						Sq_pm=Sq_pm+real(Sq_pmp)/n_omp
-						Sq_zz=Sq_zz+real(Sq_zzp)/n_omp
-					case(3)
-						Ek2=Ek2+Ek2p/n_omp
-						Ok2=Ok2+Ok2p/n_omp
-					end select
-					!$omp end critical
 					exit
 				endif
 			endif
 		enddo lm
+		! check
+		pb=sum(abs(wf(:,iEcfg)-matmul(WA,wf(icfg,iEcfg))))
+		if(abs(pb)>1d-5) then
+			!$omp critical
+			write(*,*)"warn!!!!!",abs(pb)
+			!$omp end critical
+		endif
+
+		Ep=Ep/Nmc(3)
+		dscp=dscp/Nmc(3); ddwp=ddwp/Nmc(3); afp=afp/Nmc(3)
+		Sq_pmp=Sq_pmp/Nmc(3); Sq_zzp=Sq_zzp/Nmc(3)
+		Sp=Sp/Nmc(3); gp=gp/Nmc(3); Op=Op/Nmc(3); SEp=SEp/Nmc(3)
+		do l1=1,size(Op)
+			do l2=1,size(Op)
+				!S(l1,l2)=2d0*SE(l1,l2)-O(l1)*g(l2)-O(l2)*g(l1)-2d0*E*S(l1,l2) ! maybe works
+				!S(l1,l2)=2d0*(SE(l1,l2)-S(l1,l2)*E-O(l1)*g(l2)-O(l2)*g(l1))
+				Sp(l1,l2)=Sp(l1,l2)-conjg(Op(l1))*Op(l2)
+			enddo
+		enddo
+		gp=2d0*(gp-real(Ep*Op))
+		Ek2p=Ek2p/Nmc(3)
+		Ok2p=Ok2p/Nmc(3)
+
+		!$omp critical
+		cfg=cfgl
+		select case(mc_sg)
+		case(1:2)
+			E=E+real(Ep)/n_omp; dsc=dsc+dscp/n_omp; ddw=ddw+ddwp/n_omp; af=af+afp/n_omp; S=S+Sp/n_omp; g=g+gp/n_omp
+			!er=er+sqrt(abs((real(Eb2)-real(Ep)**2/(Nmc(3)/Nmc(4)-1))))/n_omp
+			Sq_pm=Sq_pm+real(Sq_pmp)/n_omp
+			Sq_zz=Sq_zz+real(Sq_zzp)/n_omp
+		case(3)
+			Ek2=Ek2+Ek2p/n_omp
+			Ok2=Ok2+Ok2p/n_omp
+		end select
+		!$omp end critical
 	end subroutine
 	subroutine vmc(sg,grad)
 		integer :: sg
@@ -1068,23 +1074,25 @@ program main
 	logical :: f
 	integer :: i,j,k
 	real(8), allocatable :: ql(:,:)
+	real(8) :: gm
 	f=openfile(101,"../data/lattice.dat")
 	f=openfile(10,"../data/grad.dat")
 	f=openfile(20,"../data/var.dat")
 	!f=openfile(30,"../data/alg.dat")
 	!f=openfile(40,"../data/phyvar.dat")
-	f=openfile(50,"../data/matrix_qusi.dat")
+	f=openfile(50,"../data/matrix.dat")
 	f=openfile(70,"../data/spect.dat")
 
 
 	!rewind(50)
+	!read(*,*)gm
 	!read(50,*)i,j,Ns
 	!allocate(psi0(j),Ok2(j,j),Ek2(j,j))
-	!read(50,*)E,psi0,Ok2,Ek2
-	!write(*,*)E,Ns,i,j
-	!call spect(70,0.02d0,E*Ns+(/-10d0,10d0/),5000)
+	!read(50,*)E,Sq_pm,psi0,Ok2,Ek2
+	!write(*,*)E,Sq_pm,Ns,i,j
+	!call spect(70,gm,E*Ns+(/-10d0,10d0/),5000)
 	!Ek2=transpose(conjg(Ek2))
-	!call spect(70,0.02d0,E*Ns+(/-10d0,10d0/),5000)
+	!call spect(70,gm,E*Ns+(/-10d0,10d0/),5000)
 	!stop
 
 	call initial()
@@ -1092,10 +1100,10 @@ program main
 	Nmc=(/50000,Ns,1024,32/)
 
 	!var(1:)%val(1)=(/0d0,0.36d0,0.44d0/)
-	var(1:)%val(1)=(/0d0,0.36d0,0.44d0/)
+	!var(1:)%val(1)=(/0d0,0.36d0,0d0/)
 	var(1:)%val(1)=(/-0.39d0,0.32d0,-0.205d0/)
-	var(1:)%val(1)=(/-0.46d0,0.300d0,-0.268d0/)
-	!var(1:)%val(1)=(/-0.93d0,0.145d0,-0.34d0/)
+	!var(1:)%val(1)=(/-0.46d0,0.300d0,-0.268d0/)
+	!var(1:)%val(1)=(/-0.92d0,0.152d0,-0.345d0/)
 	!call variation()
 	!stop
 
@@ -1120,13 +1128,13 @@ program main
 			!q=(/pi,0d0,0d0/)+((/0d0,0d0,0d0/)-(/pi,0d0,0d0/))/j*mod(i-1,j)
 		!endif
 
-		ne(1)=Ns/2-2
+		ne(1)=Ns/2-1
 		ne(2)=Ns-ne(1)
-		Nmc(3)=1024*8
-		!call vmc(1)
+		Nmc(3)=1024*8*8
+		call vmc(1)
 		!stop
 
-		Nmc(3)=1024*8*8
+		Nmc(3)=1024*8
 		call vmc(3)
 
 		!!$omp ordered
