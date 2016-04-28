@@ -8,6 +8,7 @@ module global
 	integer :: n_omp=16
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
+	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
 	integer :: Ns,vn
 contains
 	subroutine initial()
@@ -530,7 +531,6 @@ module vmc_main
 	use lapack95, only : hegv, geev, hegv
 	implicit none
 	type t_mc
-		integer :: E,dsc,af,ddw,Sq_pm,Sq_zz,er
 		integer :: sg,ne(2),hot,samp,step
 		integer, allocatable :: cfg(:),Ecfg(:),nn(:,:)
 		real(8) :: phy(7)
@@ -573,13 +573,6 @@ contains
 		real(8) :: E(size(H,1))
 		integer :: l,i,j,n,n1,n2,nk(size(H,1),size(H,2)),nn_(0:Ns*Ns,2),kq(Ns),Ecfg_(Ns*spin,2)
 		type(t_mysort) :: mysort(size(E))
-		self%E=1
-		self%er=2
-		self%dsc=3
-		self%af=4
-		self%ddw=5
-		self%Sq_pm=6
-		self%Sq_zz=7
 
 		if(init_cfg) then
 			if(allocated(self%cfg)) deallocate(self%cfg)
@@ -792,12 +785,12 @@ contains
 				call self%do_mc(rnd(k))
 			enddo
 			!$omp end parallel do
-			self%phy(self%er)=sqrt(self%phy(self%er)-self%phy(self%E)**2)
+			self%phy(ier)=sqrt(self%phy(ier)-self%phy(iE)**2)
 			call heev(self%S,eg,'V')
-			write(*,"(es12.4$)")var(1:)%val(1),self%phy(self%E),self%phy(self%er)
+			write(*,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier)
 			write(*,"(i3$)")int(sign(1d0,self%g))
 			write(*,"(A$)")' | '
-			write(20,"(es12.4$)")var(1:)%val(1),self%phy(self%E),self%er,self%g
+			write(20,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier),self%g
 			eg=eg+abs(min(eg(1),0d0))+0.2d0
 			g_=self%g
 			do l=1,size(self%g)
@@ -822,9 +815,9 @@ contains
 				call self%do_mc(rnd(k))
 			enddo
 			!$omp end parallel do
-			self%phy(self%er)=self%phy(self%er)-self%phy(self%E)**2
+			self%phy(ier)=self%phy(ier)-self%phy(iE)**2
 			!$omp critical
-			write(*,"(es12.4$)")self%q(:2)/pi,var(1:)%val(1),self%phy(self%E),self%phy(self%er),self%phy(self%Sq_pm)
+			write(*,"(es12.4$)")self%q(:2)/pi,var(1:)%val(1),self%phy(iE),self%phy(ier),self%phy(iSq_pm)
 			write(10,"(es12.4$)")var(1:)%val(1)
 			write(*,"(x)")
 			write(10,"(x)")
@@ -840,9 +833,9 @@ contains
 			!write(50,*)E,psi0,Ok2,Ek2
 			!!$omp end critical
 			!$omp ordered
-			call self%spect(70,0.05d0,self%phy(self%E)*Ns+(/-10d0,10d0/),5000)
+			call self%spect(70,0.05d0,(/-10d0,10d0/),5000)
 			self%Ek2=transpose(conjg(self%Ek2))
-			call self%spect(70,0.05d0,self%phy(self%E)*Ns+(/-10d0,10d0/),5000)
+			call self%spect(70,0.05d0,(/-10d0,10d0/),5000)
 			!$omp end ordered
 		end select
 		do k=1,n_omp
@@ -1023,19 +1016,19 @@ contains
 					is_update=.false.
 					select case(self%sg)
 					case(1)
-						phyl(self%E)=get_energy(cfgl,WA)
+						phyl(iE)=get_energy(cfgl,WA)
 						!phyl%dsc=real(get_dsc(cfgl,WA))
-						phyl(self%Sq_pm)=get_spin_pm(cfgl,WA,self%q)
+						phyl(iSq_pm)=get_spin_pm(cfgl,WA,self%q)
 						!phyl%Sq_zz=get_spin_zz(cfgl,q)
 					case(2)
-						phyl(self%E)=get_energy(cfgl,WA)
+						phyl(iE)=get_energy(cfgl,WA)
 						call get_O(icfg,iEcfg,WA,iA,dwf,Ol(:size(dwf,3)))
 						do l1=1,size(Ol)
 							do l2=1,size(Ol)
 								Sl(l1,l2)=conjg(Ol(l1))*Ol(l2)
 							enddo
 						enddo
-						gl=real(phyl(self%E)*Ol)
+						gl=real(phyl(iE)*Ol)
 					case(3)
 						call get_overlap(cfgl,Ecfgl,nn,WA,iA,AW,WAW,wf,Ok2l,Ek2l)
 					end select
@@ -1081,7 +1074,7 @@ contains
 				Sp(l1,l2)=Sp(l1,l2)-conjg(Op(l1))*Op(l2)
 			enddo
 		enddo
-		gp=2d0*(gp-real(phyp(self%E)*Op))
+		gp=2d0*(gp-real(phyp(iE)*Op))
 		Ek2p=Ek2p*isamp
 		Ok2p=Ok2p*isamp
 
@@ -1090,7 +1083,7 @@ contains
 		select case(self%sg)
 		case(1:2)
 			self%phy=self%phy+real(phyp)/n_omp
-			self%phy(self%er)=self%phy(self%er)+real(phyp(self%E)*conjg(phyp(self%E)))/n_omp
+			self%phy(ier)=self%phy(ier)+real(phyp(iE)*conjg(phyp(iE)))/n_omp
 			self%S=self%S+Sp/n_omp; self%g=self%g+gp/n_omp
 		case(3)
 			self%Ek2=self%Ek2+Ek2p/n_omp
@@ -1131,13 +1124,13 @@ contains
 		psi0_(n0:)=matmul(transpose(conjg(H_(n0:,n0:))),EO(n0:)*psi0_(n0:))
 		psi0_(n0:)=conjg(psi0_(n0:))*psi0_(n0:)
 		do l=1,m
-			Sq(l)=Sq(l)+sum(psi0_(n0:)/(omg(1)+domg*l-Eg(n0:)+img*gm))
+			Sq(l)=Sq(l)+sum(psi0_(n0:)/(omg(1)+domg*l-Eg(n0:)+self%phy(iE)*Ns+img*gm))
 		enddo
-		norm=self%phy(self%Sq_pm)/real(sum(psi0_(n0:)))
-		write(*,"(es12.4$)")-sum(imag(Sq)*domg)/pi,real(sum(psi0_(n0:))),self%phy(self%Sq_pm)
+		norm=self%phy(iSq_pm)/real(sum(psi0_(n0:)))
+		write(*,"(es12.4$)")-sum(imag(Sq)*domg)/pi,real(sum(psi0_(n0:))),self%phy(iSq_pm)
 		write(ut,"('#q=',3es12.4,2i5)")self%q/pi,i,size(EO)
 		do l=1,m
-			write(ut,"(es17.9$)")omg(1)+domg*l-self%phy(self%E)*Ns,Sq(l)*norm
+			write(ut,"(es17.9$)")omg(1)+domg*l,Sq(l)*norm
 			write(ut,"(x)")
 		enddo
 		write(ut,"(x)")
@@ -1163,7 +1156,7 @@ contains
 			write(*,"(i4$)")i
 			call self%init(init_cfg)
 			call self%do_vmc()
-			El(i)=self%phy(self%E)
+			El(i)=self%phy(iE)
 			er=er*1.5d0
 			!if((El(i)-er)>El(max(i-1,1))) then
 				!grad=pgrad
@@ -1211,9 +1204,9 @@ program main
 	!allocate(psi0(j),Ok2(j,j),Ek2(j,j))
 	!read(50,*)E,psi0,Ok2,Ek2
 	!write(*,*)E,Ns,i,j
-	!call spect(70,0.02d0,E*Ns+(/-10d0,10d0/),5000)
+	!call spect(70,0.02d0,(/-10d0,10d0/),5000)
 	!Ek2=transpose(conjg(Ek2))
-	!call spect(70,0.02d0,E*Ns+(/-10d0,10d0/),5000)
+	!call spect(70,0.02d0,(/-10d0,10d0/),5000)
 	!stop
 
 	call initial()
@@ -1268,7 +1261,7 @@ program main
 		mc%samp=1024*8*8
 		call mc%init(.true.)
 		call mc%do_vmc()
-		mc%phy(mc%E)=-4.1367d-01
+		mc%phy(iE)=-4.1367d-01
 
 		call omp_set_nested(.true.)
 		mc%sg=3

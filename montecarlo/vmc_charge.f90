@@ -8,6 +8,7 @@ module global
 	integer :: n_omp=4
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
+	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
 	integer :: Ns,vn,Cnb=1
 contains
 	subroutine initial()
@@ -102,7 +103,7 @@ contains
 	real(8) function charge_symmetry(i)
 		integer :: i
 		!charge_symmetry=1d0
-		if(abs(latt%sb(1,1)%nb(Cnb)%bd(i)%r(2))<1d-8) then
+		if(abs(latt%sb(1,1)%nb(Cnb)%bd(i)%dr(2))<1d-6) then
 			charge_symmetry=1d0
 		else
 			charge_symmetry=-1d0
@@ -246,17 +247,25 @@ contains
 		integer :: k(0:)
 		integer, optional :: P(:)
 		integer :: i,j,n,cfg_(size(cfg)),dcfg_(size(dcfg))
+		integer :: db(0:10)
 		k=0
 		get_row=.true.
-		cfg_(mod(abs(dcfg)-1,Ns)+1)=cfg(mod(abs(dcfg)-1,Ns)+1)
-		cfg_(mod(abs(dcfg)-1,Ns)+1+Ns)=cfg(mod(abs(dcfg)-1,Ns)+1+Ns)
+		db(0)=0
+		do i=1,size(dcfg)
+			if(all(db(1:db(0))/=(mod(abs(dcfg(i))-1,Ns)+1))) then
+				db(0)=db(0)+1
+				db(db(0))=mod(abs(dcfg(i))-1,Ns)+1
+				cfg_(db(db(0)))=cfg(db(db(0)))
+				cfg_(db(db(0))+Ns)=cfg(db(db(0))+Ns)
+			endif
+		enddo
 		dcfg_=0
 		sg=1
 	o:	do i=1,size(dcfg)+1
 			if(present(P)) then
 				if(any(P==i).or.i==size(dcfg)+1) then
-					do j=1,size(dcfg)
-						if(cfg_(mod(abs(dcfg(j))-1,Ns)+1)/=0.and.cfg_(mod(abs(dcfg(j))-1,Ns)+1+Ns)==0) then
+					do j=1,db(0)
+						if(cfg_(db(j))/=0.and.cfg_(db(j)+Ns)==0) then
 							get_row=.false.
 							return
 						endif
@@ -529,42 +538,43 @@ contains
 		integer :: cfg(:),Ecfg(:),nn(:,:)
 		real(8) :: q(:)
 		complex(8) :: WA(:,:),AW(:,:),WAW(:,:),iA(:,:),wf(:,:),E(:,:),O(:,:)
-		complex(8) :: Ek(size(E,1)),Ok(size(O,1)),pb,Oq,O_,E_,sm
+		complex(8) :: Ek(size(E,1)),Ok(size(O,1)),pb,Oq,tmp,O_,E_,sm
 		real(8) :: iNs
-		integer :: i1,j1,i,j,l,n,n1,p1,Si(0:1),c(2,2),p,sg,sgn
+		integer :: i1,j1,i,j,l,n,n1,p1,c(2,2),p,sg,sgn
 		integer :: k(0:6),m(0:4)
 		iNs=1d0/Ns
-		Oq=1d0
 		if(size(nn,1)+1==size(Ok)) then
 			Ok=0d0
 			Ek=0d0
 			E_=0d0
 			O_=0d0
-			!$omp parallel do private(i,j,i1,j1,c,pb,sg,sm,k,m) reduction(+:O_,E_)
+			!$omp parallel do private(i,j,i1,j1,c,pb,sg,sm,k,m,tmp) reduction(+:O_,E_)
 			do n1=1,size(latt%sb(1,1)%nb(Cnb)%bd)
 				i1=latt%sb(1,1)%nb(Cnb)%bd(n1)%i(1)
 				j1=latt%sb(1,1)%nb(Cnb)%bd(n1)%i(2)
 				sm=exp(img*sum(q*latt%sb(1,1)%nb(Cnb)%bd(n1)%r))*charge_symmetry(n1)
 				do p1=1,2
+					tmp=0d0
 					if(get_row(cfg,(/i1,-j1/),k,sg,shape(0))) then
-						call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
-						O_=O_+pb*sg*sm
+						call get_pb(k(1:k(0)),shape(0),tmp,WA,iA,AW,WAW,wf)
+						tmp=tmp*sg*sm
+						O_=O_+tmp
 					endif
 					do l=1,size(t)
 						do n=1,size(latt%sb(1,1)%nb(l)%bd)
 							i=latt%sb(1,1)%nb(l)%bd(n)%i(1)
 							j=latt%sb(1,1)%nb(l)%bd(n)%i(2)
 							do p=1,2
-								if(get_row(cfg,(/i,-j,i1,-j1/),k,sg,(/1,3/))) then
+								if(get_row(cfg,(/i,-j,i1,-j1/),k,sg,(/3/))) then
 									call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
 									E_=E_-pb*t(l)*latt%sb(1,1)%nb(l)%bd(n)%bdc*sg*sm
 								endif
-								if(get_row(cfg,(/-i-Ns,j+Ns,i1,-j1/),k,sg,(/1,3/))) then
+								if(get_row(cfg,(/-i-Ns,j+Ns,i1,-j1/),k,sg,(/3/))) then
 									call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
 									E_=E_-pb*t(l)*conjg(latt%sb(1,1)%nb(l)%bd(n)%bdc)*sg*sm
 								endif
 								if(l==1) then
-									if(get_row(cfg,(/i,i+Ns,-j-Ns,-j,i1,-j1/),k,sg,(/1,5/))) then
+									if(get_row(cfg,(/i,i+Ns,-j-Ns,-j,i1,-j1/),k,sg,shape(0))) then
 										call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
 										E_=E_+pb*0.5d0*DJ*sg*sm
 									endif
@@ -573,32 +583,24 @@ contains
 								i=latt%sb(1,1)%nb(l)%bd(n)%i(2)
 							enddo
 							if(l==1) then
-								if(get_row(cfg,(/i1,-j1/),k,sg,(/1/))) then
-									call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
-									c(:,1)=abs((1-sign(1,-cfg(i::Ns)))/2-(/0,1/))
-									c(:,2)=abs((1-sign(1,-cfg(j::Ns)))/2-(/0,1/))
-									E_=E_+pb*sg*sm*(V*sum(c(:,1))*sum(c(:,2))+0.25d0*DJ*(c(1,1)-c(2,1))*(c(1,2)-c(2,2)))
-								endif
+								c(:,1)=abs((1-sign(1,-cfg(i::Ns)))/2-(/0,1/))
+								c(:,2)=abs((1-sign(1,-cfg(j::Ns)))/2-(/0,1/))
+								E_=E_+tmp*(V*sum(c(:,1))*sum(c(:,2))+0.25d0*DJ*(c(1,1)-c(2,1))*(c(1,2)-c(2,2)))
 							endif
 						enddo
 					enddo
 					j1=latt%sb(1,1)%nb(Cnb)%bd(n1)%i(1)
 					i1=latt%sb(1,1)%nb(Cnb)%bd(n1)%i(2)
 				enddo
-				!E_=E_*iNs
-				!O_=O_*iNs
-				!do n=1,Ns
-					!Ek(size(nn,1)+n)=Ek(size(nn,1)+n)+exp(img*sum(brizon%ok(n,:)*(-latt%sb(1,1)%nb(0)%bd(i1)%r+latt%sb(1,1)%nb(0)%bd(j1)%r)+q*latt%sb(1,1)%nb(0)%bd(j1)%r))*E_
-					!Ok(size(nn,1)+n)=Ok(size(nn,1)+n)+exp(img*sum(brizon%ok(n,:)*(-latt%sb(1,1)%nb(0)%bd(i1)%r+latt%sb(1,1)%nb(0)%bd(j1)%r)+q*latt%sb(1,1)%nb(0)%bd(j1)%r))*O_
-				!enddo
 			enddo
 			!$omp end parallel do
 			Ek(ubound(nn,1)+1)=E_
 			Ok(ubound(nn,1)+1)=O_
+			!write(*,*)E_,O_
 		elseif(size(nn,1)+Ns==size(Ok)) then
 			Ok=0d0
 			Ek=0d0
-			!$omp parallel do private(i,j,i1,j1,c,pb,sg,sm,k,m,O_,E_) reduction(+:Ek,Ok)
+			!$omp parallel do private(i,j,i1,j1,c,pb,sg,k,O_,E_,sm) reduction(+:Ek,Ok)
 			do i1=1,Ns
 				do j1=1,Ns
 					E_=0d0
@@ -612,16 +614,16 @@ contains
 							i=latt%sb(1,1)%nb(l)%bd(n)%i(1)
 							j=latt%sb(1,1)%nb(l)%bd(n)%i(2)
 							do p=1,2
-								if(get_row(cfg,(/i,-j,i1,-j1/),k,sg,(/1,3/))) then
+								if(get_row(cfg,(/i,-j,i1,-j1/),k,sg,(/3/))) then
 									call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
 									E_=E_-pb*t(l)*latt%sb(1,1)%nb(l)%bd(n)%bdc*sg
 								endif
-								if(get_row(cfg,(/-i-Ns,j+Ns,i1,-j1/),k,sg,(/1,3/))) then
+								if(get_row(cfg,(/-i-Ns,j+Ns,i1,-j1/),k,sg,(/3/))) then
 									call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
 									E_=E_-pb*t(l)*conjg(latt%sb(1,1)%nb(l)%bd(n)%bdc)*sg
 								endif
 								if(l==1) then
-									if(get_row(cfg,(/i,i+Ns,-j-Ns,-j,i1,-j1/),k,sg,(/1,5/))) then
+									if(get_row(cfg,(/i,i+Ns,-j-Ns,-j,i1,-j1/),k,sg,shape(0))) then
 										call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
 										E_=E_+pb*0.5d0*DJ*sg
 									endif
@@ -636,15 +638,22 @@ contains
 							endif
 						enddo
 					enddo
-					E_=E_*iNs
-					O_=O_*iNs
 					do n=1,Ns
-						Ek(size(nn,1)+n)=Ek(size(nn,1)+n)+exp(img*sum(brizon%ok(n,:)*(-latt%sb(1,1)%nb(0)%bd(i1)%r+latt%sb(1,1)%nb(0)%bd(j1)%r)+q*latt%sb(1,1)%nb(0)%bd(j1)%r))*E_
-						Ok(size(nn,1)+n)=Ok(size(nn,1)+n)+exp(img*sum(brizon%ok(n,:)*(-latt%sb(1,1)%nb(0)%bd(i1)%r+latt%sb(1,1)%nb(0)%bd(j1)%r)+q*latt%sb(1,1)%nb(0)%bd(j1)%r))*O_
+						sm=exp(img*sum(brizon%ok(n,:)*(-latt%sb(1,1)%nb(0)%bd(i1)%r+latt%sb(1,1)%nb(0)%bd(j1)%r)+q*latt%sb(1,1)%nb(0)%bd(j1)%r))*iNs
+						Ek(size(nn,1)+n)=Ek(size(nn,1)+n)+E_*sm
+						Ok(size(nn,1)+n)=Ok(size(nn,1)+n)+O_*sm
 					enddo
 				enddo
 			enddo
 			!$omp end parallel do
+			!E_=0d0
+			!O_=0d0
+			!do n=1,Ns
+				!sm=2d0*(cos(brizon%ok(n,1))-cos(brizon%ok(n,2)))
+				!E_=E_+Ek(size(nn,1)+n)*sm
+				!O_=O_+Ok(size(nn,1)+n)*sm
+			!enddo
+			!write(*,*)E_,O_
 		endif
 		!$omp parallel do private(i,j,c,pb,O_,E_,sg,sgn,k,m)
 		do i1=1,ubound(nn,1)
@@ -700,7 +709,6 @@ module vmc_main
 	use lapack95, only : hegv, geev, hegv
 	implicit none
 	type t_mc
-		integer :: E,er,dsc,af,ddw,Sq_pm,Sq_zz,Cq
 		integer :: sg,ne(2),hot,samp,step
 		integer, allocatable :: cfg(:),Ecfg(:),nn(:,:)
 		real(8) :: phy(8)
@@ -743,14 +751,6 @@ contains
 		real(8) :: E(size(H,1))
 		integer :: l,i,j,n,n1,n2,nk(size(H,1),size(H,2)),nn_(0:Ns*Ns,2),kq(Ns),Ecfg_(Ns*spin,2)
 		type(t_mysort) :: mysort(size(E))
-		self%E=1
-		self%er=2
-		self%dsc=3
-		self%af=4
-		self%ddw=5
-		self%Sq_pm=6
-		self%Sq_zz=7
-		self%Cq=8
 
 		if(init_cfg) then
 			if(allocated(self%cfg)) deallocate(self%cfg)
@@ -875,15 +875,21 @@ contains
 			!write(*,*)l
 			!write(*,"(es12.4)")abs(psi0_(1:l))
 			if(allocated(self%nn)) deallocate(self%nn,self%Ok2,self%Ek2,self%psi0)
-			allocate(self%nn(l,2),self%Ok2(l+Ns,l+Ns),self%Ek2(l+Ns,l+Ns),self%psi0(l+Ns))
+
+			!allocate(self%nn(l,2),self%Ok2(l+Ns,l+Ns),self%Ek2(l+Ns,l+Ns),self%psi0(l+Ns))
+			!self%psi0=0d0
+			!do i=1,Ns
+				!self%psi0(i+l)=2d0*(cos(brizon%ok(i,1))-cos(brizon%ok(i,2)))
+			!enddo
+
+			allocate(self%nn(l,2),self%Ok2(l+1,l+1),self%Ek2(l+1,l+1),self%psi0(l+1))
+			self%psi0=0d0
+			self%psi0(l+1)=1d0
+
+			!self%psi0(1:l)=psi0_(1:l)
+
 			self%nn(:,1)=nn_(1:l,1)
 			self%nn(:,2)=-nn_(1:l,2)
-			self%psi0=0d0
-			!self%psi0(1:l)=psi0_(1:l)
-			!self%psi0(l+1)=1d0
-			do i=1,Ns
-				self%psi0(i+l)=2d0*(cos(brizon%ok(i,1))-cos(brizon%ok(i,2)))
-			enddo
 		endif
 		H=matmul(Uk,H)*sqrt(1d0/Ns)
 		!write(*,"(2es12.4)")psi0
@@ -955,12 +961,12 @@ contains
 				call self%do_mc(rnd(k))
 			enddo
 			!$omp end parallel do
-			self%phy(self%er)=sqrt(self%phy(self%er)-self%phy(self%E)**2)
+			self%phy(ier)=sqrt(self%phy(ier)-self%phy(iE)**2)
 			call heev(self%S,eg,'V')
-			write(*,"(es12.4$)")var(1:)%val(1),self%phy(self%E),self%phy(self%er)
+			write(*,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier)
 			write(*,"(i3$)")int(sign(1d0,self%g))
 			write(*,"(A$)")' | '
-			write(20,"(es12.4$)")var(1:)%val(1),self%phy(self%E),self%er,self%g
+			write(20,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier),self%g
 			eg=eg+abs(min(eg(1),0d0))+0.2d0
 			g_=self%g
 			do l=1,size(self%g)
@@ -985,9 +991,9 @@ contains
 				call self%do_mc(rnd(k))
 			enddo
 			!$omp end parallel do
-			self%phy(self%er)=self%phy(self%er)-self%phy(self%E)**2
+			self%phy(ier)=self%phy(ier)-self%phy(iE)**2
 			!$omp critical
-			write(*,"(es12.4$)")self%q(:2)/pi,var(1:)%val(1),self%phy(self%E),self%phy(self%er),self%phy(self%Cq)
+			write(*,"(es12.4$)")self%q(:2)/pi,var(1:)%val(1),self%phy(iE),self%phy(ier),self%phy(iCq)
 			write(10,"(es12.4$)")var(1:)%val(1)
 			write(*,"(x)")
 			write(10,"(x)")
@@ -1003,9 +1009,9 @@ contains
 			!write(50,*)E,psi0,Ok2,Ek2
 			!!$omp end critical
 			!$omp ordered
-			call self%spect(70,0.05d0,self%phy(self%E)*Ns+(/-10d0,10d0/),5000)
+			call self%spect(70,0.05d0,(/-10d0,10d0/),5000)
 			self%Ek2=transpose(conjg(self%Ek2))
-			call self%spect(70,0.05d0,self%phy(self%E)*Ns+(/-10d0,10d0/),5000)
+			call self%spect(70,0.05d0,(/-10d0,10d0/),5000)
 			!$omp end ordered
 		end select
 		do k=1,n_omp
@@ -1098,7 +1104,7 @@ contains
 					call update(k(1:k(0)),WA)
 				else
 					call get_pb(k(1:k(0)),shape(0),pb,WA)
-					if(abs(pb)<1d-10) then
+					if(abs(pb)<1d-6) then
 						cfgl(abs(dcfg(2:dcfg(0):2)))=cfgl(abs(dcfg(2:dcfg(0):2)))+cfgl(dcfg(1:dcfg(0):2))
 						cfgl(dcfg(1:dcfg(0):2))=cfgl(abs(dcfg(2:dcfg(0):2)))-cfgl(dcfg(1:dcfg(0):2))
 						cfgl(abs(dcfg(2:dcfg(0):2)))=cfgl(abs(dcfg(2:dcfg(0):2)))-cfgl(dcfg(1:dcfg(0):2))
@@ -1151,19 +1157,19 @@ contains
 					is_update=.false.
 					select case(self%sg)
 					case(1)
-						phyl(self%E)=get_energy(cfgl,WA)
+						phyl(iE)=get_energy(cfgl,WA)
 						!phyl%dsc=real(get_dsc(cfgl,WA))
-						phyl(self%Cq)=get_charge(cfgl,WA,self%q)
+						phyl(iCq)=get_charge(cfgl,WA,self%q)
 						!phyl%Sq_zz=get_spin_zz(cfgl,q)
 					case(2)
-						phyl(self%E)=get_energy(cfgl,WA)
+						phyl(iE)=get_energy(cfgl,WA)
 						call get_O(icfg,iEcfg,WA,iA,dwf,Ol(:size(dwf,3)))
 						do l1=1,size(Ol)
 							do l2=1,size(Ol)
 								Sl(l1,l2)=conjg(Ol(l1))*Ol(l2)
 							enddo
 						enddo
-						gl=real(phyl(self%E)*Ol)
+						gl=real(phyl(iE)*Ol)
 					case(3)
 						call get_overlap(cfgl,Ecfgl,nn,self%q,WA,iA,AW,WAW,wf,Ok2l,Ek2l)
 					end select
@@ -1183,7 +1189,7 @@ contains
 					write(*,"(x)")
 					rewind(50)
 					write(50,*)samp,size(self%psi0),Ns
-					write(50,*)self%phy(self%E),self%phy(self%Cq),self%psi0,Ok2p/samp,Ek2p/samp
+					write(50,*)self%phy(iE),self%phy(iCq),self%psi0,Ok2p/samp,Ek2p/samp
 					!$omp end critical
 				endif
 				!read(*,*)
@@ -1209,7 +1215,7 @@ contains
 				Sp(l1,l2)=Sp(l1,l2)-conjg(Op(l1))*Op(l2)
 			enddo
 		enddo
-		gp=2d0*(gp-real(phyp(self%E)*Op))
+		gp=2d0*(gp-real(phyp(iE)*Op))
 		Ek2p=Ek2p*isamp
 		Ok2p=Ok2p*isamp
 
@@ -1218,7 +1224,7 @@ contains
 		select case(self%sg)
 		case(1:2)
 			self%phy=self%phy+real(phyp)/n_omp
-			self%phy(self%er)=self%phy(self%er)+real(phyp(self%E)*conjg(phyp(self%E)))/n_omp
+			self%phy(ier)=self%phy(ier)+real(phyp(iE)*conjg(phyp(iE)))/n_omp
 			self%S=self%S+Sp/n_omp; self%g=self%g+gp/n_omp
 		case(3)
 			self%Ek2=self%Ek2+Ek2p/n_omp
@@ -1259,13 +1265,13 @@ contains
 		psi0_(n0:)=matmul(transpose(conjg(H_(n0:,n0:))),EO(n0:)*psi0_(n0:))
 		psi0_(n0:)=conjg(psi0_(n0:))*psi0_(n0:)
 		do l=1,m
-			Sq(l)=Sq(l)+sum(psi0_(n0:)/(omg(1)+domg*l-Eg(n0:)+img*gm))
+			Sq(l)=Sq(l)+sum(psi0_(n0:)/(omg(1)+domg*l-Eg(n0:)+self%phy(iE)*Ns+img*gm))
 		enddo
-		norm=self%phy(self%Cq)/real(sum(psi0_(n0:)))
-		write(*,"(es12.4$)")-sum(imag(Sq)*domg)/pi,real(sum(psi0_(n0:))),self%phy(self%Cq)
+		norm=self%phy(iCq)/real(sum(psi0_(n0:)))
+		write(*,"(es12.4$)")-sum(imag(Sq)*domg)/pi,real(sum(psi0_(n0:))),self%phy(iCq)
 		write(ut,"('#q=',3es12.4,2i5)")self%q/pi,i,size(EO)
 		do l=1,m
-			write(ut,"(es17.9$)")omg(1)+domg*l-self%phy(self%E)*Ns,Sq(l)*norm
+			write(ut,"(es17.9$)")omg(1)+domg*l,Sq(l)*norm
 			write(ut,"(x)")
 		enddo
 		write(ut,"(x)")
@@ -1291,7 +1297,7 @@ contains
 			write(*,"(i4$)")i
 			call self%init(init_cfg)
 			call self%do_vmc()
-			El(i)=self%phy(self%E)
+			El(i)=self%phy(iE)
 			er=er*1.5d0
 			!if((El(i)-er)>El(max(i-1,1))) then
 				!grad=pgrad
@@ -1330,19 +1336,25 @@ program main
 	f=openfile(20,"../data/var.dat")
 	!f=openfile(30,"../data/alg.dat")
 	!f=openfile(40,"../data/phyvar.dat")
-	f=openfile(50,"../data/matrix_qusi_debug.dat")
+	f=openfile(50,"../data/matrix_save.dat")
 	f=openfile(70,"../data/spect_qusi_stripe_debug.dat")
 
 
-	!rewind(50)
-	!read(50,*)i,j,Ns
-	!allocate(psi0(j),Ok2(j,j),Ek2(j,j))
-	!read(50,*)E,psi0,Ok2,Ek2
-	!write(*,*)E,Ns,i,j
-	!call spect(70,0.02d0,E*Ns+(/-10d0,10d0/),5000)
-	!Ek2=transpose(conjg(Ek2))
-	!call spect(70,0.02d0,E*Ns+(/-10d0,10d0/),5000)
-	!stop
+	rewind(50)
+	read(50,*)i,k,Ns
+	allocate(mc%psi0(k),mc%Ok2(k,k),mc%Ek2(k,k))
+	read(50,*)mc%phy(iE),mc%phy(iCq),mc%psi0,mc%Ok2,mc%Ek2
+	write(*,*)mc%phy(iE),mc%phy(iCq),Ns,i,k
+	do i=1,size(mc%Ok2,1)
+		do j=1,i-1
+			mc%Ok2(i,j)=conjg(mc%Ok2(j,i))
+		enddo
+	enddo
+	write(*,*)sum(matmul(mc%psi0(k-Ns+1:k),mc%Ek2(k-Ns+1:k,k-Ns+1:k))*mc%psi0(k-Ns+1:k))/sum(matmul(mc%psi0(k-Ns+1:k),mc%Ok2(k-Ns+1:k,k-Ns+1:k))*mc%psi0(k-Ns+1:k))
+	call mc%spect(70,0.05d0,(/-10d0,10d0/),5000)
+	mc%Ek2=transpose(conjg(mc%Ek2))
+	call mc%spect(70,0.05d0,(/-10d0,10d0/),5000)
+	stop
 
 	call initial()
 
@@ -1400,7 +1412,7 @@ program main
 
 		call omp_set_nested(.true.)
 		mc%sg=3
-		mc%samp=1024*8*8*4
+		mc%samp=1024*8*8*8
 		call mc%init(.true.)
 		call mc%do_vmc()
 
