@@ -1,5 +1,5 @@
 module global
-	use M_hamilton_test
+	use M_hamilton_test1
 	use ifport, ifort_qsort => qsort
 	use M_omp_rand
 	use omp_lib
@@ -16,7 +16,7 @@ contains
 		integer :: i,l
 		real(8) :: q(3)
 		q=(/2d0/12d0,2d0/12d0,0d0/)*2d0*pi
-		allocate(var(-1000:1000))
+		allocate(var(-30:30))
 		call init_random_seed()
 		! lattice
 		latt%a1=(/1d0,0d0,0d0/)
@@ -36,7 +36,8 @@ contains
 		latt%rsb(1,:)=(/0d0,0d0,0d0/)
 		latt%n1=1
 		latt%n2=1
-		call latt%gen_latt(size(t))
+		call latt%gen_latt(3)
+		!call latt%gen_latt(size(t))
 		call latt%gen_brizon(brizon)
 		!call check_lattice(101)
 		write(*,*)"Total site number is: ",latt%Ns
@@ -63,28 +64,28 @@ contains
 		!! ddw
 		!call gen_var(sg=3,nb=1)
 		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=ab(latt%sb(1,1)%nb(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)*img
+			!var(iv(0))%bd(i)=ab(latt%nb(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)*img
 		!enddo
 		!var(iv(0))%val=1d-3
 
 		!! sdw
 		!call gen_var(sg=4,nb=0)
 		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=ab(i)!*sin(sum(q*(latt%sb(1,1)%nb(var(iv(0))%nb)%bd(i)%r)))
+			!var(iv(0))%bd(i)=ab(i)!*sin(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
 		!enddo
 		!var(iv(0))%val=8.88530d-1*2d0
 
 		!! on site cdw
 		!call gen_var(sg=3,nb=0)
 		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%sb(1,1)%nb(var(iv(0))%nb)%bd(i)%r)))
+			!var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
 		!enddo
 		!var(iv(0))%val=1.32678d-2
 
 		!! bond cdw
 		!call gen_var(sg=3,nb=1)
 		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=cos(sum(q*(latt%sb(1,1)%nb(var(iv(0))%nb)%bd(i)%r)))*charge_symmetry(i)
+			!var(iv(0))%bd(i)=cos(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))*charge_symmetry(i)
 		!enddo
 		!var(iv(0))%val=1.32678d-2
 
@@ -102,19 +103,33 @@ contains
 
 		vn=iv(1)
 
+		! n-n jast
+		do i=1,3
+			call gen_var(sg=9,nb=i)
+			var(iv(0))%bd=-1d0
+			var(iv(0))%val=1d0
+		enddo
+
+		!! s-s jast
+		!do i=1,3
+			!call gen_var(sg=10,nb=i)
+			!var(iv(0))%bd=1d0
+			!var(iv(0))%val=1d0
+		!enddo
+
 		call var_shrink()
 
 		Ns=latt%Ns
 	end subroutine
 	real(8) function ab(i)
 		integer :: i
-		ab=(-1d0)**(mod(nint(sum(latt%sb(1,1)%nb(0)%bd(i)%r(:2))),2))
+		ab=(-1d0)**(mod(nint(sum(latt%nb(0)%bd(i)%r(:2))),2))
 	end function
 	real(8) function charge_symmetry(i)
 		integer :: i
-		!charge_symmetry=(-latt%sb(1,1)%nb(Cnb)%bd(i)%dr(1)**2+latt%sb(1,1)%nb(Cnb)%bd(i)%dr(2)**2)/2d0
-		charge_symmetry=(latt%sb(1,1)%nb(Cnb)%bd(i)%dr(1)**2+latt%sb(1,1)%nb(Cnb)%bd(i)%dr(2)**2)/2d0
-		!charge_symmetry=-latt%sb(1,1)%nb(Cnb)%bd(i)%dr(1)*latt%sb(1,1)%nb(Cnb)%bd(i)%dr(2)
+		charge_symmetry=(-latt%nb(Cnb)%bd(i)%dr(1)**2+latt%nb(Cnb)%bd(i)%dr(2)**2)/2d0
+		!charge_symmetry=(latt%nb(Cnb)%bd(i)%dr(1)**2+latt%nb(Cnb)%bd(i)%dr(2)**2)/2d0
+		!charge_symmetry=-latt%nb(Cnb)%bd(i)%dr(1)*latt%nb(Cnb)%bd(i)%dr(2)
 	end function
 end module
 
@@ -356,26 +371,26 @@ contains
 		k(0)=n
 		!k(1)=raiseqq(sig$int)
 	end function
-	complex(8) function get_charge(cfg,D,q)
+	complex(8) function get_charge(cfg,D,q,ja)
 		integer :: cfg(:)
 		complex(8) :: D(:,:)
-		real(8) :: q(3)
+		real(8) :: q(3),ja(:)
 		complex(8) :: pb,sm
 		integer :: n1,n2,i1,j1,i2,j2,p1,p2,k(0:4),sg
 		get_charge=0d0
 		!$omp parallel do collapse(2) reduction(+:get_charge) private(i1,i2,j1,j2,pb,sm,sg,k)
-		do n1=1,size(latt%sb(1,1)%nb(Cnb)%bd)
-			do n2=1,size(latt%sb(1,1)%nb(Cnb)%bd)
-				i1=latt%sb(1,1)%nb(Cnb)%bd(n1)%i(1)
-				j1=latt%sb(1,1)%nb(Cnb)%bd(n1)%i(2)
-				i2=latt%sb(1,1)%nb(Cnb)%bd(n2)%i(1)
-				j2=latt%sb(1,1)%nb(Cnb)%bd(n2)%i(2)
-				sm=4d0*cos(sum(q*latt%sb(1,1)%nb(Cnb)%bd(n1)%r))*cos(sum(q*latt%sb(1,1)%nb(Cnb)%bd(n2)%r))*charge_symmetry(n1)*charge_symmetry(n2)
+		do n1=1,size(latt%nb(Cnb)%bd)
+			do n2=1,size(latt%nb(Cnb)%bd)
+				i1=latt%nb(Cnb)%bd(n1)%i(1)
+				j1=latt%nb(Cnb)%bd(n1)%i(2)
+				i2=latt%nb(Cnb)%bd(n2)%i(1)
+				j2=latt%nb(Cnb)%bd(n2)%i(2)
+				sm=4d0*cos(sum(q*latt%nb(Cnb)%bd(n1)%r))*cos(sum(q*latt%nb(Cnb)%bd(n2)%r))*charge_symmetry(n1)*charge_symmetry(n2)
 				do p1=1,2
 					do p2=1,2
 						if(get_row(cfg,(/j2,-i2,i1,-j1/),k,sg,(/3/))) then
 							call get_pb(k(1:k(0)),shape(0),pb,D)
-							get_charge=get_charge+pb*sg*sm
+							get_charge=get_charge+pb*sg*sm*exp(jast(cfg,(/j2,-i2,i1,-j1/),ja))
 						endif
 						call swap(i2,j2)
 					enddo
@@ -398,7 +413,7 @@ contains
 			do j=1,Ns
 				if(get_row(cfg,(/i,i+Ns,-j-Ns,-j/),k,sg,shape(0))) then
 					call get_pb(k(1:k(0)),shape(0),pb,D)
-					get_spin_pm=get_spin_pm+pb*exp(img*sum(q*(latt%sb(1,1)%nb(0)%bd(i)%r-latt%sb(1,1)%nb(0)%bd(j)%r)))*sg
+					get_spin_pm=get_spin_pm+pb*exp(img*sum(q*(latt%nb(0)%bd(i)%r-latt%nb(0)%bd(j)%r)))*sg
 				endif
 			enddo
 		enddo
@@ -419,26 +434,27 @@ contains
 		!$omp end parallel do
 		get_spin_zz=get_spin_zz/Ns
 	end function
-	complex(8) function get_dsc(cfg,D)
+	complex(8) function get_dsc(cfg,D,ja)
 		complex(8) :: D(:,:)
 		integer :: cfg(:)
+		real(8) :: ja(:)
 		complex(8) :: pb
 		integer :: i1,j1,i2,j2,sg,l,n1,n2,p1,p2
 		integer :: k(0:4)
 		get_dsc=0d0
 		!$omp parallel do collapse(2) reduction(+:get_dsc) private(pb,k,sg,i1,j1,i2,j2)
-		do n1=1,size(latt%sb(1,1)%nb(1)%bd)
-			do n2=1,size(latt%sb(1,1)%nb(1)%bd)
-				i1=latt%sb(1,1)%nb(1)%bd(n1)%i(1)
-				j1=latt%sb(1,1)%nb(1)%bd(n1)%i(2)
-				i2=latt%sb(1,1)%nb(1)%bd(n2)%i(1)
-				j2=latt%sb(1,1)%nb(1)%bd(n2)%i(2)
-				if(any(latt%sb(1,1)%nb(1)%bd(n1)%i==i2).or.any(latt%sb(1,1)%nb(1)%bd(n1)%i==j2)) cycle
+		do n1=1,size(latt%nb(1)%bd)
+			do n2=1,size(latt%nb(1)%bd)
+				i1=latt%nb(1)%bd(n1)%i(1)
+				j1=latt%nb(1)%bd(n1)%i(2)
+				i2=latt%nb(1)%bd(n2)%i(1)
+				j2=latt%nb(1)%bd(n2)%i(2)
+				if(any(latt%nb(1)%bd(n1)%i==i2).or.any(latt%nb(1)%bd(n1)%i==j2)) cycle
 				do p1=1,2
 					do p2=1,2
 						if(get_row(cfg,(/-j1-Ns,i1,-i2,j2+Ns/),k,sg,shape(0))) then
 							call get_pb(k(1:k(0)),shape(0),pb,D)
-							get_dsc=get_dsc+pb*sg*dwave(n1)*dwave(n2)*latt%sb(1,1)%nb(1)%bd(n1)%bdc*latt%sb(1,1)%nb(1)%bd(n2)%bdc
+							get_dsc=get_dsc+pb*sg*dwave(n1)*dwave(n2)*latt%nb(1)%bd(n1)%bdc*latt%nb(1)%bd(n2)%bdc
 						endif
 						call swap(i2,j2)
 					enddo
@@ -449,14 +465,15 @@ contains
 		!$omp end parallel do
 		get_dsc=get_dsc/(Ns**2)
 	end function
-	complex(8) function get_energy(cfg,WA,dcfg,m,iA,AW,WAW,wf)
+	complex(8) function get_energy(cfg,WA,ja,dcfg,m,iA,AW,WAW,wf)
 		complex(8) :: WA(:,:)
 		integer :: cfg(:)
+		real(8) :: ja(:)
 		complex(8) :: pb
 		integer, optional :: dcfg(:),m(:)
 		complex(8), optional :: AW(:,:),WAW(:,:),iA(:,:),wf(:,:)
 		integer :: i,j,n,l,c(2,2),p,sg
-		integer :: k(0:4),dcfg_(0:2)
+		integer :: k(0:6),dcfg_(0:2)
 		if(present(dcfg)) then
 			dcfg_(0:)=(/size(dcfg),dcfg/)
 		else
@@ -465,9 +482,9 @@ contains
 		get_energy=0d0
 		!$omp parallel do collapse(2) reduction(+:get_energy) private(i,j,c,k,pb,sg)
 		do l=1,size(t)
-			do n=1,size(latt%sb(1,1)%nb(l)%bd)
-				i=latt%sb(1,1)%nb(l)%bd(n)%i(1)
-				j=latt%sb(1,1)%nb(l)%bd(n)%i(2)
+			do n=1,size(latt%nb(l)%bd)
+				i=latt%nb(l)%bd(n)%i(1)
+				j=latt%nb(l)%bd(n)%i(2)
 				do p=1,2
 					if(get_row(cfg,(/i,-j,dcfg_(1:dcfg_(0))/),k,sg,(/3/))) then
 						if(present(m)) then
@@ -475,7 +492,7 @@ contains
 						else
 							call get_pb(k(1:k(0)),shape(0),pb,WA)
 						endif
-						get_energy=get_energy-sg*t(l)*pb*latt%sb(1,1)%nb(l)%bd(n)%bdc
+						get_energy=get_energy-sg*t(l)*pb*latt%nb(l)%bd(n)%bdc*exp(jast(cfg,(/i,-j,dcfg_(1:dcfg_(0))/),ja))
 					endif
 					if(get_row(cfg,(/-i-Ns,j+Ns,dcfg_(1:dcfg_(0))/),k,sg,(/3/))) then
 						if(present(m)) then
@@ -483,7 +500,7 @@ contains
 						else
 							call get_pb(k(1:k(0)),shape(0),pb,WA)
 						endif
-						get_energy=get_energy-sg*t(l)*pb*conjg(latt%sb(1,1)%nb(l)%bd(n)%bdc)
+						get_energy=get_energy-sg*t(l)*pb*conjg(latt%nb(l)%bd(n)%bdc)*exp(jast(cfg,(/-i-Ns,j+Ns,dcfg_(1:dcfg_(0))/),ja))
 					endif
 					if(l==1) then
 						if(get_row(cfg,(/i,i+Ns,-j-Ns,-j,dcfg_(1:dcfg_(0))/),k,sg,(/5/))) then
@@ -492,11 +509,11 @@ contains
 							else
 								call get_pb(k(1:k(0)),shape(0),pb,WA)
 							endif
-							get_energy=get_energy+0.5d0*DJ*pb*sg
+							get_energy=get_energy+0.5d0*DJ*pb*sg*exp(jast(cfg,(/i,i+Ns,-j-Ns,-j,dcfg_(1:dcfg_(0))/),ja))
 						endif
 					endif
-					j=latt%sb(1,1)%nb(l)%bd(n)%i(1)
-					i=latt%sb(1,1)%nb(l)%bd(n)%i(2)
+					j=latt%nb(l)%bd(n)%i(1)
+					i=latt%nb(l)%bd(n)%i(2)
 				enddo
 				if(l==1) then
 					if(get_row(cfg,dcfg_(1:dcfg_(0)),k,sg,shape(0))) then
@@ -507,7 +524,7 @@ contains
 						endif
 						c(:,1)=abs((1-sign(1,-cfg(i::Ns)))/2-(/0,1/))
 						c(:,2)=abs((1-sign(1,-cfg(j::Ns)))/2-(/0,1/))
-						get_energy=get_energy+pb*sg*(V*sum(c(:,1))*sum(c(:,2))+0.25d0*DJ*(c(1,1)-c(2,1))*(c(1,2)-c(2,2)))
+						get_energy=get_energy+pb*sg*(V*sum(c(:,1))*sum(c(:,2))+0.25d0*DJ*(c(1,1)-c(2,1))*(c(1,2)-c(2,2)))*exp(jast(cfg,dcfg_(1:dcfg_(0)),ja))
 					endif
 				endif
 			enddo
@@ -542,54 +559,54 @@ contains
             !$omp end parallel do
 		end select
 	end subroutine
-	subroutine get_Spb(cfg,dcfg,Ecfg,nn,q,pb,WA,iA,AW,WAW,wf)
-		integer :: cfg(:),dcfg(0:),Ecfg(:),nn(:,:)
-		real(8) :: q(:)
+	subroutine get_Spb(cfg,dcfg,Ecfg,nn,q,pb,WA,iA,AW,WAW,wf,ja)
+		integer :: cfg(:),dcfg(:),Ecfg(:),nn(:,:)
+		real(8) :: q(:),ja(:)
 		complex(8) :: WA(:,:),AW(:,:),WAW(:,:),iA(:,:),wf(:,:)
 		complex(8) :: pb,sm
 		complex(8) :: pb2(2),pbs(2)
 		integer :: i,l,n,j,p,sg
-		integer :: k(0:4),m(0:4)
-		if(.not.get_row(cfg,dcfg(1:dcfg(0)),k,sg,shape(0))) stop "err get_Spb"
+		integer :: k(0:6),m(0:4)
+		if(.not.get_row(cfg,dcfg,k,sg,shape(0))) stop "err get_Spb"
 		pbs=0d0
 
-		!!$omp parallel do private(pb2,sg,m) reduction(+:pbs)
-		!do i=1,ubound(nn,1)
-			!if(get_row(Ecfg,nn(i,:),m,sg)) then
-				!call get_pb(shape(0),m(1:m(0)),pb2(1),WA,iA,AW,WAW,wf)
-				!pbs(1)=pbs(1)+pb2(1)*conjg(pb2(1))
-				!call get_pb(k(1:k(0)),m(1:m(0)),pb2(2),WA,iA,AW,WAW,wf)
-				!pbs(2)=pbs(2)+pb2(2)*conjg(pb2(2))
-			!endif
+		!$omp parallel do private(pb2,sg,m) reduction(+:pbs)
+		do i=1,ubound(nn,1)
+			if(get_row(Ecfg,nn(i,:),m,sg)) then
+				call get_pb(shape(0),m(1:m(0)),pb2(1),WA,iA,AW,WAW,wf)
+				pbs(1)=pbs(1)+pb2(1)*conjg(pb2(1))
+				call get_pb(k(1:k(0)),m(1:m(0)),pb2(2),WA,iA,AW,WAW,wf)
+				pbs(2)=pbs(2)+pb2(2)*conjg(pb2(2))
+			endif
+		enddo
+		!$omp end parallel do
+		pb=pbs(2)/pbs(1)*exp(2d0*jast(cfg,dcfg,ja))
+
+		!!$omp parallel do private(pb2,sg,k,m,i,j,sm) reduction(+:pbs)
+		!do n=1,size(latt%nb(Cnb)%bd)
+			!i=latt%nb(Cnb)%bd(n)%i(1)
+			!j=latt%nb(Cnb)%bd(n)%i(2)
+			!sm=2d0*cos(sum(q*latt%nb(Cnb)%bd(n)%r))*charge_symmetry(n)
+			!do p=1,2
+				!if(get_row(cfg,(/i,-j/),k,sg,shape(0))) then
+					!call get_pb(k(1:k(0)),shape(0),pb2(1),WA,iA,AW,WAW,wf)
+					!pbs(1)=pbs(1)+pb2(1)*sm*sg*exp(jast(cfg,(/i,-j/),ja))
+				!endif
+				!if(get_row(cfg,(/dcfg,i,-j/),k,sg,shape(0))) then
+					!call get_pb(k(1:k(0)),shape(0),pb2(2),WA,iA,AW,WAW,wf)
+					!pbs(2)=pbs(2)+pb2(2)*sm*sg*exp(jast(cfg,(/dcfg,i,-j/),ja))
+				!endif
+				!j=latt%nb(Cnb)%bd(n)%i(1)
+				!i=latt%nb(Cnb)%bd(n)%i(2)
+			!enddo
 		!enddo
 		!!$omp end parallel do
 		!pb=pbs(2)/pbs(1)
-
-		!$omp parallel do private(pb2,sg,k,m,i,j,sm) reduction(+:pbs)
-		do n=1,size(latt%sb(1,1)%nb(Cnb)%bd)
-			i=latt%sb(1,1)%nb(Cnb)%bd(n)%i(1)
-			j=latt%sb(1,1)%nb(Cnb)%bd(n)%i(2)
-			sm=2d0*cos(sum(q*latt%sb(1,1)%nb(Cnb)%bd(n)%r))*charge_symmetry(n)
-			do p=1,2
-				if(get_row(cfg,(/i,-j/),k,sg,shape(0))) then
-					call get_pb(k(1:k(0)),shape(0),pb2(1),WA,iA,AW,WAW,wf)
-					pbs(1)=pbs(1)+pb2(1)*sm*sg
-				endif
-				if(get_row(cfg,(/dcfg(1:dcfg(0)),i,-j/),k,sg,shape(0))) then
-					call get_pb(k(1:k(0)),shape(0),pb2(2),WA,iA,AW,WAW,wf)
-					pbs(2)=pbs(2)+pb2(2)*sm*sg
-				endif
-				j=latt%sb(1,1)%nb(Cnb)%bd(n)%i(1)
-				i=latt%sb(1,1)%nb(Cnb)%bd(n)%i(2)
-			enddo
-		enddo
-		!$omp end parallel do
-		pb=pbs(2)/pbs(1)
-		pb=conjg(pb)*pb
+		!pb=conjg(pb)*pb
 	end subroutine
-	complex(8) function average_E(cfg,q,WA)
+	complex(8) function average_E(cfg,q,WA,ja)
 		integer :: cfg(:)
-		real(8) :: q(:)
+		real(8) :: q(:),ja(:)
 		complex(8) :: WA(:,:)
 		complex(8) :: pb,O_,E_,sm
 		integer :: i,j,n,p,sg
@@ -597,26 +614,26 @@ contains
 		E_=0d0
 		O_=0d0
 		!$omp parallel do private(i,j,pb,sg,sm,k,m) reduction(+:O_,E_)
-		do n=1,size(latt%sb(1,1)%nb(Cnb)%bd)
-			i=latt%sb(1,1)%nb(Cnb)%bd(n)%i(1)
-			j=latt%sb(1,1)%nb(Cnb)%bd(n)%i(2)
-			sm=2d0*cos(sum(q*latt%sb(1,1)%nb(Cnb)%bd(n)%r))*charge_symmetry(n)
+		do n=1,size(latt%nb(Cnb)%bd)
+			i=latt%nb(Cnb)%bd(n)%i(1)
+			j=latt%nb(Cnb)%bd(n)%i(2)
+			sm=2d0*cos(sum(q*latt%nb(Cnb)%bd(n)%r))*charge_symmetry(n)
 			do p=1,2
 				if(get_row(cfg,(/i,-j/),k,sg,shape(0))) then
 					call get_pb(k(1:k(0)),shape(0),pb,WA)
-					O_=O_+pb*sg*sm
+					O_=O_+pb*sg*sm*exp(jast(cfg,(/i,-j/),ja))
 				endif
-				E_=E_+get_energy(cfg,WA,(/i,-j/))*sm
-				j=latt%sb(1,1)%nb(Cnb)%bd(n)%i(1)
-				i=latt%sb(1,1)%nb(Cnb)%bd(n)%i(2)
+				E_=E_+get_energy(cfg,WA,ja,(/i,-j/))*sm
+				j=latt%nb(Cnb)%bd(n)%i(1)
+				i=latt%nb(Cnb)%bd(n)%i(2)
 			enddo
 		enddo
 		!$omp end parallel do
 		average_E=E_/O_
 	end function
-	subroutine get_overlap(cfg,Ecfg,nn,q,WA,iA,AW,WAW,wf,O,E)
+	subroutine get_overlap(cfg,Ecfg,nn,q,WA,iA,AW,WAW,wf,O,E,ja)
 		integer :: cfg(:),Ecfg(:),nn(:,:)
-		real(8) :: q(:)
+		real(8) :: q(:),ja(:)
 		complex(8) :: WA(:,:),AW(:,:),WAW(:,:),iA(:,:),wf(:,:),E(:,:),O(:,:)
 		complex(8) :: Ek(size(E,1)),Ok(size(O,1)),pb,Oq,tmp,O_,E_,sm
 		real(8) :: iNs
@@ -627,18 +644,18 @@ contains
 			E_=0d0
 			O_=0d0
 			!$omp parallel do private(i,j,pb,sg,sm,k,m) reduction(+:O_,E_)
-			do n=1,size(latt%sb(1,1)%nb(Cnb)%bd)
-				i=latt%sb(1,1)%nb(Cnb)%bd(n)%i(1)
-				j=latt%sb(1,1)%nb(Cnb)%bd(n)%i(2)
-				sm=2d0*cos(sum(q*latt%sb(1,1)%nb(Cnb)%bd(n)%r))*charge_symmetry(n)
+			do n=1,size(latt%nb(Cnb)%bd)
+				i=latt%nb(Cnb)%bd(n)%i(1)
+				j=latt%nb(Cnb)%bd(n)%i(2)
+				sm=2d0*cos(sum(q*latt%nb(Cnb)%bd(n)%r))*charge_symmetry(n)
 				do p=1,2
 					if(get_row(cfg,(/i,-j/),k,sg,shape(0))) then
 						call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
-						O_=O_+pb*sg*sm
+						O_=O_+pb*sg*sm*exp(jast(cfg,(/i,-j/),ja))
 					endif
-					E_=E_+get_energy(cfg,WA,(/i,-j/))*sm
-					j=latt%sb(1,1)%nb(Cnb)%bd(n)%i(1)
-					i=latt%sb(1,1)%nb(Cnb)%bd(n)%i(2)
+					E_=E_+get_energy(cfg,WA,ja,(/i,-j/))*sm
+					j=latt%nb(Cnb)%bd(n)%i(1)
+					i=latt%nb(Cnb)%bd(n)%i(2)
 				enddo
 			enddo
 			!$omp end parallel do
@@ -653,11 +670,11 @@ contains
 					O_=0d0
 					if(get_row(cfg,(/i,-j/),k,sg,shape(0))) then
 						call get_pb(k(1:k(0)),shape(0),pb,WA,iA,AW,WAW,wf)
-						O_=O_+pb*sg
+						O_=O_+pb*sg*exp(jast(cfg,(/i,-j/),ja))
 					endif
-					E_=get_energy(cfg,WA,(/i,-j/))
+					E_=get_energy(cfg,WA,ja,(/i,-j/))
 					do n=1,Ns
-						sm=exp(img*sum(brizon%ok(n,:)*(-latt%sb(1,1)%nb(0)%bd(i)%r+latt%sb(1,1)%nb(0)%bd(j)%r)+q*latt%sb(1,1)%nb(0)%bd(j)%r))*iNs
+						sm=exp(img*sum(brizon%ok(n,:)*(-latt%nb(0)%bd(i)%r+latt%nb(0)%bd(j)%r)+q*latt%nb(0)%bd(j)%r))*iNs
 						Ek(size(nn,1)+n)=Ek(size(nn,1)+n)+E_*sm
 						Ok(size(nn,1)+n)=Ok(size(nn,1)+n)+O_*sm
 					enddo
@@ -669,16 +686,86 @@ contains
 		do i=1,ubound(nn,1)
 			if(get_row(Ecfg,nn(i,:),m,sg)) then
 				call get_pb(shape(0),m(1:m(0)),pb,WA,iA,AW,WAW,wf)
-				Ok(i)=conjg(pb*sg)
-				Ek(i)=conjg(get_energy(cfg,WA,m=m(1:m(0)),iA=iA,AW=AW,WAW=WAW,wf=wf)*sg)
+				Ok(i)=pb*sg
+				Ek(i)=get_energy(cfg,WA,ja,m=m(1:m(0)),iA=iA,AW=AW,WAW=WAW,wf=wf)*sg
 			endif
 		enddo
 		!$omp end parallel do
 		Oq=1d0/sum(Ok(:ubound(nn,1))*conjg(Ok(:ubound(nn,1))))
+		Ok=conjg(Ok)
+		Ek=conjg(Ek)
 		O=0d0; E=0d0
 		call her(O,Ok,alpha=real(Oq))
 		call gerc(E,Ok,Ek,alpha=Oq)
 	end subroutine
+	real(8) function jast(cfg,dcfg,ja,jan)
+		integer :: cfg(:),dcfg(:)
+		real(8), optional :: ja(:)
+		complex(8), optional :: jan(:)
+		integer :: ncfg(size(dcfg),3),ni,nja,nb,i,j,l,ii,jj,dn,n,njap,sg(2)
+		real(8) :: jabd
+		jast=0d0
+		if(present(ja)) then
+			if(size(ja)<1) return
+		endif
+		if(present(jan)) then
+			if(size(jan)<1) return
+		endif
+		sg=1
+		if((var(vn+1)%sg==9.and.sg(2)==-1).or.(var(vn+1)%sg==10.and.sg(2)==1)) sg(2)=-sg(2)
+		nja=0
+		do l=vn+1,size(var(1:))
+			nb=var(l)%nb
+			if((var(l)%sg==9.and.sg(2)/=-1).or.(var(l)%sg==10.and.sg(2)/=1)) then
+				sg(2)=-sg(2)
+				ni=0
+			j1:	do i=1,size(dcfg)
+					j=(mod(abs(dcfg(i))-1,Ns)+1)
+					dn=-sign(1,dcfg(i))*sg(((abs(dcfg(i))-1)/Ns+1))
+					do n=1,ni
+						if(ncfg(n,1)==j) then
+							ncfg(n,3)=ncfg(n,3)+dn
+							cycle j1
+						endif
+					enddo
+					ni=ni+1
+					ncfg(ni,1)=j
+					ncfg(ni,2)=sum(((1-sign(1,-cfg(j::Ns)))/2-(/0,1/))*sg)
+					ncfg(ni,3)=dn
+				enddo j1
+			endif
+			if(all(ncfg(1:ni,3)==0)) then
+				nja=nja+var(l)%n
+				cycle
+			endif
+			do i=1,ni
+				ii=ncfg(i,1)
+			oj:	do j=1,size(latt%nb(nb)%st(ii)%j)
+					jj=latt%nb(nb)%st(ii)%j(j)
+					njap=nja+var(l)%bd2v(latt%nb(nb)%st(ii)%bd(j))
+					jabd=real(var(l)%bd(latt%nb(nb)%st(ii)%bd(j)))
+					do n=1,ni
+						if(ncfg(n,1)==jj) then
+							if(present(ja)) then
+								jast=jast+0.5d0*jabd*ja(njap)*(ncfg(i,3)*ncfg(n,3)+ncfg(i,2)*ncfg(n,3)+ncfg(i,3)*ncfg(n,2))
+							endif
+							if(present(jan)) then
+								jan(njap)=jan(njap)+0.5d0*jabd*(ncfg(i,3)*ncfg(n,3)+ncfg(i,2)*ncfg(n,3)+ncfg(i,3)*ncfg(n,2))
+							endif
+							cycle oj
+						endif
+					enddo
+					if(present(ja)) then
+						jast=jast+jabd*ja(njap)*ncfg(i,3)*sum(((1-sign(1,-cfg(jj::Ns)))/2-(/0,1/))*sg)
+					endif
+					if(present(jan)) then
+						jan(njap)=jan(njap)+jabd*ncfg(i,3)*sum(((1-sign(1,-cfg(jj::Ns)))/2-(/0,1/))*sg)
+					endif
+				enddo oj
+			enddo
+			nja=nja+var(l)%n
+		enddo
+	end function
 end module
 
 module vmc_main
@@ -732,16 +819,28 @@ contains
 		if(init_cfg) then
 			if(allocated(self%cfg)) deallocate(self%cfg)
 			allocate(self%cfg(Ns*spin))
-			self%cfg=0
-			self%cfg(Ns+1:Ns+self%ne(2))=(/(n,n=1,self%ne(2))/)
-			call fisher_yates_shuffle(self%cfg(Ns+1:))
-			n=self%ne(2)
 			do i=1,Ns
-				if(self%cfg(i+Ns)/=0) then
-					n=n+1
-					self%cfg(i)=n
+				if(i<=self%ne(1)) then
+					self%cfg(i)=3
+				elseif(i<=self%ne(2)) then
+					self%cfg(i)=2
+				else
+					self%cfg(i)=0
 				endif
-				if(n==sum(self%ne)) exit
+			enddo
+			self%cfg(Ns+1:)=0
+			call fisher_yates_shuffle(self%cfg(:Ns))
+			n=0
+			do i=1,Ns
+				if(self%cfg(i)==3) then
+					n=n+2
+					self%cfg(i)=n-1
+					self%cfg(i+Ns)=n
+				elseif(self%cfg(i)==2) then
+					n=n+1
+					self%cfg(i+Ns)=n
+					self%cfg(i)=0
+				endif
 			enddo
 		endif
 		if(allocated(self%Ecfg)) deallocate(self%Ecfg)
@@ -753,7 +852,7 @@ contains
 		Uk=0d0
 		do i=1,Ns
 			do j=1,Ns
-				Uk(j,i)=exp(-img*sum(latt%sb(1,1)%nb(0)%bd(j)%r*brizon%ok(i,:)))
+				Uk(j,i)=exp(-img*sum(latt%nb(0)%bd(j)%r*brizon%ok(i,:)))
 			enddo
 		enddo
 		Uk(Ns+1:,Ns+1:)=Uk(:Ns,:Ns)
@@ -885,12 +984,12 @@ contains
 				!self%psi0(i+l)=2d0*(cos(brizon%ok(i,1))-cos(brizon%ok(i,2)))
 			!enddo
 
-			!allocate(self%nn(l,2),self%Ok2(l+1,l+1),self%Ek2(l+1,l+1),self%psi0(l+1))
-			!self%psi0=0d0
-			!self%psi0(l+1)=1d0
+			allocate(self%nn(l,2),self%Ok2(l+1,l+1),self%Ek2(l+1,l+1),self%psi0(l+1))
+			self%psi0=0d0
+			self%psi0(l+1)=1d0
 
-			allocate(self%nn(l,2),self%Ok2(l,l),self%Ek2(l,l),self%psi0(l))
-			self%psi0(1:l)=psi0_(1:l)
+			!allocate(self%nn(l,2),self%Ok2(l,l),self%Ek2(l,l),self%psi0(l))
+			!self%psi0(1:l)=psi0_(1:l)
 
 			self%nn(:,:)=nn_(1:l,:)
 		endif
@@ -959,7 +1058,6 @@ contains
                 !$omp critical
 				call random_number(seed,4285)
                 !$omp end critical
-				call omp_set_num_threads(mkl_get_max_threads())
 				call self%do_mc(seed)
 			enddo
 			!$omp end parallel do
@@ -994,7 +1092,6 @@ contains
                 !$omp critical
 				call random_number(seed,4285)
                 !$omp end critical
-				call omp_set_num_threads(mkl_get_max_threads())
 				call self%do_mc(seed)
 			enddo
 			!$omp end parallel do
@@ -1014,7 +1111,6 @@ contains
                 !$omp critical
 				call random_number(seed,4285)
                 !$omp end critical
-				call omp_set_num_threads(mkl_get_max_threads())
 				call self%do_mc(seed)
 			enddo
 			!$omp end parallel do
@@ -1023,6 +1119,7 @@ contains
 			!write(50,*)-1,size(psi0),Ns
 			!write(50,*)E,psi0,Ok2,Ek2
 			!!$omp end critical
+			write(*,*)(self%phy(iCqE)-self%phy(iE)*Ns)
 			!$omp ordered
 			write(50,*)-1,size(self%psi0),Ns
 			write(50,*)self%phy(iE),self%phy(iCq),self%psi0,self%Ok2,self%Ek2
@@ -1048,6 +1145,8 @@ contains
 		integer :: k(0:4),m(0:4),dcfg(0:4)
 		logical :: is_update
 		type(randomNumberSequence) :: rnd
+		real(8) :: ja(sum(var(vn+1:)%n))
+		ja=put(var(vn+1:))
 		call mt_init_random_seed(rnd,seed)
 		phyp=0d0; phyl=0d0
 		Sp=0d0; gp=0d0; Op=0d0
@@ -1095,19 +1194,21 @@ contains
 
 			if(self%sg==3) then
 				!if(.false.) then
-				call get_Spb(cfgl,dcfg,Ecfgl,nn,self%q,pb,WA,iA,AW,WAW,wf)
+				call get_Spb(cfgl,dcfg(1:dcfg(0)),Ecfgl,nn,self%q,pb,WA,iA,AW,WAW,wf,ja)
 				if(isnan(real(pb))) then
 					write(*,*)pb
 					stop
 				endif
 			else
 				call get_pb(k(1:k(0)),shape(0),pb,WA)
-				pb=pb*conjg(pb)
+				pb=pb*conjg(pb)*exp(2d0*jast(cfgl,dcfg(1:dcfg(0)),ja))
 			endif
 			!call random_number(rd)
 			rd=getrandomreal(rnd)
 			if(rd<real(pb)) then
 				apt=apt+1
+
+				rd=jast(cfgl,dcfg(1:dcfg(0)),jan=Ol(sum(var(1:vn)%n)+1:))
 
 				cfgl(abs(dcfg(2:dcfg(0):2)))=cfgl(abs(dcfg(2:dcfg(0):2)))+cfgl(dcfg(1:dcfg(0):2))
 				cfgl(dcfg(1:dcfg(0):2))=cfgl(abs(dcfg(2:dcfg(0):2)))-cfgl(dcfg(1:dcfg(0):2))
@@ -1173,12 +1274,12 @@ contains
 					is_update=.false.
 					select case(self%sg)
 					case(1)
-						phyl(iE)=get_energy(cfgl,WA)*1d0/Ns
-						!phyl%dsc=real(get_dsc(cfgl,WA))
-						phyl(iCq)=get_charge(cfgl,WA,self%q)
+						phyl(iE)=get_energy(cfgl,WA,ja)*1d0/Ns
+						!phyl%dsc=real(get_dsc(cfgl,WA),ja)
+						phyl(iCq)=get_charge(cfgl,WA,self%q,ja)
 						!phyl%Sq_zz=get_spin_zz(cfgl,q)
 					case(2)
-						phyl(iE)=get_energy(cfgl,WA)*1d0/Ns
+						phyl(iE)=get_energy(cfgl,WA,ja)*1d0/Ns
 						call get_O(icfg,iEcfg,WA,iA,dwf,Ol(:size(dwf,3)))
 						do l1=1,size(Ol)
 							do l2=1,size(Ol)
@@ -1187,8 +1288,8 @@ contains
 						enddo
 						gl=real(phyl(iE)*conjg(Ol))
 					case(3)
-						!call get_overlap(cfgl,Ecfgl,nn,self%q,WA,iA,AW,WAW,wf,Ok2l,Ek2l)
-						phyl(iCqE)=average_E(cfgl,self%q,WA)
+						call get_overlap(cfgl,Ecfgl,nn,self%q,WA,iA,AW,WAW,wf,Ok2l,Ek2l,ja)
+						!phyl(iCqE)=average_E(cfgl,self%q,WA,ja)
 					end select
 				endif
 				phyp=phyp+phyl
@@ -1288,10 +1389,13 @@ contains
 		norm=self%phy(iCq)/real(sum(psi0_(n0:)))
 		write(*,"(es12.4$)")-sum(imag(Sq)*domg)/pi,real(sum(psi0_(n0:))),self%phy(iCq)
 		write(ut,"('#q=',3es12.4,2i5)")self%q/pi,i,size(EO)
+		self%phy(iE)=0d0
 		do l=1,m
 			write(ut,"(es17.9$)")omg(1)+domg*l,Sq(l)*norm
 			write(ut,"(x)")
+			self%phy(iE)=self%phy(iE)+imag(Sq(l))*(omg(1)+domg*l)
 		enddo
+		write(*,*)self%phy(iE)/sum(imag(Sq))
 		write(ut,"(x)")
 	end subroutine
 	subroutine do_var(self,omp,n)
@@ -1393,7 +1497,8 @@ program main
 	!var(1:)%val(1)=(/-1.53531E+00,8.07142E-01*2E0,-6.06570E-02,-2.62224E-01,-2.15494E-01/)
 	!var(1:)%val(1)=(/-8.0718E-01,2.0919E-01,-9.9164E-02/) ! 16x16
 	!var(1:)%val(1)=(/-6.4806E-01,1.7347E-01,-1.7155E-01/) ! 8x8
-	var(1:)%val(1)=(/-7.7283E-01,2.0321E-01,-1.7129E-01/) ! 8x8
+	var(1:vn)%val(1)=(/-7.7996E-01,2.5523E-01,-1.4275E-01/) ! 8x8
+	var(vn+1:)%val(1)=(/4.2915E-01,2.3233E-01,4.7774E-02/)
 	!var(1:)%val(1)=(/0.00d0/)
 	!var(1:)%val(1)=(/-8.6811E-01,2.0951E-01,-9.7832E-02/) ! 12x12
 	!call variation()
@@ -1405,18 +1510,18 @@ program main
 	call omp_set_max_active_levels(1)
 	call omp_set_schedule(omp_sched_static,0)
 
-	call mkl_set_num_threads(2)
+	call mkl_set_num_threads(8)
+	call omp_set_num_threads(mkl_get_max_threads())
 
 	mc%ne(1)=Ns/2-9
 	mc%ne(2)=Ns-mc%ne(1)
 	mc%samp=1024*4
 	mc%sg=2
-	!call mc%do_var(1,100)
+	!call mc%do_var(8,100)
 	!stop
 
 	j=nint(sqrt(real(Ns)))
-	call omp_set_num_threads(j/2)
-	!!$omp parallel do ordered firstprivate(mc) schedule(static,1)
+	!!$omp parallel do ordered firstprivate(mc) num_threads(j/2) schedule(static,1)
 	!!!do i=1,j*3
 	!do i=0,j/2-1
 		!if(i<=j) then
@@ -1432,16 +1537,18 @@ program main
 		mc%sg=1
 		mc%ne(1)=Ns/2-9
 		mc%ne(2)=Ns-mc%ne(1)
-		mc%samp=1024*8*8
+		mc%samp=1024*8*4
 		call mc%init(.true.)
 		call mc%do_vmc(1)
-		!mc%phy(iE)=-4.2554d-01
+		!mc%phy(iE)=-4.3580E-01
+		!mc%phy(iCq)=2.7397E+01
 
+		mc%step=nint(sqrt(real(Ns)))
 		mc%sg=3
-		mc%samp=1024*8*8
+		!mc%samp=1024*8*8*4
+		mc%samp=1024*8*8*4
 		call mc%init(.true.)
 		call mc%do_vmc(1)
-		write(*,*)(mc%phy(iCqE)-mc%phy(iE))*mc%phy(iCq)
 
 		!stop
 	!enddo
