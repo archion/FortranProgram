@@ -1,6 +1,7 @@
 module M_utility
 	USE IFPORT, only : GETENVQQ
 	use M_rd
+	use omp_lib
 	implicit none
 	type t_sort
 		real(8) :: val
@@ -16,7 +17,17 @@ module M_utility
 	interface swap
 		module procedure siswap,srswap,vcswap,viswap,vrswap
 	end interface
+	real(8) :: otime(0:6)=0d0
 contains
+	subroutine show_time()
+		integer :: i
+		write(*,"(A)")"The timing results is:"
+		do i=1,ubound(otime,1)
+			if(otime(i)>1d-6) then
+				write(*,"(i4,'m',f6.3,'s')")int(otime(i)/60d0),otime(i)-int(otime(i)/60d0)*60d0
+			endif
+		enddo
+	end subroutine
 	subroutine cmwrite(f,A)
 		complex(8) :: A(:,:)
 		integer :: f,i
