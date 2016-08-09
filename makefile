@@ -15,8 +15,8 @@ FCCFLAG_64= -lmy -lnlopt -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 
 #FCCFLAG_64= -lmy -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lnlopt -lm
 all:$(out)
 %.out: %.o
-	$(FCC) $< -o $@ $(FCCFLAG_$(ARCH))
+	$(FCC) $< -o $@ $(FCCFLAG_$(ARCH)) -coarray
 %.o: %.f90
-	$(FCC) -c $< $(OMPFLAG) $(CFLAG)
+	$(FCC) -c $< $(OMPFLAG) $(CFLAG) -coarray
 clean:
 	rm -f *.out *.mod *.o

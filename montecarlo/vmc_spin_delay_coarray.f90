@@ -10,6 +10,8 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
+	integer, parameter :: ica1=2
+	integer :: ica2
 	integer :: Ns,vn
 contains
 	subroutine initial()
@@ -27,9 +29,9 @@ contains
 		!latt%c2=(/-1d0,1d0,0d0/)
 		latt%c1=latt%a1
 		latt%c2=latt%a2
-		latt%T1=(/1d0,0d0,0d0/)*32
-		latt%T2=(/0d0,1d0,0d0/)*32
-		latt%bdc=(/1d0,1d0,0d0/)
+		latt%T1=(/1d0,0d0,0d0/)*8
+		latt%T2=(/0d0,1d0,0d0/)*8
+		latt%bdc=(/1d0,-1d0,0d0/)
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=(/0d0,0d0,0d0/)
 		latt%n1=1
@@ -38,7 +40,7 @@ contains
 		call latt%gen_latt(3)
 		call latt%gen_brizon(brizon)
 		!call check_lattice(101)
-		write(*,*)"Total site number is: ",latt%Ns
+		if(this_image()==1) write(*,*)"Total site number is: ",latt%Ns
 
 		! cp
 		call gen_var(sg=1,nb=0)
@@ -588,7 +590,7 @@ contains
 		integer :: i,l,sg,ct=0
 		integer :: k(0:4),m(0:4)
 		if(.not.get_row(cfg,dcfg,k,sg,shape(0))) then
-			write(*,*)cfg(abs(dcfg))
+			write(*,*)cfg
 			write(*,*)dcfg
 			write(*,*)k(1:k(0))
 			stop "err get_Spb"
@@ -738,19 +740,17 @@ contains
 		end select
 	end subroutine
 	subroutine init(self,init_cfg)
-		class(t_mc) :: self
+		class(t_mc) :: self[ica1,*]
 		logical :: init_cfg
 		complex(8) :: H(Ns*spin,Ns*spin),cH(size(H,1),size(H,2)),D(size(H,1),size(H,2),sum(var(1:vn)%n)),Uk(size(H,1),size(H,2)),psi0_(Ns*Ns)
 		real(8) :: E(size(H,1))
 		integer :: l,i,j,n,n1,n2,nk(size(H,1),size(H,2)),nn_(0:Ns*Ns,2),kq(Ns),Ecfg_(Ns*spin,2)
 		type(t_mysort) :: mysort(size(E))
 		logical :: check=.true.
-
+		
 		if(init_cfg) then
-			!$omp critical
 			if(allocated(self%cfg)) deallocate(self%cfg)
 			allocate(self%cfg(Ns*spin))
-			!$omp end critical
 			do i=1,Ns
 				if(i<=self%ne(1)) then
 					self%cfg(i)=3
@@ -775,12 +775,10 @@ contains
 				endif
 			enddo
 		endif
-		!$omp critical
 		if(allocated(self%Ecfg)) deallocate(self%Ecfg)
 		allocate(self%Ecfg(Ns*spin))
 		if(allocated(self%Emf)) deallocate(self%Emf)
 		allocate(self%Emf(Ns*spin))
-		!$omp end critical
 		self%Ecfg=0
 
 		call Hamilton(var,H)
@@ -799,8 +797,7 @@ contains
 			do i=1,size(brizon%k,1)
 				call mat_diag(H(i::size(brizon%k,1),i::size(brizon%k,1)),E(i::size(brizon%k,1)))
 				nk(i::size(brizon%k,1),i::size(brizon%k,1))=1
-				!write(30,"(es12.4$)")brizon%k(i,:2),E(i::size(brizon%k,1)),abs(H(i,i::size(brizon%k,1)))
-				!write(30,"(x)")
+				!write(30,"(*(es12.4))")brizon%k(i,:2),E(i::size(brizon%k,1)),abs(H(i,i::size(brizon%k,1)))
 			enddo
 			self%Emf=E
 			mysort%val=E
@@ -810,9 +807,7 @@ contains
 				self%Ecfg(mysort(i)%idx)=i
 			enddo
 			if(abs(mysort(sum(self%ne))%val-mysort(sum(self%ne)+1)%val)<1d-7) then
-				!$omp critical
-				write(*,*)"warning, close-shell condition is not satisfied"
-				!$omp end critical
+				if(this_image()==1) write(*,*)"warning, close-shell condition is not satisfied"
 			endif
 			if(self%sg==3) then
 				nn_(0,:)=self%Ecfg(mysort(sum(self%ne)-1:sum(self%ne))%idx)
@@ -840,21 +835,19 @@ contains
 			!write(*,*)mysort(self%ne(1))%val
 			if(abs(mysort(self%ne(1))%val-mysort(self%ne(1)+1)%val)<1d-7.or.abs(mysort(Ns+self%ne(2))%val-mysort(Ns+self%ne(2)+1)%val)<1d-7) then
 				if(self%sg/=3) then
-					!$omp critical
-					write(*,"(A$)")"warning, close-shell condition is not satisfied, maybe set ne(1) to:"
+					if(this_image()==1) write(*,"(A$)")"warning, close-shell condition is not satisfied, maybe set ne(1) to:"
 					do i=self%ne(1),1,-1
 						if(abs(mysort(self%ne(1))%val-mysort(i)%val)>1d-5) then
-							write(*,"(i5$)")i
+							if(this_image()==1) write(*,"(i5$)")i
 							exit
 						endif
 					enddo
 					do i=self%ne(1),Ns
 						if(abs(mysort(self%ne(1))%val-mysort(i)%val)>1d-5) then
-							write(*,"(i5)")i-1
+							if(this_image()==1) write(*,"(i5)")i-1
 							exit
 						endif
 					enddo
-					!$omp end critical
 				endif
 			endif
 			if(self%sg==3) then
@@ -863,12 +856,10 @@ contains
 				self%Emf(:Ns)=self%Emf(:Ns)-self%Emf(mysort(self%ne(1)-1)%idx)
 				self%Emf(Ns+1:)=self%Emf(Ns+1:)-self%Emf(mysort(self%ne(2)+Ns-1)%idx)
 			endif
-			!$omp critical
 			do i=1,size(brizon%k,1)
-				write(71,"(es12.4$)")brizon%k(i,:)
-				write(71,"(2i3)")count(self%Ecfg(i:Ns:size(brizon%k,1))/=0),count(self%Ecfg(i+Ns::size(brizon%k,1))==0)
+				if(this_image()==1) write(71,"(es12.4$)")brizon%k(i,:)
+				if(this_image()==1) write(71,"(2i3)")count(self%Ecfg(i:Ns:size(brizon%k,1))/=0),count(self%Ecfg(i+Ns::size(brizon%k,1))==0)
 			enddo
-			!$omp end critical
 		endif
 
 		if(self%sg==3) then
@@ -877,15 +868,15 @@ contains
 				do j=1,Ns
 					if(sum(abs(mod(brizon%ok(i,:2)/pi+brizon%ok(j,:2)/pi+(/2d0,2d0/)+1d-7,(/2d0,2d0/))-self%q(:2)/pi))<1d-5) then
 						if(kq(i)/=0) then
-							write(*,*)"warn! kq"
+							if(this_image(self,2)==1) write(*,*)"warn! kq"
 						else
 							kq(i)=j
 						endif
 					endif
 				enddo
 				if(kq(i)==0) then
-					write(*,*)self%q(:2)/pi,"warn! kq2"
-					stop
+					if(this_image(self,2)==1) write(*,*)self%q(:2)/pi,"warn! kq2"
+					error stop
 				endif
 			enddo
 			Ecfg_(:,1)=1-sign(1,-self%Ecfg)
@@ -926,45 +917,28 @@ contains
 					endif
 				enddo
 			enddo
-			!write(*,*)l
-			!stop
-			!write(*,"(es12.4)")abs(psi0_(1:l))
-			!$omp critical
 			if(allocated(self%nn)) deallocate(self%nn,self%Ok2,self%Ek2,self%psi0)
 			allocate(self%nn(0:l,2),self%Ok2(l,l),self%Ek2(l,l),self%psi0(l))
-			write(*,*)l
-			!stop
-			!$omp end critical
 			self%nn=nn_(:l,:)
 			self%nn(0,:)=self%nn(1,(/2,1/))
 			self%Ecfg(abs(self%nn(0,:)))=nn_(0,:)
 			self%psi0=psi0_(:l)
-			!write(*,"(2i4)")(self%nn(i,:),i=0,l)
-			!write(*,"(64i3)")self%Ecfg
 		endif
-		!write(*,"(2es12.4)")psi0
-		!write(*,"(es12.4)")E(:sum(ne))
 		H=matmul(Uk,H)*sqrt(1d0/Ns)
 		call Hamilton(var,cH)
-		!$omp critical
 		if(check) then
-			if(sum(abs(matmul(transpose(conjg(H)),matmul(cH,H))-diag(E)))>1d-6) stop "hamilton err"
+			if(sum(abs(matmul(transpose(conjg(H)),matmul(cH,H))-diag(E)))>1d-6) error stop "hamilton err"
 			check=.false.
 		endif
-		!$omp end critical
-		!$omp critical
 		if(allocated(self%wf)) deallocate(self%wf)
 		allocate(self%wf(Ns*spin,Ns*spin))
-		!$omp end critical
 		self%wf=H
 
 
 		if(self%sg==2) then
-			!$omp critical
 			if(allocated(self%dwf)) deallocate(self%dwf,self%g,self%S)
 			allocate(self%dwf(Ns*spin,Ns*spin,sum(var(1:vn)%n)),self%g(sum(var(1:)%n)))
 			allocate(self%S(size(self%g),size(self%g)))
-			!$omp end critical
 			cH=transpose(conjg(H))
 			self%dwf=0d0
 			call dHamilton(var(1:vn),H,cH,D)
@@ -972,21 +946,24 @@ contains
 			do l=1,size(self%dwf,3)
 				select case(opt)
 				case(1)
+					cH=0d0
 					!$omp parallel do
 					do i=1,size(E)
 						do j=1,size(E)
 							if(abs(E(i)-E(j))<1d-8) then
 								cycle
 							endif
-							self%dwf(:,i,l)=self%dwf(:,i,l)+D(j,i,l)*H(:,j)/(E(i)-E(j))
+							cH(:,i)=cH(:,i)+D(j,i,l)*H(:,j)/(E(i)-E(j))
 						enddo
 					enddo
 					!$omp end parallel do
+					self%dwf(:,:,l)=cH
 				case(2)
+					Ecfg_(:,1)=self%Ecfg
 					!$omp parallel do
 					do i=1,size(E)
 						do j=1,size(E)
-							if(abs(E(i)-E(j))<1d-8.or.self%Ecfg(i)/=0.or.self%Ecfg(j)==0) then
+							if(abs(E(i)-E(j))<1d-8.or.Ecfg_(i,1)/=0.or.Ecfg_(j,1)==0) then
 								D(i,j,l)=0d0
 							else
 								D(i,j,l)=D(i,j,l)/(E(j)-E(i))
@@ -998,31 +975,34 @@ contains
 				end select
 			enddo
 		endif
-		!write(*,*)"ini_wf finished"
 	end subroutine
-	subroutine do_vmc(self,omp)
-		class(t_mc) :: self
-		integer :: omp
+	subroutine do_vmc(self)
+		class(t_mc) :: self[ica1,*]
 		real(8) :: eg(size(self%g)),g_(size(self%g))
 		integer :: k,l,l1,l2,seed
+		!self%samp=self%samp/ica2
 		select case(self%sg)
 		case(2)
 			self%phy=0d0; self%S=0d0; self%g=0d0
-			!$omp parallel do private(seed) num_threads(omp) if(omp>1)
-			do k=1,omp
-                !$omp critical
-				call random_number(seed,4285)
-                !$omp end critical
-				call self%do_mc(seed)
-			enddo
-			!$omp end parallel do
-			self%phy=self%phy*1d0/omp; self%S=self%S*1d0/omp; self%g=self%g*1d0/omp
-			self%phy(ier)=sqrt(self%phy(ier)-self%phy(iE)**2)
+			call random_number(seed,4285)
+			call self%do_mc(seed+7*this_image())
+			sync all
+			if(this_image(self,2)==1) then
+				do l=2,ica2
+					self[this_image(self,1),1]%phy=self[this_image(self,1),1]%phy+self[this_image(self,1),l]%phy; self[this_image(self,1),1]%S=self[this_image(self,1),1]%S+self[this_image(self,1),l]%S; self[this_image(self,1),1]%g=self[this_image(self,1),1]%g+self[this_image(self,1),l]%g
+				enddo
+				self[this_image(self,1),1]%phy=self[this_image(self,1),1]%phy*1d0/ica2; self[this_image(self,1),1]%S=self[this_image(self,1),1]%S*1d0/ica2; self[this_image(self,1),1]%g=self[this_image(self,1),1]%g*1d0/ica2
+				self[this_image(self,1),1]%phy(ier)=sqrt(self[this_image(self,1),1]%phy(ier)-self[this_image(self,1),1]%phy(iE)**2)
+				do l=2,ica2
+					self[this_image(self,1),l]%phy=self[this_image(self,1),1]%phy; self[this_image(self,1),l]%S=self[this_image(self,1),1]%S; self[this_image(self,1),l]%g=self[this_image(self,1),1]%g
+				enddo
+			endif
+			sync all
 			call heev(self%S,eg,'V')
-			write(*,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier)
-			write(*,"(i3$)")int(sign(1d0,self%g))
-			write(*,"(A$)")' | '
-			write(20,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier),self%g
+			if(this_image()==1) write(*,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier)
+			if(this_image()==1) write(*,"(i3$)")int(sign(1d0,self%g))
+			if(this_image()==1) write(*,"(A$)")' | '
+			if(this_image()==1) write(20,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier),self%g
 			eg=eg+abs(min(eg(1),0d0))+0.2d0
 			g_=self%g
 			do l=1,size(self%g)
@@ -1036,50 +1016,51 @@ contains
 					enddo
 				enddo
 			enddo
-			write(*,"(i3$)")int(sign(1d0,self%g))
+			if(this_image()==1) write(*,"(i3$)")int(sign(1d0,self%g))
 			!grad=g
 			self%g=self%g*Ns
 			!stop
 		case(1)
 			self%phy=0d0
-			!$omp parallel do private(seed) num_threads(omp) if(omp>1)
-			do k=1,omp
-                !$omp critical
-				call random_number(seed,4285)
-                !$omp end critical
-				call self%do_mc(seed)
-			enddo
-			!$omp end parallel do
-			self%phy=self%phy*1d0/omp
-			self%phy(ier)=sqrt(self%phy(ier)-self%phy(iE)**2)
-			!$omp critical
-			write(*,"(es12.4$)")self%q(:2)/pi,var(1:)%val(1),self%phy(iE),self%phy(ier),self%phy(iSq_pm)
-			write(10,"(es12.4$)")var(1:)%val(1)
-			write(*,"(x)")
-			write(10,"(x)")
-			!$omp end critical
+			call random_number(seed,4285)
+			call self%do_mc(seed+7*this_image())
+			write(*,*)this_image(),this_image(self)
+			sync all
+			if(this_image(self,2)==1) then
+				do l=2,ica2
+					self[this_image(self,1),1]%phy=self[this_image(self,1),1]%phy+self[this_image(self,1),l]%phy;
+				enddo
+				self[this_image(self,1),1]%phy=self[this_image(self,1),1]%phy*1d0/ica2
+				self[this_image(self,1),1]%phy(ier)=sqrt(self[this_image(self,1),1]%phy(ier)-self[this_image(self,1),1]%phy(iE)**2)
+				do l=2,ica2
+					self[this_image(self,1),l]%phy=self[this_image(self,1),1]%phy
+				enddo
+			endif
+			sync all
+			critical
+			if(this_image(self,2)==1) write(*,"(*(es12.4))")self%q(:2)/pi,var(1:)%val(1),self%phy(iE),self%phy(ier),self%phy(iSq_pm)
+			if(this_image(self,2)==1) write(10,"(*(es12.4))")var(1:)%val(1)
+			endcritical
 		case(3)
 			self%Ok2=0d0; self%Ek2=0d0
-			!$omp parallel do private(seed) num_threads(omp) if(omp>1)
-			do k=1,omp
-				!$omp critical
-				call random_number(seed,4285)
-				!$omp end critical
-				call self%do_mc(seed)
-			enddo
-			!$omp end parallel do
-			self%Ok2=self%Ok2*1d0/omp; self%Ek2=self%Ek2*1d0/omp
-			!$omp ordered
-			write(50,*)-1,size(self%psi0),Ns
-			write(50,*)self%phy(iE),self%phy(iSq_pm),self%Emf,self%psi0,self%Ok2,self%Ek2,self%nn(1:,:)
-			call self%spect(70,0.02d0,(/-10d0,10d0/),5000)
-			self%Ek2=transpose(conjg(self%Ek2))
-			call self%spect(70,0.02d0,(/-10d0,10d0/),5000)
-			!$omp end ordered
+			call random_number(seed,4285)
+			call self%do_mc(seed+7*this_image())
+			sync all
+			if(this_image(self,2)==1) then
+				do l=2,ica2
+					self[this_image(self,1),1]%Ok2=self[this_image(self,1),1]%Ok2+self[this_image(self,1),l]%Ok2; self[this_image(self,1),1]%Ek2=self[this_image(self,1),1]%Ek2+self[this_image(self,1),l]%Ek2
+				enddo
+				self[this_image(self,1),1]%Ok2=self[this_image(self,1),1]%Ok2*1d0/ica2; self[this_image(self,1),1]%Ek2=self[this_image(self,1),1]%Ek2*1d0/ica2
+				do l=2,ica2
+					self[this_image(self,1),l]%Ok2=self[this_image(self,1),1]%Ok2; self[this_image(self,1),l]%Ek2=self[this_image(self,1),1]%Ek2
+				enddo
+			endif
+			sync all
 		end select
+		!self%samp=self%samp*ica2
 	end subroutine
 	subroutine do_mc(self,seed)
-		class(t_mc) :: self
+		class(t_mc) :: self[ica1,*]
 		integer :: seed
 		complex(8) :: iA(sum(self%ne),sum(self%ne)),iAl(size(iA,1),self%delay),A(size(iA,1),size(self%wf,2)),WA(size(self%wf,1),size(iA,2)),WAl(size(WA,1),size(iAl,2)),WAr(size(iAl,2),size(WA,2)),AW(size(iA,1),size(self%wf,2)),WAW(size(self%wf,1),size(self%wf,2)),AWr(size(iAl,2),size(AW,2)),wf(size(self%wf,1),size(self%wf,2)),dwf(size(self%dwf,1),size(self%dwf,2),size(self%dwf,3))
 		integer :: cfgl(size(self%cfg)),Ecfgl(size(self%Ecfg)),icfg(size(A,1)),iEcfg(size(A,1))
@@ -1230,9 +1211,7 @@ contains
 						np=0
 						pb=sum(abs(wf(:,iEcfg)-matmul(WA,wf(icfg,iEcfg))))
 						if(abs(pb)>1d-5) then
-							!$omp critical
 							write(*,*)"warn!! ",apt,abs(pb)
-							!$omp end critical
 							A=wf(icfg,:)
 							iA=A(:,iEcfg)
 							call mat_inv(iA,info)
@@ -1243,11 +1222,9 @@ contains
 							endif
 							pb=sum(abs(wf(:,iEcfg)-matmul(WA,wf(icfg,iEcfg))))
 							if(abs(pb)>1d-5) then
-								!$omp critical
 								write(*,*)"update err",abs(pb)
 								write(*,*)iEcfg
 								write(*,*)icfg
-								!$omp end critical
 							endif
 						endif
 					endif
@@ -1259,16 +1236,16 @@ contains
 					is_update=.false.
 					select case(self%sg)
 					case(1)
-						!phyl(iE)=get_energy(cfgl,WA,ja)*1d0/Ns
-						!!phyl%dsc=real(get_dsc(cfgl,WA,ja))
-						!phyl(iSq_pm)=get_spin_pm(cfgl,WA,self%q,ja)
-						!!phyl%Sq_zz=get_spin_zz(cfgl,q)
+						phyl(iE)=get_energy(cfgl,WA,ja)*1d0/Ns
+						!phyl%dsc=real(get_dsc(cfgl,WA,ja))
+						phyl(iSq_pm)=get_spin_pm(cfgl,WA,self%q,ja)
+						!phyl%Sq_zz=get_spin_zz(cfgl,q)
 					case(2)
 						phyl(iE)=get_energy(cfgl,WA,ja)*1d0/Ns
 						call get_O(icfg,iEcfg,WA,iA,dwf,Ol(:size(dwf,3)))
 					case(3)
-						!call get_overlap(cfgl,Ecfgl,nn,WA,iA,AW,WAW,Ok,Ek,ja)
-						!Oq=1d0/sum(real(Ok*conjg(Ok)))
+						call get_overlap(cfgl,Ecfgl,nn,WA,iA,AW,WAW,Ok,Ek,ja)
+						Oq=1d0/sum(real(Ok*conjg(Ok)))
 					end select
 				endif
 				phyp=phyp+phyl
@@ -1282,31 +1259,30 @@ contains
 					gp=gp+real(phyl(iE)*conjg(Ol))
 					Op=Op+Ol
 				case(3)
-					!do l1=1,size(Ok)
-						!do l2=1,size(Ok)
-							!Ek2p(l2,l1)=Ek2p(l2,l1)+Ok(l2)*conjg(Ek(l1))*Oq
-						!enddo
-					!enddo
-					!do l1=1,size(Ok)
-						!do l2=1,size(Ok)
-							!Ok2p(l2,l1)=Ok2p(l2,l1)+Ok(l2)*conjg(Ok(l1))*Oq
-						!enddo
-					!enddo
+					do l1=1,size(Ok)
+						do l2=1,size(Ok)
+							Ek2p(l2,l1)=Ek2p(l2,l1)+Ok(l2)*conjg(Ek(l1))*Oq
+						enddo
+					enddo
+					do l1=1,size(Ok)
+						do l2=1,size(Ok)
+							Ok2p(l2,l1)=Ok2p(l2,l1)+Ok(l2)*conjg(Ok(l1))*Oq
+						enddo
+					enddo
 				end select
 				!!if(mod(samp,1024)==0.and.self%sg==3) then
 				if(mod(samp,512)==0.and.self%sg==3) then
 					!pb=sum(abs(Ek2p-conjg(transpose(Ek2p)))*1d0/samp)
-					!$omp critical
-					write(*,"(i7$)")self%num,samp
-					write(*,"(es16.5$)")real(apt)*1d0/n!,real(pb)
-					write(*,"(x)")
-					if(mod(samp,1024*8*8)==0) then
-						rewind(50)
-						write(50,*)size(brizon%k,1),brizon%k
-						write(50,*)samp,size(self%psi0),Ns
-						write(50,*)self%phy(iE),self%phy(iSq_pm),self%Emf,self%psi0,Ok2p*1d0/samp,Ek2p*1d0/samp,self%nn(1:,:)
+					if(this_image(self,2)==1) then
+						write(*,"(i7$)")self%num,samp
+						write(*,"(*(es16.5))")real(apt)*1d0/n!,real(pb)
+						!if(mod(samp,1024*8*8)==0) then
+							!rewind(50)
+							!write(50,*)size(brizon%k,1),brizon%k
+							!write(50,*)samp,size(self%psi0),Ns
+							!write(50,*)self%phy(iE),self%phy(iSq_pm),self%Emf,self%psi0,Ok2p*1d0/samp,Ek2p*1d0/samp,self%nn(1:,:)
+						!endif
 					endif
-					!$omp end critical
 				endif
 				!!read(*,*)
 				if(samp==self%samp) then
@@ -1318,9 +1294,7 @@ contains
 		pb=sum(abs(wf(:,iEcfg)-matmul(WA,wf(icfg,iEcfg))))
 		!write(*,*)sum(abs(wf(:,iEcfg)-matmul(WA,wf(icfg,iEcfg)))),sum(abs(diag(1d0,size(iA,1))-matmul(iA,wf(icfg,iEcfg)))),sum(abs(matmul(wf(icfg,iEcfg),AW)-wf(icfg,:))),sum(abs(matmul(wf(:,iEcfg),AW)-WAW))
 		if(abs(pb)>1d-5) then
-			!$omp critical
 			write(*,*)"warn!!!!!",abs(pb)
-			!$omp end critical
 		endif
 
 		phyp=phyp*isamp
@@ -1336,19 +1310,16 @@ contains
 		enddo
 		gp=2d0*(gp-real(phyp(iE)*conjg(Op)))
 
-		!$omp critical
-		!write(*,*)"finish"
 		self%cfg=cfgl
 		select case(self%sg)
 		case(1:2)
-			self%phy=self%phy+real(phyp)
-			self%phy(ier)=self%phy(ier)+real(phyp(iE))**2
-			self%S=self%S+Sp; self%g=self%g+gp
+			self%phy=real(phyp)
+			self%phy(ier)=real(phyp(iE))**2
+			self%S=Sp; self%g=gp
 		case(3)
-			self%Ek2=self%Ek2+Ek2p
-			self%Ok2=self%Ok2+Ok2p
+			self%Ek2=Ek2p
+			self%Ok2=Ok2p
 		end select
-		!$omp end critical
 		call finalize_RandomNumberSequence(rnd)
 	end subroutine
 	subroutine spect(self,ut,gm,omg,m,E)
@@ -1370,9 +1341,7 @@ contains
 		do i=1,size(EO)
 			if(EO(i)>1d-8) then
 				n0=i
-				!$omp critical
 				write(*,*)n0,size(EO)
-				!$omp end critical
 				exit
 			endif
 		enddo
@@ -1390,9 +1359,7 @@ contains
 		!psi0_=matmul(transpose(conjg(H_)),psi0_)
 
 		psi0_=conjg(psi0_)*psi0_
-		!$omp critical
 		write(*,*)abs(sum(psi0_(1:n0-1)))
-		!$omp end critical
 
 		do l=1,m
 			Sq(l)=Sq(l)+sum(psi0_(n0:)/(omg(1)+domg*l-Eg(n0:)+self%phy(iE)*Ns+img*gm))
@@ -1402,8 +1369,7 @@ contains
 		write(ut,"('#q=',3es12.4,2i5)")self%q/pi,i,size(EO)
 		do l=1,m
 			if(Smax(2)<abs(imag(Sq(l)))) Smax=(/omg(1)+domg*l,abs(imag(Sq(l)))/)
-			write(ut,"(es17.9$)")omg(1)+domg*l,Sq(l)*norm
-			write(ut,"(x)")
+			write(ut,"(*(es17.9))")omg(1)+domg*l,Sq(l)*norm
 		enddo
 		write(ut,"(x)")
 		write(*,*)"max intensity: ",Smax(1)
@@ -1422,14 +1388,13 @@ contains
 			enddo
 			write(*,*)sum(pnn)
 			do l=1,size(pnn)
-				write(ut+1,"(es17.9$)")brizon%k(mod(abs(self%nn(l,1))-1,size(brizon%k,1))+1,:2),brizon%k(mod(abs(self%nn(l,2))-1,size(brizon%k,1))+1,:2),self%Emf(abs(self%nn(l,:))),pnn(l)
-				write(ut+1,"(x)")
+				write(ut+1,"(*(es17.9))")brizon%k(mod(abs(self%nn(l,1))-1,size(brizon%k,1))+1,:2),brizon%k(mod(abs(self%nn(l,2))-1,size(brizon%k,1))+1,:2),self%Emf(abs(self%nn(l,:))),pnn(l)
 			enddo
 		endif
 		write(ut+1,"(x)")
 	end subroutine
-	subroutine do_var(self,omp,n)
-		class(t_mc) :: self
+	subroutine do_var(self,n)
+		class(t_mc) :: self[ica1,*]
 		integer :: omp,n
 		real(8) :: x(sum(var(1:)%n),n),dx,er,pgrad(size(x))
 		type(t_mysort) :: El(n)
@@ -1442,7 +1407,7 @@ contains
 		i=0
 		if(size(x)==0) then
 			call self%init(.true.)
-			call self%do_vmc(omp)
+			call self%do_vmc()
 			return
 		endif
 		x(:,1)=put(var(1:))
@@ -1451,9 +1416,9 @@ contains
 			i=i+1
 			if(allocated(self%g)) pgrad=self%g
 			call get(var(1:),x(:,i))
-			write(*,"(i4$)")i
+			if(this_image()==1) write(*,"(i4$)")i
 			call self%init(init_cfg)
-			call self%do_vmc(omp)
+			call self%do_vmc()
 			El(i)%val=self%phy(iE)
 			El(i)%idx=i
 			er=er*1.5d0
@@ -1474,11 +1439,11 @@ contains
 			x(:,i+1)=x(:,i)-self%g*dx
 			self%hot=128
 			init_cfg=.false.
-			write(*,"(x)")
-			write(20,"(x)")
+			if(this_image()==1) write(*,"(x)")
+			if(this_image()==1) write(20,"(x)")
 		enddo
 		self%hot=hot
-		write(*,*)"finished"
+		if(this_image()==1) write(*,*)"finished"
 		call qsort(El)
 		do i=2,min(n/5,30)
 			x(:,El(1)%idx)=x(:,El(1)%idx)+x(:,El(i)%idx)
@@ -1492,44 +1457,46 @@ program main
 	use vmc_main
 	implicit none
 	logical :: f
-	integer :: i,j,k
-	type(t_mc) :: mc
+	integer :: i,j,l
+	type(t_mc) :: mc[ica1,*]
 	real(8) :: et,E
-	open(101,file="../data/lattice.dat")
-	open(111,file="../data/tmp.dat")
-	!f=openfile(10,"../data/grad.dat")
-	f=openfile(20,"../data/var.dat")
-	!f=openfile(30,"../data/alg.dat")
-	f=openfile(40,"../data/phyvar.dat")
-	f=openfile(50,"../data/matrix.dat")
-	f=openfile(70,"../data/spect.dat")
+	ica2=num_images()/ica1
+	if(num_images()/=ica2*ica1) stop "plz check the coarray number"
+	if(this_image()==1) then
+		open(101,file="../data/lattice.dat")
+		open(111,file="../data/tmp.dat")
+		open(20,file=fn("../data/var.dat"))
+		open(40,file=fn("../data/phyvar.dat"))
+		open(50,file=fn("../data/matrix.dat"),access="stream")
+		open(70,file=fn("../data/spect.dat"))
+		open(71,file=fn("../data/spect_kmap.dat"))
 
-	!f=openfile(50,"/share/matrix_spin.dat")
-	!f=openfile(70,"/share/spect_spin.dat")
 
 
-	f=openfile(71,"../data/spect_kmap.dat")
-	!write(*,*)"input the energy resolution and energy:"
-	!read(*,*)et,E
-	!read(50,*)i
-	!rewind(50)
-	!allocate(brizon%k(i,3))
-	!read(50,*)i,brizon%k
-	!do 
-		!read(50,*)i,j,Ns
-		!allocate(mc%psi0(j),mc%Ok2(j,j),mc%Ek2(j,j),mc%nn(j,2),mc%Emf(Ns*2))
-		!read(50,*)mc%phy(iE),mc%phy(iSq_pm),mc%Emf,mc%psi0,mc%Ok2,mc%Ek2,mc%nn
-		!write(*,*)mc%phy(iE),Ns,i,j
-		!call mc%spect(70,et,(/-10d0,10d0/),5000,E)
-		!mc%Ek2=transpose(conjg(mc%Ek2))
-		!call mc%spect(70,et,(/-10d0,10d0/),5000)
-		!deallocate(mc%psi0,mc%Ok2,mc%Ek2)
-	!enddo
+		!write(*,*)"input the energy resolution and energy:"
+		!read(*,*)et,E
+		!read(50,*)i
+		!rewind(50)
+		!allocate(brizon%k(i,3))
+		!read(50,*)i,brizon%k
+		!do 
+			!read(50,*)i,j,Ns
+			!allocate(mc%psi0(j),mc%Ok2(j,j),mc%Ek2(j,j),mc%nn(j,2),mc%Emf(Ns*2))
+			!read(50,*)mc%phy(iE),mc%phy(iSq_pm),mc%Emf,mc%psi0,mc%Ok2,mc%Ek2,mc%nn
+			!write(*,*)mc%phy(iE),Ns,i,j
+			!call mc%spect(70,et,(/-10d0,10d0/),5000,E)
+			!mc%Ek2=transpose(conjg(mc%Ek2))
+			!call mc%spect(70,et,(/-10d0,10d0/),5000)
+			!deallocate(mc%psi0,mc%Ok2,mc%Ek2)
+		!enddo
+	endif
 
 	!stop
 
 	call initial()
-	write(50,*)size(brizon%k,1),brizon%k
+	if(this_image()==1) then
+		write(50)size(brizon%k,1),brizon%k
+	endif
 	otime=0d0
 
 	mc%hot=1024
@@ -1554,17 +1521,17 @@ program main
 	!call variation()
 	!stop
 	!call export_data(101)
-	call omp_set_nested(.true.)
+	call omp_set_nested(.false.)
+	!call omp_set_max_active_levels(1)
 	call omp_set_dynamic(.false.)
 	call mkl_set_dynamic(0)
-	call omp_set_max_active_levels(1)
 	call omp_set_schedule(omp_sched_static,0)
 
-	call mkl_set_num_threads(16)
+	call mkl_set_num_threads(1)
 	call omp_set_num_threads(mkl_get_max_threads())
 
 
-	mc%ne(1)=Ns/2-66
+	mc%ne(1)=Ns/2
 	mc%ne(2)=Ns-mc%ne(1)
 	mc%samp=1024
 	mc%sg=2
@@ -1579,7 +1546,7 @@ program main
 	!var(1:)%val(1)=(/2.1445d-01/)!0.125,ddw,compare
 	!var(1:)%val(1)=(/2.0268d-01/)!0.125,ddw,compare
 	!var(1:)%val(1)=(/1.9268d-01/)!0.125,ddw,compare
-	!var(1:)%val(1)=(/0.E+00,2.8386E-01,3.0E-01/)
+	var(1:)%val(1)=(/0.E+00,2.8386E-01,3.0E-01/)
 	!var(1:)%val(1)=(/2.8386E-01/)
 	!var(vn+1:)%val(1)=0d0
 	!var(1:)%val(1)=(/6.1000d-01/)
@@ -1597,69 +1564,97 @@ program main
 		!call mc%init(.true.)
 	!enddo
 	!otime(0)=omp_get_wtime()
-	!call mc%do_var(6,100)
+	!call mc%do_var(100)
 	!otime(1)=otime(1)+omp_get_wtime()-otime(0)
 	!call show_time()
 	!stop
 
 	j=nint(sqrt(real(Ns)))/2
-	!j=16
-	k=9
-	!!$omp parallel do ordered firstprivate(mc) num_threads(k) schedule(static,1)
-	!!!$omp parallel do ordered firstprivate(mc) num_threads(8) schedule(static,1)
-	!!!do i=1,j*3
-	!!do i=j/2+1,j+j/2
-	!!do i=j/2+1+2,j/2+2+k
-	!do i=j/2+2,j/2+1+k
-	!!do i=j/2+1,j/2+2
-	!!do i=1,16
-	!!do i=1,8
-		if(i<=j) then
-			mc%q=(/0d0,0d0,0d0/)+((/pi,pi,0d0/)-(/0d0,0d0,0d0/))/j*mod(i-1,j)
-			!mc%q=(/0d0,0d0,0d0/)+((/2d0*pi,0d0,0d0/)-(/0d0,0d0,0d0/))/j*i
-		elseif(i<=2*j) then
-			mc%q=(/pi,pi,0d0/)+((/0d0,pi,0d0/)-(/pi,pi,0d0/))/j*mod(i-1,j)
-		else
-			mc%q=(/0d0,pi,0d0/)+((/0d0,0d0,0d0/)-(/0d0,pi,0d0/))/j*mod(i-1,j)
-		endif
-		!mc%num=i-(j/2+2)
-		mc%num=i
-		mc%q=(/pi,pi,0d0/)
-		!mc%q=(/pi,pi,0d0/)*7d0/8d0
+	i=this_image(mc,1)
+	if(i<=j) then
+		mc%q=(/0d0,0d0,0d0/)+((/pi,pi,0d0/)-(/0d0,0d0,0d0/))/j*mod(i-1,j)
+		!mc%q=(/0d0,0d0,0d0/)+((/2d0*pi,0d0,0d0/)-(/0d0,0d0,0d0/))/j*i
+	elseif(i<=2*j) then
+		mc%q=(/pi,pi,0d0/)+((/0d0,pi,0d0/)-(/pi,pi,0d0/))/j*mod(i-1,j)
+	else
+		mc%q=(/0d0,pi,0d0/)+((/0d0,0d0,0d0/)-(/0d0,pi,0d0/))/j*mod(i-1,j)
+	endif
+	!mc%num=i-(j/2+2)
+	mc%num=i
+	!mc%q=(/pi,pi,0d0/)
+	!mc%q=(/pi,pi,0d0/)*7d0/8d0
 
-		mc%sg=1
-		mc%ne(1)=Ns/2-66
-		mc%ne(2)=Ns-mc%ne(1)
-		mc%samp=1024*8*8
+	mc%sg=1
+	mc%ne(1)=Ns/2
+	mc%ne(2)=Ns-mc%ne(1)
+	mc%samp=1024*8*2
 
-		call mc%init(.true.)
-		call mc%do_vmc(1)
+	call mc%init(.true.)
+	call mc%do_vmc()
 
-		!mc%phy(iE)=-4.1147d-01
-		!mc%phy(iE)=-4.1527d-01
-		!mc%phy(iE)=-4.1577d-01
-		!mc%phy(iE)=-4.4011E-01
-		!mc%phy(iE)=-4.3589E-01
-		!mc%phy(iE)=-4.2541E-01
-		!mc%phy(iE)=-1.9167E-01
-		!mc%phy(iE)=-1.8767E-01
-		!mc%phy(iE)=-4.1652E-01
-		!mc%phy(iE)=-4.3975E-01
-		!mc%phy(iE)=-0.390325172906662d0
-		!mc%phy(iE)=-4.2263d-01
-		!mc%phy(iE)=-0.398325172906662d0
-		!mc%phy(iE)=-4.9845d-01
-		!mc%phy(iSq_pm)=4.0471E-01
+	if(this_image()==1) then
+		do l=2,ica1
+			mc[1,1]%phy(iE)=mc[1,1]%phy(iE)+mc[l,1]%phy(iE)
+		enddo
+		mc[1,1]%phy(iE)=mc[1,1]%phy(iE)*1d0/ica1
+		sync images(*)
+	else
+		sync images(1)
+		mc%phy(iE)=mc[1,1]%phy(iE)
+	endif
 
-		mc%sg=3
-		mc%ne=mc%ne+1
-		mc%hot=1024
-		mc%samp=1024*8*8*32*8*8
-		mc%step=nint(sqrt(real(Ns)))
-		call mc%init(.true.)
-		call mc%do_vmc(1)
 
-		!stop
-	!enddo
-	!!$omp end parallel do
+	mc%sg=3
+	mc%ne=mc%ne+1
+	mc%hot=1024
+	!mc%samp=1024*8*8*32*8*8
+	mc%samp=1024*8*2
+	mc%step=nint(sqrt(real(Ns)))
+	call mc%init(.true.)
+	call mc%do_vmc()
+
+	!if(this_image()/=1.and.this_image()<=ica1) sync images(this_image()-1)
+	!if(this_image()<=ica1) then
+		!if(this_image()==1) then
+			!open(50,file="../data/matrix.dat")
+			!open(70,file="../data/spect.dat")
+		!else
+			!open(50,file="../data/matrix.dat",position="append")
+			!open(70,file="../data/spect.dat",position="append")
+		!endif
+		!write(*,*)this_image(mc)
+		!write(50,*)-1,size(mc%psi0),Ns
+		!write(50,*)mc%phy(iE),mc%phy(iSq_pm),mc%Emf,mc%psi0,mc%Ok2,mc%Ek2,mc%nn(1:,:)
+		!call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)
+		!mc%Ek2=transpose(conjg(mc%Ek2))
+		!call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)
+		!close(50)
+		!close(70)
+	!endif
+	!if(this_image()<ica1) sync images(this_image()+1)
+
+	if(this_image()==1) then
+		do l=1,ica1
+			write(50)-1,size(mc[l,1]%psi0),Ns,mc[l,1]%phy(iE),mc[l,1]%phy(iSq_pm),mc[l,1]%Emf,mc[l,1]%psi0,mc[l,1]%Ok2,mc[l,1]%Ek2,mc[l,1]%nn(1:,:)
+			!call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)
+			!mc[l,1]%Ek2=transpose(conjg(mc[l,1]%Ek2))
+			!call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)
+		enddo
+		rewind(50)
+		read(50)i
+		deallocate(brizon%k)
+		allocate(brizon%k(i,3))
+		read(50)brizon%k
+		do l=1,ica1
+			read(50)i,j,Ns
+			if(allocated(mc%psi0)) deallocate(mc%psi0,mc%Ok2,mc%Ek2,mc%Emf,mc%nn)
+			allocate(mc%psi0(j),mc%Ok2(j,j),mc%Ek2(j,j),mc%nn(j,2),mc%Emf(Ns*2))
+			read(50)mc%phy(iE),mc%phy(iSq_pm),mc%Emf,mc%psi0,mc%Ok2,mc%Ek2,mc%nn
+			write(*,*)mc%phy(iE),Ns,i,j
+			call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)
+			mc%Ek2=transpose(conjg(mc%Ek2))
+			call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)
+			deallocate(mc%psi0,mc%Ok2,mc%Ek2,mc%Emf,mc%nn)
+		enddo
+	endif
 end program

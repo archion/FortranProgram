@@ -182,6 +182,26 @@ contains
 		endif
 		openfile=.true.
 	end function
+	function fn(f)
+		character(*) :: f
+		character(:), allocatable :: fn
+		character(20) :: nf
+		character(20), save :: nf_save
+		write(*,"(A$)")"Use default: '",f,"' or enter a new: "
+		read(*,"(A$)")nf
+		if(len(trim(adjustl(nf)))>0) then
+			if(scan(nf,"/")/=0) then
+				fn=f(1:scan(f,"/",.true.)-1)//trim(adjustl(nf))//".dat"
+			elseif(scan(nf,"*")/=0) then
+				fn=f(1:scan(f,".",.true.)-1)//"_"//trim(adjustl(nf_save))//".dat"
+			else
+				fn=f(1:scan(f,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat"
+				nf_save=nf
+			endif
+		else
+			fn=f
+		endif
+	end function
 	recursive subroutine qsort(self)
 		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
 		class(t_sort) :: self(:)
