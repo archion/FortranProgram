@@ -182,6 +182,30 @@ contains
 		endif
 		openfile=.true.
 	end function
+	function to_char(i,l)
+		integer :: i
+		integer, optional :: l
+		integer :: j
+		character(:), allocatable :: to_char
+		j=i
+		to_char=''
+		do 
+			to_char=char(48+mod(j,10))//to_char
+			j=j/10
+			if(j==0) then
+				if(present(l)) then
+					do
+						if(l>len(to_char)) then
+							to_char="0"//to_char
+						else
+							exit
+						endif
+					enddo
+				endif
+				exit
+			endif
+		enddo
+	end function
 	function fn(f)
 		character(*) :: f
 		character(:), allocatable :: fn

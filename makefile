@@ -3,7 +3,7 @@ FCC = ifort
 #OMPFLAG= -qopenmp -parallel
 OMPFLAG= -qopenmp
 #CFLAG=-warn nounused
-CFLAG=-warn nounused -traceback
+CFLAG=-warn nounused -traceback -assume realloc_lhs
 #CFLAG=-warn nounused -check bounds -g -check all -fpe0 -traceback -debug extended
 FCCFLAG_64= -lmy -mkl=sequential -lmkl_lapack95_lp64 -lnlopt -lm
 FCCFLAG_32= -lmy -mkl=sequential -lmkl_lapack95 -lnlopt -lm
@@ -15,8 +15,8 @@ FCCFLAG_64= -lmy -lnlopt -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 
 #FCCFLAG_64= -lmy -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lnlopt -lm
 all:$(out)
 %.out: %.o
-	$(FCC) $< -o $@ $(FCCFLAG_$(ARCH)) -coarray
+	$(FCC) $< -o $@ $(FCCFLAG_$(ARCH)) #-coarray
 %.o: %.f90
-	$(FCC) -c $< $(OMPFLAG) $(CFLAG) -coarray
+	$(FCC) -c $< $(OMPFLAG) $(CFLAG) #-coarray
 clean:
 	rm -f *.out *.mod *.o
