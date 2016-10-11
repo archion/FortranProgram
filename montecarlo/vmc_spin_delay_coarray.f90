@@ -10,7 +10,7 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
-	integer, parameter :: ica1=2
+	integer, parameter :: ica1=1
 	integer :: ica2
 	integer :: Ns,vn
 contains
@@ -1024,7 +1024,6 @@ contains
 			self%phy=0d0
 			call random_number(seed,4285)
 			call self%do_mc(seed+7*this_image())
-			write(*,*)this_image(),this_image(self)
 			sync all
 			if(this_image(self,2)==1) then
 				do l=2,ica2
@@ -1037,6 +1036,7 @@ contains
 				enddo
 			endif
 			sync all
+			write(*,*)this_image(),this_image(self)
 			critical
 			if(this_image(self,2)==1) write(*,"(*(es12.4))")self%q(:2)/pi,var(1:)%val(1),self%phy(iE),self%phy(ier),self%phy(iSq_pm)
 			if(this_image(self,2)==1) write(10,"(*(es12.4))")var(1:)%val(1)
@@ -1490,6 +1490,7 @@ program main
 			!deallocate(mc%psi0,mc%Ok2,mc%Ek2)
 		!enddo
 	endif
+	sync all
 
 	!stop
 
@@ -1509,13 +1510,13 @@ program main
 	!var(1:)%val(1)=(/0d0,0.36d0,0d0/)
 	!var(1:)%val(1)=(/-0.39d0,0.32d0,-0.205d0/)
 	!var(1:)%val(1)=(/-0.46d0,0.300d0,-0.268d0/)
-	var(1:)%val(1)=(/-1.39752E+00,8.88530E-01*2E0,1.32678E-02,-2.00021E-01/)
+	!var(1:)%val(1)=(/-1.39752E+00,8.88530E-01*2E0,1.32678E-02,-2.00021E-01/)
 	!var(1:)%val(1)=(/-1.4051E+00,2.4353E+00,-1.9875E-01,-2.6827E-01/)
 	!var(1:)%val(1)=(/-1.2070E+00,1.8269E+00,-1.3504E-01,-1.5381E-01/)
 	!var(1:)%val(1)=(/-1.53531E+00,8.07142E-01*2E0,-6.06570E-02,-2.62224E-01,-2.15494E-01/)
 	!var(1:)%val(1)=(/-8.0718E-01,2.0919E-01,-9.9164E-02/) ! 16x16
 	!var(1:)%val(1)=(/-6.6706E-01,2.1394E-01,-1.3299E-01/) ! 8x8
-	!var(1:)%val(1)=(/0d0,3.9616d-1,0d0/) ! 8x8
+	var(1:)%val(1)=(/0d0,3.9616d-1,0d0/) ! 8x8
 	!var(1:)%val(1)=(/1.9616d-1,0d0/) ! 8x8
 	!var(1:)%val(1)=(/-8.6811E-01,2.0951E-01,-9.7832E-02/) ! 12x12
 	!call variation()
@@ -1581,7 +1582,7 @@ program main
 	endif
 	!mc%num=i-(j/2+2)
 	mc%num=i
-	!mc%q=(/pi,pi,0d0/)
+	mc%q=(/pi,pi,0d0/)
 	!mc%q=(/pi,pi,0d0/)*7d0/8d0
 
 	mc%sg=1

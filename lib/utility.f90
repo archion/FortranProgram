@@ -209,8 +209,8 @@ contains
 	function fn(f)
 		character(*) :: f
 		character(:), allocatable :: fn
-		character(20) :: nf
-		character(20), save :: nf_save
+		character(50) :: nf
+		character(50), save :: nf_save
 		write(*,"(A$)")"Use default: '",f,"' or enter a new: "
 		read(*,"(A$)")nf
 		if(len(trim(adjustl(nf)))>0) then

@@ -1,22 +1,19 @@
 ARCH := $(shell getconf LONG_BIT)
 FCC = ifort
-#OMPFLAG= -qopenmp -parallel
-OMPFLAG= -qopenmp
-#CFLAG=-warn nounused
-CFLAG=-warn nounused -traceback -assume realloc_lhs
+#CFLAG= $(AFLAG) -warn nounused -traceback -assume realloc_lhs
+CFLAG= $(AFLAG) -warn nounused -traceback
 #CFLAG=-warn nounused -check bounds -g -check all -fpe0 -traceback -debug extended
-FCCFLAG_64= -lmy -mkl=sequential -lmkl_lapack95_lp64 -lnlopt -lm
-FCCFLAG_32= -lmy -mkl=sequential -lmkl_lapack95 -lnlopt -lm
-FCCFLAG_64= -lmy -mkl -lmkl_lapack95_lp64 -lmkl_blas95_lp64 -lnlopt -lm
-#FCCFLAG_32= -lmy -mkl -lmkl_lapack95 
-FCCFLAG_64= -lmy -lnlopt -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lm -ldl
-#FCCFLAG_32= -lmy -lmkl_intel -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lmkl_lapack95
-#FCCFLAG= -lmy -lmkl_intel -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lmkl_lapack95
-#FCCFLAG_64= -lmy -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lnlopt -lm
+LFLAG_64= $(LFLAG) -lmy -mkl=sequential -lmkl_lapack95_lp64 -lnlopt -lm
+LFLAG_32= $(LFLAG) -lmy -mkl=sequential -lmkl_lapack95 -lnlopt -lm
+LFLAG_64= $(LFLAG) -lmy -mkl -lmkl_lapack95_lp64 -lmkl_blas95_lp64 -lnlopt -lm
+#LFLAG_32= -lmy -mkl -lmkl_lapack95 
+LFLAG_64= $(LFLAG) -lmy -lnlopt -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lm -ldl
+#LFLAG_32= $(LFLAG) -lmy -lmkl_intel -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lmkl_lapack95
+#LFLAG_64= $(LFLAG) -lmy -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lnlopt -lm
 all:$(out)
 %.out: %.o
-	$(FCC) $< -o $@ $(FCCFLAG_$(ARCH)) #-coarray
+	$(FCC) $< -o $@ $(LFLAG_$(ARCH))
 %.o: %.f90
-	$(FCC) -c $< $(OMPFLAG) $(CFLAG) #-coarray
+	$(FCC) -c $< $(CFLAG)
 clean:
 	rm -f *.out *.mod *.o

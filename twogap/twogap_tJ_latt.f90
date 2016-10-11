@@ -1,8 +1,9 @@
 module pmt
 	use M_const
+	use mkl_service
 	implicit none
 	real(8), parameter :: t(3)=(/1d0,-0.25d0,0.1d0/),&
-		V=0.0325d0,DJ=0.35d0
+		DJ=0.25d0,V=0.0625d0-DJ/4d0
 		!V=0.15d0,DJ=0.3d0
 		!V=-0.25d0/4d0,DJ=0.25d0
 		!V=0d0,DJ=0.25d0
@@ -32,7 +33,7 @@ contains
 		latt%layer=1
 		call latt%gen_latt()
 		call latt%gen_bond(size(t))
-		brizon%n1=128
+		brizon%n1=64
 		brizon%n2=brizon%n1
 		call latt%gen_brizon(brizon)
 		!call check_lattice(101)
@@ -71,12 +72,12 @@ contains
 		!enddo
 		!var(iv(0))%val=1d-1
 
-		!! sdw
-		!call gen_var(sg=4,nb=0,val=bd0,V=DJ,Vnb=1)
-		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=ab(i)
-		!enddo
-		!var(iv(0))%val=1d-1
+		! sdw
+		call gen_var(sg=4,nb=0,val=bd0,V=DJ,Vnb=1)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=ab(i)
+		enddo
+		var(iv(0))%val=1d-1
 
 		! bond order
 		call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))
@@ -207,29 +208,34 @@ contains
 		real(8) :: grad(n),f_data(1)
 		integer :: need_gradient
 		integer :: info,i,j,t
-		real(8) :: mu(1),vmu(1),wa(16),v(n),val_
+		real(8) :: mu(1),vmu(1),wa(16),v(n),val_,mu_min(2)
 		call get(var(2:),x)
 		mu(1)=var(1)%val(1)-1d-1
 		t=0
+		mu_min(2)=1d0
 		do
 			info=1
 			call hybrd1(minpack_fn,1,mu(1:1),vmu(1:1),1d-7,info,wa(:16),16)
+			if(abs(mu_min(2))>abs(vmu(1))) then
+				mu_min=[mu(1),vmu(1)]
+			endif
 			if(info/=1.or.abs(vmu(1))>1d-6) then
 				t=t+1
 				call random_number(mu)
-				mu=(mu-0.5d0)
+				mu=(mu_min(1)-mu*2)
 				if(t>100) then
 					write(*,"(A$)")"chemical portianal is err"
-					write(*,"(es12.4$)")vmu(1),var(1:)%val(1)
+					write(*,"(es12.4$)")mu_min,var(1:)%val(1)
 					write(*,"(i3$)")info
 					write(*,"(x)")
-					stop
+					exit
+					!stop
 				endif
 			else
 				exit
 			endif
 		enddo
-		call get(var(1:1),mu)
+		call get(var(1:1),mu_min(1:1))
 		call MF_val(2,v,val,0)
 		!write(*,"(es12.4$)")val,v
 		!call get(var(2:),x)
@@ -435,7 +441,7 @@ program main
 	implicit none
 	logical :: f,flag=.true.
 	integer :: l,m,i,nopt,od
-	real(8) :: n(0:20)=(/(min(1d0-0.005d0*i,0.999d0),i=0,20,1)/)
+	real(8) :: n(0:40)=(/(min(1d0-0.005d0*i,0.999d0),i=0,80,2)/)
 	real(8) :: Ts(size(n),2),Td(size(n),2),Tc(2),Tnc,dnf,pnf,pTk(2)
 	real(8), allocatable :: peak(:)
 	open(unit=10,file=fn('../data/phase.dat'))
@@ -452,6 +458,14 @@ program main
 	!f=openfile(unit=101,file='../data/lattice.dat')
 
 	call initial()
+	call omp_set_nested(.false.)
+	!!call omp_set_max_active_levels(2)
+	call omp_set_dynamic(.false.)
+	call mkl_set_dynamic(0)
+	call omp_set_schedule(omp_sched_static,0)
+
+	call mkl_set_num_threads(8)
+	call omp_set_num_threads(mkl_get_max_threads())
 
 	!Tk=1d-4
 	!do l=1,ubound(n,1)
@@ -502,74 +516,97 @@ program main
 	!call fermis(40,0.005d0,o_brizon%k,0d0)
 	!stop
 
-	!od=3
-	!Tc=(/1d-1,1d-4/)
-	!do l=0,ubound(n,1),1
-		!nf=n(l)
-		!Tk=Tc(1)
-		!Tc(1)=find_order(od,-1,Tk,(/1d-4,0.3d0,2d-3/),1d-3)
-		!Tk=Tc(2)
-		!Tc(2)=find_order(od,1,Tk,(/1d-4,Tc(1),2d-3/),1d-3)
-		!if((Tc(2)>2d-4.or.Tc(1)<2d-4).and.flag) then
-			!flag=.false.
-			!Tk=1d-4
-			!nf=find_order(od,1,nf,(/abs(nf),pnf,abs(pnf-nf)/20d0/),1d-3)
-			!write(110,"(es12.4$)")nf
-			!Tk=pTk(1)
-			!!Tnc=find_order(2,-1,Tk,(/1d-4,0.25d0,2d-3/),1d-3)
-			!Tk=find_order(od,-1,Tk,(/1d-4,0.25d0,1d-4/),1d-3)
-			!write(10,"(es12.4$)")1d0-nf,Tk,1d0-nf,3d-4
-			!write(*,"(es12.4$)")1d0-nf,Tk,1d0-nf,3d-4
-			!write(10,"(x)")
-			!write(*,"(x)")
-			!pnf=n(l)
-			!!do i=1,10
-				!!Tk=Tnc/10d0*i
-				!!call self_consist()
-				!!write(*,"(es12.4$)")nf,Tk,var(2:3)%val(1)*(/8d0,4d0/)*abs(var(2:3)%V)
-				!!write(*,"(x)")
-				!!write(100,"(es12.4$)")nf,Tk,var(2:3)%val(1)*(/8d0,4d0/)*abs(var(2:3)%V)
-				!!write(100,"(x)")
-				!!call raman(60,0.05d0,(/0d0,0.8d0/),256,peak)
-			!!enddo
-		!endif
-		!if(Tc(1)<2d-4) then
-			!nopt=l
-			!if(nf<pnf) call swap(nf,pnf)
-			!dnf=abs(nf-pnf)
-			!Tc=pTk
-			!do
-				!nf=nf-dnf/10d0
-				!Tk=Tc(1)
-				!Tc(1)=find_order(od,-1,Tk,(/Tc(2),0.25d0,1d-4/),1d-3)
-				!Tk=Tc(2)
-				!Tc(2)=find_order(od,1,Tk,(/1d-4,Tc(1),1d-4/),1d-3)
-				!write(10,"(es12.4$)")1d0-nf,Tc(1),1d0-nf,Tc(2)
-				!write(*,"(es12.4$)")1d0-nf,Tc(1),1d0-nf,Tc(2)
-				!write(10,"(x)")
+
+	od=2
+	nf=1d0
+	Tk=0.01d0
+	Tc(1)=find_order(od,-1,Tk,(/1d-4,0.3d0,2d-3/),1d-3)
+	Tk=1d-3
+	Tc(2)=find_order(od,1,Tk,(/1d-4,Tc(1),2d-3/),1d-3)
+	write(10,"(es12.4$)")0d0,Tc(1),0d0,Tc(2)
+	write(*,"(es12.4$)")0d0,Tc(1),0d0,Tc(2)
+	write(10,"(x)")
+	write(*,"(x)")
+
+	od=3
+	Tk=0.2d0
+	Tc(1)=find_order(od,-1,Tk,(/1d-4,0.3d0,2d-3/),1d-3)
+	Tk=1d-3
+	Tc(2)=find_order(od,1,Tk,(/1d-4,Tc(1),2d-3/),1d-3)
+	write(10,"(es12.4$)")0d0,Tc(1),0d0,Tc(2)
+	write(*,"(es12.4$)")0d0,Tc(1),0d0,Tc(2)
+	write(10,"(x)")
+	write(*,"(x)")
+
+	stop
+
+	od=3
+	Tc=(/1d-1,1d-4/)
+	do l=0,ubound(n,1),1
+		nf=n(l)
+		Tk=Tc(1)
+		Tc(1)=find_order(od,-1,Tk,(/1d-4,0.3d0,2d-3/),1d-3)
+		Tk=Tc(2)
+		Tc(2)=find_order(od,1,Tk,(/1d-4,Tc(1),2d-3/),1d-3)
+		if((Tc(2)>2d-4.or.Tc(1)<2d-4).and.flag) then
+			flag=.false.
+			Tk=1d-4
+			nf=find_order(od,1,nf,(/abs(nf),pnf,abs(pnf-nf)/20d0/),1d-3)
+			write(110,"(es12.4$)")nf
+			Tk=pTk(1)
+			!Tnc=find_order(2,-1,Tk,(/1d-4,0.25d0,2d-3/),1d-3)
+			Tk=find_order(od,-1,Tk,(/1d-4,0.25d0,1d-4/),1d-3)
+			write(10,"(es12.4$)")1d0-nf,Tk,1d0-nf,3d-4
+			write(*,"(es12.4$)")1d0-nf,Tk,1d0-nf,3d-4
+			write(10,"(x)")
+			write(*,"(x)")
+			pnf=n(l)
+			!do i=1,10
+				!Tk=Tnc/10d0*i
+				!call self_consist()
+				!write(*,"(es12.4$)")nf,Tk,var(2:3)%val(1)*(/8d0,4d0/)*abs(var(2:3)%V)
 				!write(*,"(x)")
-				!if((nf<=pnf).or.(Tc(1)-Tc(2))<1d-4) then
-					!write(110,"(es12.4$)")nf
-					!exit
-				!endif
+				!write(100,"(es12.4$)")nf,Tk,var(2:3)%val(1)*(/8d0,4d0/)*abs(var(2:3)%V)
+				!write(100,"(x)")
+				!call raman(60,0.05d0,(/0d0,0.8d0/),256,peak)
 			!enddo
-			!exit
-		!endif
-		!pnf=nf
-		!pTk=Tc
-		!write(10,"(es12.4$)")1d0-n(l),Tc(1),1d0-n(l),Tc(2)
-		!write(*,"(es12.4$)")1d0-n(l),Tc(1),1d0-n(l),Tc(2)
-		!write(10,"(x)")
-		!write(*,"(x)")
-	!enddo
-	!write(10,"(x/)")
+		endif
+		if(Tc(1)<2d-4) then
+			nopt=l
+			if(nf<pnf) call swap(nf,pnf)
+			dnf=abs(nf-pnf)
+			Tc=pTk
+			do
+				nf=nf-dnf/10d0
+				Tk=Tc(1)
+				Tc(1)=find_order(od,-1,Tk,(/Tc(2),0.25d0,1d-4/),1d-3)
+				Tk=Tc(2)
+				Tc(2)=find_order(od,1,Tk,(/1d-4,Tc(1),1d-4/),1d-3)
+				write(10,"(es12.4$)")1d0-nf,Tc(1),1d0-nf,Tc(2)
+				write(*,"(es12.4$)")1d0-nf,Tc(1),1d0-nf,Tc(2)
+				write(10,"(x)")
+				write(*,"(x)")
+				if((nf<=pnf).or.(Tc(1)-Tc(2))<1d-4) then
+					write(110,"(es12.4$)")nf
+					exit
+				endif
+			enddo
+			exit
+		endif
+		pnf=nf
+		pTk=Tc
+		write(10,"(es12.4$)")1d0-n(l),Tc(1),1d0-n(l),Tc(2)
+		write(*,"(es12.4$)")1d0-n(l),Tc(1),1d0-n(l),Tc(2)
+		write(10,"(x)")
+		write(*,"(x)")
+	enddo
+	write(10,"(x/)")
 
 	od=2
 
 	pnf=nf
 	Tc=(/1d-1,1d-4/)
-	!do l=nopt-1,-1,-1
-	do l=0,20
+	do l=nopt-1,-1,-1
 		nf=n(l)
 		Tk=Tc(1)
 		Tc(1)=find_order(od,-1,Tk,(/1d-4,0.25d0,2d-3/),1d-3)
@@ -583,7 +620,6 @@ program main
 	enddo
 	write(10,"(x/)")
 	write(*,"(x/)")
-	stop
 
 	nf=pnf
 	Tc=(/1d-1,1d-4/)
