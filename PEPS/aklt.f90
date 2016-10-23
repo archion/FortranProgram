@@ -9,17 +9,18 @@ program main
 
 	call mkl_set_num_threads(1)
 
-	call M%new(["i1","j","k"],[3,2,2],"0")
-	M%T(M%get_idx([1,2,1, 2,1,1, 2,2,2, 3,1,2],["i1","j","k"]))=[-sqrt(2d0/3d0),-sqrt(1d0/3d0),sqrt(1d0/3d0),sqrt(2d0/3d0)]
-	call M%reorder([2,1,3])
+	call M%new(["d","l","r"],[3,2,2],"0")
+	M%rc%T(M%get_idx([1,2,1, 2,1,1, 2,2,2, 3,1,2]))=[-sqrt(2d0/3d0),-sqrt(1d0/3d0),sqrt(1d0/3d0),sqrt(2d0/3d0)]
 
-	A=M
+	call A%new(M%label,M%shap)
+	A%rc%T=M%rc%T
+	A=A%change_label(["d"],["d1"])
 	do i=2,N
-		call M%change_label(["i"//to_char(i-1),"i"//to_char(i)])
-		A=dot(A,M,["k","j"])
+		A=dot(A,M%change_label(["d"],[character(4)::"d"//to_char(i)]),["r","l"])
 	enddo
 
-	call A%svd(["j  ",("i"//to_char(i),i=1,N/2)],[character::],U,s,V)
+
+	call A%svd([character(5)::"l",("d"//to_char(i),i=1,N/2)],[character::],U,s,V)
 	s=s**2/sum(s**2)
 	write(*,*)s
 	write(*,*)size(s)

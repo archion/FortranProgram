@@ -10,9 +10,19 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
-	integer, parameter :: ica1=1
+	integer, parameter :: ica1=4
 	integer :: ica2
 	integer :: Ns,vn
+	real(8) :: q(3,ica1)=reshape([&
+		!pi*5d0/8d0,pi*5d0/8d0,0d0,&
+		!pi*6d0/8d0,pi*6d0/8d0,0d0,&
+		!pi*7d0/8d0,pi*7d0/8d0,0d0,&
+		!pi,pi,0d0&
+		pi,pi*7d0/8d0,0d0,&
+		pi,pi*6d0/8d0,0d0,&
+		pi,pi*5d0/8d0,0d0,&
+		pi,pi*4d0/8d0,0d0&
+		],[3,ica1])
 contains
 	subroutine initial()
 		integer :: i,l
@@ -23,15 +33,15 @@ contains
 		! lattice
 		latt%a1=(/1d0,0d0,0d0/)
 		latt%a2=(/0d0,1d0,0d0/)
-		!latt%c1=(/8d0,0d0,0d0/)
-		!latt%c2=(/0d0,2d0,0d0/)
+		latt%c1=(/8d0,0d0,0d0/)
+		latt%c2=(/0d0,2d0,0d0/)
 		!latt%c1=(/1d0,1d0,0d0/)
 		!latt%c2=(/-1d0,1d0,0d0/)
-		latt%c1=latt%a1
-		latt%c2=latt%a2
-		latt%T1=(/1d0,0d0,0d0/)*8
-		latt%T2=(/0d0,1d0,0d0/)*8
-		latt%bdc=(/1d0,-1d0,0d0/)
+		!latt%c1=latt%a1
+		!latt%c2=latt%a2
+		latt%T1=(/1d0,0d0,0d0/)*16
+		latt%T2=(/0d0,1d0,0d0/)*16
+		latt%bdc=(/1d0,1d0,0d0/)
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=(/0d0,0d0,0d0/)
 		latt%n1=1
@@ -48,11 +58,11 @@ contains
 		var(iv(0))%val=-1.39752d0
 
 		! dsc
-		call gen_var(sg=2,nb=1)
+		call gen_var(sg=-2,nb=1)
 		do i=1,size(var(iv(0))%bd)
 			var(iv(0))%bd(i)=dwave(i)
 		enddo
-		var(iv(0))%val=5d-4
+		var(iv(0))%val=1d-4
 
 		!! ssc
 		!call gen_var(sg=-2,nb=0)
@@ -68,19 +78,19 @@ contains
 		!enddo
 		!var(iv(0))%val=1d-1
 
-		!! sdw
-		!call gen_var(sg=4,nb=0)
-		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=ab(i)*sin(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
-		!enddo
-		!var(iv(0))%val=1d-1
+		! sdw
+		call gen_var(sg=4,nb=0)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=ab(i)*sin(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+		enddo
+		var(iv(0))%val=1d-1
 
-		!! on site cdw
-		!call gen_var(sg=3,nb=0)
-		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
-		!enddo
-		!var(iv(0))%val=1.32678d-2
+		! on site cdw
+		call gen_var(sg=3,nb=0)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+		enddo
+		var(iv(0))%val=1.32678d-2
 
 		do l=2,size(t)
 			call gen_var(sg=3,nb=l)
@@ -980,7 +990,7 @@ contains
 		class(t_mc) :: self[ica1,*]
 		real(8) :: eg(size(self%g)),g_(size(self%g))
 		integer :: k,l,l1,l2,seed
-		!self%samp=self%samp/ica2
+		self%samp=self%samp/ica2
 		select case(self%sg)
 		case(2)
 			self%phy=0d0; self%S=0d0; self%g=0d0
@@ -991,13 +1001,13 @@ contains
 				do l=2,ica2
 					self[this_image(self,1),1]%phy=self[this_image(self,1),1]%phy+self[this_image(self,1),l]%phy; self[this_image(self,1),1]%S=self[this_image(self,1),1]%S+self[this_image(self,1),l]%S; self[this_image(self,1),1]%g=self[this_image(self,1),1]%g+self[this_image(self,1),l]%g
 				enddo
-				self[this_image(self,1),1]%phy=self[this_image(self,1),1]%phy*1d0/ica2; self[this_image(self,1),1]%S=self[this_image(self,1),1]%S*1d0/ica2; self[this_image(self,1),1]%g=self[this_image(self,1),1]%g*1d0/ica2
-				self[this_image(self,1),1]%phy(ier)=sqrt(self[this_image(self,1),1]%phy(ier)-self[this_image(self,1),1]%phy(iE)**2)
-				do l=2,ica2
-					self[this_image(self,1),l]%phy=self[this_image(self,1),1]%phy; self[this_image(self,1),l]%S=self[this_image(self,1),1]%S; self[this_image(self,1),l]%g=self[this_image(self,1),1]%g
-				enddo
+				self%phy=self%phy*1d0/ica2; self%S=self%S*1d0/ica2; self%g=self%g*1d0/ica2
+				self%phy(ier)=sqrt(self%phy(ier)-self%phy(iE)**2)
 			endif
 			sync all
+			if(this_image(self,2)/=1) then
+				self%phy=self[this_image(self,1),1]%phy; self%S=self[this_image(self,1),1]%S; self%g=self[this_image(self,1),1]%g
+			endif
 			call heev(self%S,eg,'V')
 			if(this_image()==1) write(*,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier)
 			if(this_image()==1) write(*,"(i3$)")int(sign(1d0,self%g))
@@ -1029,14 +1039,14 @@ contains
 				do l=2,ica2
 					self[this_image(self,1),1]%phy=self[this_image(self,1),1]%phy+self[this_image(self,1),l]%phy;
 				enddo
-				self[this_image(self,1),1]%phy=self[this_image(self,1),1]%phy*1d0/ica2
-				self[this_image(self,1),1]%phy(ier)=sqrt(self[this_image(self,1),1]%phy(ier)-self[this_image(self,1),1]%phy(iE)**2)
-				do l=2,ica2
-					self[this_image(self,1),l]%phy=self[this_image(self,1),1]%phy
-				enddo
+				self%phy=self%phy*1d0/ica2
+				self%phy(ier)=sqrt(self%phy(ier)-self%phy(iE)**2)
 			endif
 			sync all
-			write(*,*)this_image(),this_image(self)
+			if(this_image(self,2)/=1) then
+				self%phy=self[this_image(self,1),1]%phy
+			endif
+			sync all
 			critical
 			if(this_image(self,2)==1) write(*,"(*(es12.4))")self%q(:2)/pi,var(1:)%val(1),self%phy(iE),self%phy(ier),self%phy(iSq_pm)
 			if(this_image(self,2)==1) write(10,"(*(es12.4))")var(1:)%val(1)
@@ -1050,14 +1060,15 @@ contains
 				do l=2,ica2
 					self[this_image(self,1),1]%Ok2=self[this_image(self,1),1]%Ok2+self[this_image(self,1),l]%Ok2; self[this_image(self,1),1]%Ek2=self[this_image(self,1),1]%Ek2+self[this_image(self,1),l]%Ek2
 				enddo
-				self[this_image(self,1),1]%Ok2=self[this_image(self,1),1]%Ok2*1d0/ica2; self[this_image(self,1),1]%Ek2=self[this_image(self,1),1]%Ek2*1d0/ica2
-				do l=2,ica2
-					self[this_image(self,1),l]%Ok2=self[this_image(self,1),1]%Ok2; self[this_image(self,1),l]%Ek2=self[this_image(self,1),1]%Ek2
-				enddo
+				self%Ok2=self%Ok2*1d0/ica2; self%Ek2=self%Ek2*1d0/ica2
+			endif
+			sync all
+			if(this_image(self,2)/=1) then
+				self%Ok2=self[this_image(self,1),1]%Ok2; self%Ek2=self[this_image(self,1),1]%Ek2
 			endif
 			sync all
 		end select
-		!self%samp=self%samp*ica2
+		self%samp=self%samp*ica2
 	end subroutine
 	subroutine do_mc(self,seed)
 		class(t_mc) :: self[ica1,*]
@@ -1271,10 +1282,10 @@ contains
 					enddo
 				end select
 				!!if(mod(samp,1024)==0.and.self%sg==3) then
-				if(mod(samp,512)==0.and.self%sg==3) then
+				if((mod(samp,512)==0.or.samp==self%samp).and.self%sg==3) then
 					!pb=sum(abs(Ek2p-conjg(transpose(Ek2p)))*1d0/samp)
 					if(this_image(self,2)==1) then
-						write(*,"(i7$)")self%num,samp
+						write(*,"(i11$)")this_image(),samp,self%samp
 						write(*,"(*(es16.5))")real(apt)*1d0/n!,real(pb)
 						!if(mod(samp,1024*8*8)==0) then
 							!rewind(50)
@@ -1460,16 +1471,26 @@ program main
 	integer :: i,j,l
 	type(t_mc) :: mc[ica1,*]
 	real(8) :: et,E
+	character(10) :: hostname
+	i=hostnm(hostname)
 	ica2=num_images()/ica1
 	if(num_images()/=ica2*ica1) stop "plz check the coarray number"
 	if(this_image()==1) then
+		!open(101,file="../data/lattice.dat")
+		!open(111,file="../data/tmp.dat")
+		!open(20,file=fn("../data/var.dat"))
+		!open(40,file=fn("../data/phyvar.dat"))
+		!open(50,file=fn("../data/matrix.dat"),access="stream")
+		!open(70,file=fn("../data/spect.dat"))
+		!open(71,file=fn("../data/spect_kmap.dat"))
 		open(101,file="../data/lattice.dat")
 		open(111,file="../data/tmp.dat")
-		open(20,file=fn("../data/var.dat"))
-		open(40,file=fn("../data/phyvar.dat"))
-		open(50,file=fn("../data/matrix.dat"),access="stream")
-		open(70,file=fn("../data/spect.dat"))
-		open(71,file=fn("../data/spect_kmap.dat"))
+		open(20,file="../data/var.dat")
+		open(40,file="../data/phyvar.dat")
+		open(50,file="../data/matrix_2.dat",access="stream")
+		open(70,file="../data/spect_2.dat")
+		open(71,file="../data/spect_kmap.dat")
+		write(*,*)"coarray info: ",ica1,ica2,"out of",num_images()
 
 
 
@@ -1492,6 +1513,8 @@ program main
 	endif
 	sync all
 
+	write(*,*)"runing ",this_image()," in ",hostname
+
 	!stop
 
 	call initial()
@@ -1500,11 +1523,6 @@ program main
 	endif
 	otime=0d0
 
-	mc%hot=1024
-	mc%step=Ns
-	!mc%step=Ns
-	mc%samp=1024
-	mc%delay=2
 
 	!var(1:)%val(1)=(/0d0,0.36d0,0.44d0/)
 	!var(1:)%val(1)=(/0d0,0.36d0,0d0/)
@@ -1532,22 +1550,23 @@ program main
 	call omp_set_num_threads(mkl_get_max_threads())
 
 
-	mc%ne(1)=Ns/2
+	mc%hot=1024*8
+	mc%step=Ns
+	mc%delay=2
+	mc%ne(1)=Ns/2-16
 	mc%ne(2)=Ns-mc%ne(1)
-	mc%samp=1024
-	mc%sg=2
 	!var(1:)%val(1)=(/-3.2296E-01,2.3218E-01,7.3575E-02,3.4608E-02/)
 	!var(1:)%val(1)=(/-8.1623E-01, 2.5240E-01,-1.2011E-01, 4.2456E-01, 2.0609E-01, 4.0513E-02/)
 	var(1:)%val(1)=(/-1.4051E+00,2.4353E+00,-1.9875E-01,-2.6827E-01/)
 	!var(1:)%val(1)=(/2.0628E-01,0.0000E-00,1.9582E-01,1.1811E-01,2.6489E-02/)
-	var(1:)%val(1)=(/-8.6811E-01,2.0951E-01,-9.7832E-02/) ! 1/8
+	!var(1:)%val(1)=(/-8.6811E-01,2.0951E-01,-9.7832E-02/) ! 1/8
 	!var(1:)%val(1)=(/-7.5957E-01,2.2205E-01,-8.2460E-02/) ! 16x16 -14
 	!var(1:)%val(1)=(/-9.5867E-01,1.6445E-01,-1.0910E-01/) ! 16x16 -22
 	!var(1:)%val(1)=(/-7.8290E-01,2.0821E-01,-7.6381E-02/)
 	!var(1:)%val(1)=(/2.1445d-01/)!0.125,ddw,compare
 	!var(1:)%val(1)=(/2.0268d-01/)!0.125,ddw,compare
 	!var(1:)%val(1)=(/1.9268d-01/)!0.125,ddw,compare
-	var(1:)%val(1)=(/0.E+00,2.8386E-01,3.0E-01/)
+	!var(1:)%val(1)=(/0.E+00,2.8386E-01,3.0E-01/)
 	!var(1:)%val(1)=(/2.8386E-01/)
 	!var(vn+1:)%val(1)=0d0
 	!var(1:)%val(1)=(/6.1000d-01/)
@@ -1569,26 +1588,13 @@ program main
 	!otime(1)=otime(1)+omp_get_wtime()-otime(0)
 	!call show_time()
 	!stop
-
-	j=nint(sqrt(real(Ns)))/2
-	i=this_image(mc,1)
-	if(i<=j) then
-		mc%q=(/0d0,0d0,0d0/)+((/pi,pi,0d0/)-(/0d0,0d0,0d0/))/j*mod(i-1,j)
-		!mc%q=(/0d0,0d0,0d0/)+((/2d0*pi,0d0,0d0/)-(/0d0,0d0,0d0/))/j*i
-	elseif(i<=2*j) then
-		mc%q=(/pi,pi,0d0/)+((/0d0,pi,0d0/)-(/pi,pi,0d0/))/j*mod(i-1,j)
-	else
-		mc%q=(/0d0,pi,0d0/)+((/0d0,0d0,0d0/)-(/0d0,pi,0d0/))/j*mod(i-1,j)
-	endif
-	!mc%num=i-(j/2+2)
-	mc%num=i
-	mc%q=(/pi,pi,0d0/)
-	!mc%q=(/pi,pi,0d0/)*7d0/8d0
+	mc%q=q(:,this_image(mc,1))
+	mc%num=this_image(mc,1)
 
 	mc%sg=1
-	mc%ne(1)=Ns/2
-	mc%ne(2)=Ns-mc%ne(1)
-	mc%samp=1024*8*2
+	mc%samp=1024*8*8
+	mc%hot=1024*8*8
+	mc%step=Ns
 
 	call mc%init(.true.)
 	call mc%do_vmc()
@@ -1603,13 +1609,12 @@ program main
 		sync images(1)
 		mc%phy(iE)=mc[1,1]%phy(iE)
 	endif
-
+	sync all
 
 	mc%sg=3
 	mc%ne=mc%ne+1
-	mc%hot=1024
-	!mc%samp=1024*8*8*32*8*8
-	mc%samp=1024*8*2
+	mc%hot=1024*8*8
+	mc%samp=1024*8*8*32*8*4
 	mc%step=nint(sqrt(real(Ns)))
 	call mc%init(.true.)
 	call mc%do_vmc()
@@ -1635,8 +1640,9 @@ program main
 	!if(this_image()<ica1) sync images(this_image()+1)
 
 	if(this_image()==1) then
+		write(*,*)"finished, exporting data....",mc%samp
 		do l=1,ica1
-			write(50)-1,size(mc[l,1]%psi0),Ns,mc[l,1]%phy(iE),mc[l,1]%phy(iSq_pm),mc[l,1]%Emf,mc[l,1]%psi0,mc[l,1]%Ok2,mc[l,1]%Ek2,mc[l,1]%nn(1:,:)
+			write(50)-1,size(mc[l,1]%psi0),Ns,mc[l,1]%q,mc[l,1]%phy(iE),mc[l,1]%phy(iSq_pm),mc[l,1]%Emf,mc[l,1]%psi0,mc[l,1]%Ok2,mc[l,1]%Ek2,mc[l,1]%nn(1:,:)
 			!call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)
 			!mc[l,1]%Ek2=transpose(conjg(mc[l,1]%Ek2))
 			!call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)
@@ -1650,8 +1656,8 @@ program main
 			read(50)i,j,Ns
 			if(allocated(mc%psi0)) deallocate(mc%psi0,mc%Ok2,mc%Ek2,mc%Emf,mc%nn)
 			allocate(mc%psi0(j),mc%Ok2(j,j),mc%Ek2(j,j),mc%nn(j,2),mc%Emf(Ns*2))
-			read(50)mc%phy(iE),mc%phy(iSq_pm),mc%Emf,mc%psi0,mc%Ok2,mc%Ek2,mc%nn
-			write(*,*)mc%phy(iE),Ns,i,j
+			read(50)mc%q,mc%phy(iE),mc%phy(iSq_pm),mc%Emf,mc%psi0,mc%Ok2,mc%Ek2,mc%nn
+			write(*,*)mc%q,mc%phy(iE),Ns,i,j
 			call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)
 			mc%Ek2=transpose(conjg(mc%Ek2))
 			call mc%spect(70,0.02d0,(/-10d0,10d0/),5000)

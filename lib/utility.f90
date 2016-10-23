@@ -1,7 +1,8 @@
 module M_utility
-	USE IFPORT, only : GETENVQQ
-	use M_rd
+	USE IFPORT, ifort_qsort => qsort
 	use omp_lib
+	use mkl_service
+	use M_rd
 	implicit none
 	type t_sort
 		real(8) :: val
