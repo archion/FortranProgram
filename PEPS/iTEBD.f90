@@ -25,10 +25,12 @@ program main
 	implicit none
 	integer, parameter :: d=2,chi=24
 	integer :: i,j,i0,i1,N=20000
-	real(8) :: DJ=1d0,g=0.5d0,delta=0.005d0,alpha=11d0
-	type(t_tensor) :: A(0:1),App,tmp1,tmp2
-	real(8), allocatable :: s(:),U(:,:),V(:,:),X(:,:),iX(:,:),Y(:,:),iY(:,:),H(:,:)
-	real(8) :: vec(chi*chi),ld(0:1,chi),Hexp(d**2,d**2),HU(size(Hexp,1),size(Hexp,2)),He(size(Hexp,1)),E
+	real(8) :: DJ=1d0,g=0.5d0,delta=0.05d0,alpha=10d0
+	type(t_tensor) :: A(0:1),App,tmp1,tmp2,check
+	real(8), allocatable :: s(:)
+	complex(8), allocatable :: U(:,:),V(:,:),X(:,:),iX(:,:),Y(:,:),iY(:,:),H(:,:)
+	complex(8) :: vec(chi*chi),ld(0:1,chi),Hexp(d**2,d**2),HU(size(Hexp,1),size(Hexp,2)),E
+	real(8) :: He(size(Hexp,1))
 	complex(8) :: w
 
 	call omp_set_nested(.false.)
@@ -45,12 +47,13 @@ program main
 
 	call random_number(ld(0,:))
 	call random_number(ld(1,:))
+	ld=real(ld)
 
 	!! ising
 	!call tmp1%new(["u0","d0","x"],[d,d,3],"0")
 	!call tmp2%new(["u1","d1","x"],[d,d,3],"0")
-	!tmp1%T(tmp1%get_idx([1,1,1, 2,2,1, 1,1,2, 2,2,2, 1,2,3, 2,1,3]))=[1d0,1d0,DJ,-DJ,-g*0.5d0,-g*0.5d0]
-	!tmp2%T(tmp2%get_idx([1,2,1, 2,1,1, 1,1,2, 2,2,2, 1,1,3, 2,2,3]))=[-g*0.5d0,-g*0.5d0,1d0,-1d0,1d0,1d0]
+	!tmp1%rc%T(tmp1%get_idx([1,1,1, 2,2,1, 1,1,2, 2,2,2, 1,2,3, 2,1,3]))=[1d0,1d0,DJ,-DJ,-g*0.5d0,-g*0.5d0]
+	!tmp2%rc%T(tmp2%get_idx([1,2,1, 2,1,1, 1,1,2, 2,2,2, 1,1,3, 2,2,3]))=[-g*0.5d0,-g*0.5d0,1d0,-1d0,1d0,1d0]
 
 	! Heisenberg
 	call tmp1%new(["u0","d0","x"],[d,d,3],"0")
@@ -61,7 +64,8 @@ program main
 	tmp1=dot(tmp1,tmp2,["x","x"])
 	call tmp1%get_mat(["u0","u1"],["d0","d1"],H)
 	HU=H
-	call syev(HU,He,"V")
+	!call syev(HU,He,"V")
+	call heev(HU,He,"V")
 
 	j=0
 	do i=0,N-1
@@ -70,34 +74,37 @@ program main
 		
 
 		delta=0.05d0*exp(-alpha*i/N)
-		Hexp=matmul(matmul(HU,diag(exp(-He*delta))),transpose(HU))
+		Hexp=matmul(matmul(HU,diag(exp(-He*delta))),transpose(conjg(HU)))
 
 		App=dot(dot(dot(A(i0),ld(i0,:),["r"]),A(i1),["r","l"]),Hexp,["d0","d1"])
 
 		tmp1=dot(App,ld(i1,:),["r"])
-		tmp1=dot(tmp1%change_label(["l","r"],["L","R"]),tmp1,["d0","d0","d1","d1"])
+		tmp1=dot(set_conjg(tmp1%change_label(["l","r"],["L","R"])),tmp1,["d0","d0","d1","d1"])
 		call tmp1%get_mat(["l","L"],["r","R"],U)
 		call ar_naupd(U,w,vec,lr="r")
+		vec=vec*conjg(vec(1))/abs(conjg(vec(1)))
 		call allocate(X,reshape(vec,[chi,chi]))
 		call allocate(s,chi)
-		call syev(X,s,"V")
+		!call syev(X,s,"V")
+		call heev(X,s,"V")
 		s=abs(s)
-		call allocate(iX,matmul(diag(1d0/sqrt(s)),transpose(X)))
+		call allocate(iX,matmul(diag(1d0/sqrt(s)),transpose(conjg(X))))
 		X=matmul(X,diag(sqrt(s)))
 
 		tmp1=dot(ld(i1,:),App,["l"])
-		tmp1=dot(tmp1%change_label(["l","r"],["L","R"]),tmp1,["d0","d0","d1","d1"])
+		tmp1=dot(set_conjg(tmp1%change_label(["l","r"],["L","R"])),tmp1,["d0","d0","d1","d1"])
 		call tmp1%get_mat(["l","L"],["r","R"],U)
 		call ar_naupd(U,w,vec,lr="l")
+		vec=vec*conjg(vec(1))/abs(conjg(vec(1)))
 		call allocate(Y,reshape(vec,[chi,chi]))
-		call syev(Y,s,"V")
+		!call syev(Y,s,"V")
+		call heev(Y,s,"V")
 		s=abs(s)
-		call allocate(iY,transpose(matmul(diag(1d0/sqrt(s)),transpose(Y))))
+		call allocate(iY,transpose(matmul(diag(1d0/sqrt(s)),transpose(conjg(Y)))))
 		Y=transpose(matmul(Y,diag(sqrt(s))))
 
 		call svd(matmul(matmul(Y,diag(ld(i1,:))),X),U,s,V)
 		ld(i1,:)=s/sqrt(sum(s**2))
-
 
 		App=dot(dot(ld(i1,:),dot(dot(matmul(V,iX),App,["l"]),matmul(iY,U),["r"]),["l"]),ld(i1,:),["r"])
 		call App%svd([character(5)::"l","d"//to_char(i0)],[character::],U,s,V)
@@ -116,11 +123,11 @@ program main
 			do i0=0,1
 				i1=mod(i0+1,2)
 				App=dot(dot(dot(dot(ld(i1,:),A(i0),["l"]),ld(i0,:),["r"]),A(i1),["r","l"]),ld(i1,:),["r"])
-				App=dot(dot(App,H,["d0","d1"]),App,["d0","d0","d1","d1","l","l","r","r"])
+				App=dot(dot(App,H,["d0","d1"]),set_conjg(App),["d0","d0","d1","d1","l","l","r","r"])
 				E=E+App%rc%T(1)
 			enddo
 			write(*,*)E/2d0
-			if(j==10) exit
+			!if(j==10) exit
 		endif
 
 	enddo

@@ -10,18 +10,18 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
-	integer, parameter :: ica1=4
+	integer, parameter :: ica1=1
 	integer :: ica2
 	integer :: Ns,vn
 	real(8) :: q(3,ica1)=reshape([&
-		!pi*5d0/8d0,pi*5d0/8d0,0d0,&
+		pi*5d0/8d0,pi*5d0/8d0,0d0&
 		!pi*6d0/8d0,pi*6d0/8d0,0d0,&
 		!pi*7d0/8d0,pi*7d0/8d0,0d0,&
 		!pi,pi,0d0&
-		pi,pi*7d0/8d0,0d0,&
-		pi,pi*6d0/8d0,0d0,&
-		pi,pi*5d0/8d0,0d0,&
-		pi,pi*4d0/8d0,0d0&
+		!pi,pi*7d0/8d0,0d0,&
+		!pi,pi*6d0/8d0,0d0,&
+		!pi,pi*5d0/8d0,0d0,&
+		!pi,pi*4d0/8d0,0d0&
 		],[3,ica1])
 contains
 	subroutine initial()
@@ -1487,8 +1487,8 @@ program main
 		open(111,file="../data/tmp.dat")
 		open(20,file="../data/var.dat")
 		open(40,file="../data/phyvar.dat")
-		open(50,file="../data/matrix_2.dat",access="stream")
-		open(70,file="../data/spect_2.dat")
+		open(50,file="../data/matrix_1.dat",access="stream")
+		open(70,file="../data/spect_1.dat")
 		open(71,file="../data/spect_kmap.dat")
 		write(*,*)"coarray info: ",ica1,ica2,"out of",num_images()
 
@@ -1603,7 +1603,8 @@ program main
 		do l=2,ica1
 			mc[1,1]%phy(iE)=mc[1,1]%phy(iE)+mc[l,1]%phy(iE)
 		enddo
-		mc[1,1]%phy(iE)=mc[1,1]%phy(iE)*1d0/ica1
+		!mc[1,1]%phy(iE)=mc[1,1]%phy(iE)*1d0/ica1
+		mc[1,1]%phy(iE)=-0.434235839825398d0
 		sync images(*)
 	else
 		sync images(1)
@@ -1614,7 +1615,7 @@ program main
 	mc%sg=3
 	mc%ne=mc%ne+1
 	mc%hot=1024*8*8
-	mc%samp=1024*8*8*32*8*4
+	mc%samp=1024*8*8*32*8*4/4
 	mc%step=nint(sqrt(real(Ns)))
 	call mc%init(.true.)
 	call mc%do_vmc()

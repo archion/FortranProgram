@@ -1,5 +1,6 @@
 module M_matrix
 	use lapack95, only : getrf, getri, heevd, heev, heevx, heevr, sysv
+	use ifport, ifort_qsort => qsort
 	use M_const
 	implicit none
 	interface diag
@@ -7,6 +8,9 @@ module M_matrix
 	end interface
 	interface crsmv
 		module procedure c_crsmv,r_crsmv
+	end interface
+	interface mat_inv
+		module procedure cmat_inv,rmat_inv
 	end interface
 contains
 	subroutine det_ratio_row(c,ci,A,iA,pb)
@@ -183,7 +187,35 @@ contains
 		!!$OMP END PARALLEL DO
 		iA=tmp2
 	end subroutine
-	subroutine mat_inv(A,info)
+	subroutine rmat_inv(A,info)
+		real(8) :: A(:,:)
+		integer :: ipiv(size(A,1)),info1
+		integer, optional :: info
+		if(present(info)) then
+			info=0
+		endif
+		call getrf(A,ipiv,info1)
+		if(info1/=0) then
+			if(present(info)) then
+				info=info1
+				return
+			else
+				write(*,*)"inverse matrix err1"
+				write(*,*)RAISEQQ(SIG$ABORT)
+			endif
+		endif
+		call getri(A,ipiv,info1)
+		if(info1/=0) then
+			if(present(info)) then
+				info=info1
+				return
+			else
+				write(*,*)"inverse matrix err1"
+				write(*,*)RAISEQQ(SIG$ABORT)
+			endif
+		endif
+	end subroutine
+	subroutine cmat_inv(A,info)
 		complex(8) :: A(:,:)
 		integer :: ipiv(size(A,1)),info1
 		integer, optional :: info
@@ -196,7 +228,8 @@ contains
 				info=info1
 				return
 			else
-				stop "inverse matrix err1"
+				write(*,*)"inverse matrix err1"
+				write(*,*)RAISEQQ(SIG$ABORT)
 			endif
 		endif
 		call getri(A,ipiv,info1)
@@ -205,7 +238,8 @@ contains
 				info=info1
 				return
 			else
-				stop "inverse matrix err2"
+				write(*,*)"inverse matrix err2"
+				write(*,*)RAISEQQ(SIG$ABORT)
 			endif
 		endif
 	end subroutine

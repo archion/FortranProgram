@@ -20,6 +20,7 @@ module M_lattice_test1
 	type ::  t_st
 		integer, allocatable :: j(:)
 		integer, allocatable :: bd(:)
+		integer, allocatable :: dir(:)
 	end type
 	type t_nb
 		type(t_bd), allocatable :: bd(:)
@@ -236,9 +237,10 @@ contains
 				allocate(self%nb(l)%bd(k),self%nb(l)%st(Ns))
 				self%nb(l)%bd=bd(:k)
 				do i=1,Ns
-					allocate(self%nb(l)%st(i)%bd(st(i,0,1)),self%nb(l)%st(i)%j(st(i,0,1)))
+					allocate(self%nb(l)%st(i)%bd(st(i,0,1)),self%nb(l)%st(i)%j(st(i,0,1)),self%nb(l)%st(i)%dir(st(i,0,1)))
 					self%nb(l)%st(i)%j=st(i,1:st(i,0,1),1)
 					self%nb(l)%st(i)%bd=st(i,1:st(i,0,1),2)
+					self%nb(l)%st(i)%dir=merge(1,-1,i==bd(st(i,1:st(i,0,1),2))%i(1))
 				enddo
 			enddo
 			deallocate(c)

@@ -1,7 +1,7 @@
 module M_rd
 	implicit none
 	interface random_number
-		module procedure ncrandom,mcrandom,irandom
+		module procedure ncrandom,mcrandom,irandom,acrandom
 	end interface
 	interface init_random_seed
 		module procedure init_random_seed_time
@@ -65,6 +65,13 @@ contains
 	subroutine mcrandom(r)
 		complex(8) :: r(:,:)
 		real(8) :: a(size(r,1),size(r,2)),b(size(r,1),size(r,2))
+		call random_number(a) 
+		call random_number(b) 
+		r=cmplx(a,b) 
+	end subroutine
+	subroutine acrandom(r)
+		complex(8) :: r(:)
+		real(8) :: a(size(r)),b(size(r))
 		call random_number(a) 
 		call random_number(b) 
 		r=cmplx(a,b) 

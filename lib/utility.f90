@@ -18,6 +18,9 @@ module M_utility
 	interface swap
 		module procedure siswap,srswap,vcswap,viswap,vrswap
 	end interface
+	interface to_char
+		module procedure to_char_single,to_char_array
+	end interface
 	real(8) :: otime(0:6)=0d0
 contains
 	subroutine show_time()
@@ -183,7 +186,7 @@ contains
 		endif
 		openfile=.true.
 	end function
-	function to_char(i,l)
+	function to_char_single(i,l) result(to_char)
 		integer :: i
 		integer, optional :: l
 		integer :: j
@@ -205,6 +208,35 @@ contains
 				endif
 				exit
 			endif
+		enddo
+	end function
+	function to_char_array(i,l) result(to_char)
+		integer :: i(:)
+		integer, optional :: l
+		integer :: j,n
+		character(:), allocatable :: to_char(:)
+		character(:), allocatable :: c
+		to_char=[character::]
+		do n=1,size(i)
+			j=i(n)
+			c=''
+			do 
+				c=char(48+mod(j,10))//c
+				j=j/10
+				if(j==0) then
+					if(present(l)) then
+						do
+							if(l>len(c)) then
+								c="0"//c
+							else
+								exit
+							endif
+						enddo
+					endif
+					exit
+				endif
+			enddo
+			to_char=[to_char,c]
 		enddo
 	end function
 	function fn(f)
