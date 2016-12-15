@@ -9,7 +9,7 @@ program main
 
 	call mkl_set_num_threads(1)
 
-	call M%new(["d","l","r"],[3,2,2],"0")
+	call M%new(["d","l","r"],[3,2,2],flag="0")
 	M%rc%T(M%get_idx([1,2,1, 2,1,1, 2,2,2, 3,1,2]))=[-sqrt(2d0/3d0),-sqrt(1d0/3d0),sqrt(1d0/3d0),sqrt(2d0/3d0)]
 
 	A=M%clone()

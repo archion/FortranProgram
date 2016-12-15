@@ -2,8 +2,10 @@ module M_tensor
 	use lapack95
 	use blas95
 	use M_utility
+	use M_matrix
 	use M_rd
 	implicit none
+	integer, allocatable :: grp(:,:,:)
 	type t_rc
 		!real(8), pointer, contiguous :: T(:)
 		complex(8), pointer, contiguous :: T(:)
@@ -15,6 +17,7 @@ module M_tensor
 	type t_tensor
 		character(:), allocatable :: label(:)
 		integer, allocatable :: shap(:)
+		integer, allocatable :: stp(:)
 		type(t_rc), pointer :: rc
 		type(t_ptensor) :: link(2)
 		logical :: is_return=.false.
@@ -24,6 +27,8 @@ module M_tensor
 		procedure :: clone
 		procedure :: set_conjg
 		procedure :: get_idx
+		procedure :: get_value
+		procedure :: get_ldx
 		procedure :: change_label
 		procedure :: split_label
 		procedure :: merge_label
@@ -69,19 +74,25 @@ contains
 			!endif
 		endif
 		to%rc => from%rc
-		call to%new(from%label,from%shap)
+		if(allocated(from%stp)) then
+			call to%new(from%label,from%shap,from%stp)
+		else
+			call to%new(from%label,from%shap)
+		endif
 		to%is_conjg=from%is_conjg
 		call from%insert(to)
 		if(from%is_return) then
 			call from%clear()
 		endif
 	end subroutine
-	subroutine new(self,label,shap,flag)
+	subroutine new(self,label,shap,stp,flag)
 		class(t_tensor) :: self
 		character(*) :: label(:)
 		integer :: shap(:)
+		integer, optional :: stp(:)
 		character, optional :: flag
 		integer :: i,j
+		integer, allocatable :: map(:),grp(:,:)
 		if(.not.associated(self%rc)) then
 			allocate(self%rc)
 		else
@@ -90,23 +101,56 @@ contains
 		call allocate(self%rc%T,product(shap))
 		call allocate(self%shap,shap)
 		self%label=label
+		if(present(stp)) then
+			call allocate(self%stp,stp)
+		else
+			if(allocated(self%stp)) deallocate(self%stp)
+		endif
 		if(size(self%label)==0) return
 		if(present(flag)) then
 			select case(flag)
 			case("0")
 				self%rc%T=0d0
 			case("r")
-				call random_number(self%rc%T)
+				if(present(stp)) then
+					call smerge(gstp(stp),map,grp)
+					call random_number(self%rc%T)
+					self%rc%T(map(grp(1,2)+1:))=0d0
+				else
+					call random_number(self%rc%T)
+				endif
 			end select
 		endif
 		self%is_conjg=.false.
 		self%is_return=.false.
 	end subroutine
+	function get_ldx(self,label) result(rt)
+		class(t_tensor) :: self
+		character(*) :: label(:)
+		integer :: rt(size(label))
+		integer, allocatable :: ord(:)
+		call self%get_order(label,[character::],ord)
+		rt=ord(1:size(rt))
+	end function
+	!function get_stp(stp) result(rt)
+		!integer :: stp(:)
+		!integer, allocatable :: rt(:)
+		!integer :: i
+		!do i=1,size(stp)
+			!do
+				!stp
+			!enddo
+		!enddo
+	!end function
 	function set_conjg(self) result(rt)
 		class(t_tensor) :: self
 		type(t_tensor) :: rt
 		rt%rc => self%rc
-		call rt%new(self%label,self%shap)
+		if(allocated(self%stp)) then
+			call rt%new(self%label,self%shap,self%stp)
+		else
+			call rt%new(self%label,self%shap)
+		endif
 		rt%is_conjg=(.not.self%is_conjg)
 		rt%is_return=.true.
 		call self%insert(rt)
@@ -117,13 +161,30 @@ contains
 	function clone(self) result(rt)
 		class(t_tensor) :: self
 		type(t_tensor) :: rt
-		call rt%new(self%label,self%shap)
+		if(allocated(self%stp)) then
+			call rt%new(self%label,self%shap,self%stp)
+		else
+			call rt%new(self%label,self%shap)
+		endif
 		if(self%is_conjg) then
 			rt%rc%T=conjg(self%rc%T)
 		else
 			rt%rc%T=self%rc%T
 		endif
 		rt%is_return=.true.
+		if(self%is_return) then
+			call self%clear()
+		endif
+	end function
+	function get_value(self,idx) result(rt)
+		class(t_tensor) :: self
+		integer :: idx
+		complex(8) :: rt
+		if(self%is_conjg) then
+			rt=conjg(self%rc%T(idx))
+		else
+			rt=self%rc%T(idx)
+		endif
 		if(self%is_return) then
 			call self%clear()
 		endif
@@ -165,45 +226,9 @@ contains
 	subroutine reorder_l(self,label)
 		class(t_tensor), target :: self
 		character(*) :: label(:)
-		integer :: i,map(size(self%rc%T)),prod(size(label)),n_prod(size(label))
 		integer, allocatable :: ord(:)
-		type(t_tensor), pointer :: node
 		call self%get_order(label,[character::],ord)
-		if(all(ord-[1:size(ord)]==0)) return
-		n_prod(1)=1
-		prod(1)=1
-		do i=2,size(self%shap)
-			prod(i)=prod(i-1)*self%shap(i-1)
-			n_prod(i)=n_prod(i-1)*self%shap(ord(i-1))
-		enddo
-
-		prod=prod(ord)
-		self%label=self%label(ord)
-		self%shap=self%shap(ord)
-
-		do i=1,size(self%rc%T)
-			map(i)=1+sum((mod((i-1)/n_prod,self%shap))*prod)
-		enddo
-
-		self%rc%T=self%rc%T(map)
-
-		do i=1,2
-			node => self
-			do
-				if(associated(node%link(i)%tg)) then
-					node => node%link(i)%tg
-					if(size(node%shap)==size(ord)) then
-						node%label=node%label(ord)
-						node%shap=node%shap(ord)
-					else
-						write(*,*)"alias has different label size",self%label,"|",node%label
-						write(*,*)RAISEQQ(SIG$ABORT)
-					endif
-				else
-					exit
-				endif
-			enddo
-		enddo
+		call self%reorder_n(ord)
 	end subroutine
 	subroutine reorder_n(self,ord)
 		class(t_tensor), target :: self
@@ -221,6 +246,7 @@ contains
 		prod=prod(ord)
 		self%label=self%label(ord)
 		self%shap=self%shap(ord)
+		if(allocated(self%stp)) self%stp=self%stp(ord)
 
 		do i=1,size(self%rc%T)
 			map(i)=1+sum((mod((i-1)/n_prod,self%shap))*prod)
@@ -236,6 +262,7 @@ contains
 					if(size(node%shap)==size(ord)) then
 						node%label=node%label(ord)
 						node%shap=node%shap(ord)
+						if(allocated(node%stp)) node%stp=node%stp(ord)
 					else
 						write(*,*)"alias has different label size",self%label,"|",node%label
 						write(*,*)RAISEQQ(SIG$ABORT)
@@ -250,7 +277,7 @@ contains
 		class(t_tensor), target :: self
 		type(t_tensor) :: rt
 		character(*) :: l_from(:),l_to(:)
-		integer :: shap(size(self%shap)-size(l_from)+size(l_to)),i,j,n,m
+		integer :: shap(size(self%shap)-size(l_from)+size(l_to)),stp(size(shap)),i,j,n,m
 		character(max(len(self%label),len(l_to))) :: label(size(shap))
 		integer, allocatable :: ord(:)
 		m=size(l_to)/size(l_from)
@@ -261,16 +288,26 @@ contains
 			if(ord(i)<=size(l_from)) then
 				label(n+1:n+m)=l_to((ord(i)-1)*m+1:ord(i)*m)
 				shap(n+1:n+m)=nint(self%shap(i)**(1d0/m))
+				if(allocated(self%stp)) then
+					stp(n+1:n+m)=gstp(self%stp(i:i))
+				endif
 				n=n+m
 			else
 				n=n+1
 				label(n)=self%label(i)
 				shap(n)=self%shap(i)
+				if(allocated(self%stp)) then
+					stp(n)=self%stp(i)
+				endif
 			endif
 		enddo
 
 		rt%rc => self%rc
-		call rt%new(label,shap)
+		if(allocated(self%stp)) then
+			call rt%new(label,shap,stp)
+		else
+			call rt%new(label,shap)
+		endif
 		call self%insert(rt)
 		rt%is_return=.true.
 		rt%is_conjg=self%is_conjg
@@ -282,7 +319,7 @@ contains
 		class(t_tensor), target :: self
 		type(t_tensor), target :: rt
 		character(*) :: l_from(:),l_to(:)
-		integer :: shap(size(self%shap)-size(l_from)+size(l_to)),i,j,n,m
+		integer :: shap(size(self%shap)-size(l_from)+size(l_to)),stp(size(shap)),i,j,n,m
 		character(max(len(self%label),len(l_to))) :: label(size(shap))
 		integer, allocatable :: ord(:)
 		m=size(l_from)/size(l_to)
@@ -301,11 +338,17 @@ contains
 						n=n+1
 						label(n)=l_to((ord(i)-1)/m+1)
 						shap(n)=product(self%shap(i:i+m-1))
+						if(allocated(self%stp)) then
+							stp(n)=sum(self%stp(i:i+m-1)*[(10**i,i=0,m-1)])
+						endif
 					endif
 				else
 					n=n+1
 					label(n)=self%label(i)
 					shap(n)=self%shap(i)
+					if(allocated(self%stp)) then
+						stp(n)=self%stp(i)
+					endif
 				endif
 			enddo
 		else
@@ -314,15 +357,25 @@ contains
 				if(i<=size(l_to)) then
 					label(i)=l_to(i)
 					shap(i)=product(self%shap((i-1)*m+1:i*m))
+					if(allocated(self%stp)) then
+						stp(i)=sum(self%stp((i-1)*m+1:i*m)*[(10**i,i=0,m-1)])
+					endif
 				else
 					label(i)=self%label(size(l_from)-size(l_to)+i)
 					shap(i)=self%shap(size(l_from)-size(l_to)+i)
+					if(allocated(self%stp)) then
+						stp(i)=self%stp(size(l_from)-size(l_to)+i)
+					endif
 				endif
 			enddo
 		endif
 		
 		rt%rc => self%rc
-		call rt%new(label,shap)
+		if(allocated(self%stp)) then
+			call rt%new(label,shap,stp)
+		else
+			call rt%new(label,shap)
+		endif
 		call self%insert(rt)
 		rt%is_return=.true.
 		rt%is_conjg=self%is_conjg
@@ -344,7 +397,11 @@ contains
 		enddo
 
 		rt%rc => self%rc
-		call rt%new(label,self%shap)
+		if(allocated(self%stp)) then
+			call rt%new(label,self%shap,self%stp)
+		else
+			call rt%new(label,self%shap)
+		endif
 		call self%insert(rt)
 		rt%is_return=.true.
 		rt%is_conjg=self%is_conjg
@@ -434,6 +491,94 @@ contains
 			self%rc%T=H
 		endif
 	end subroutine
+	function gstp(stp) result(rt)
+		integer :: stp(:)
+		integer, allocatable :: rt(:)
+		integer :: stp_(size(stp))
+		integer :: n,i
+		stp_=stp
+		n=0
+		do i=1,size(stp_)
+			do
+				n=n+1
+				if(stp_(i)<10) then
+					exit
+				else
+					stp_(i)=stp_(i)/10
+				endif
+			enddo
+		enddo
+		allocate(rt(n))
+		n=0
+		stp_=stp
+		do i=1,size(stp_)
+			do 
+				n=n+1
+				rt(n)=mod(stp_(i),10)
+				if(stp_(i)<10) then
+					exit
+				else
+					stp_(i)=stp_(i)/10
+				endif
+			enddo
+		enddo
+	end function
+	subroutine smerge(stp,map,mgrp)
+		integer :: stp(:)
+		integer, allocatable, optional :: map(:)
+		integer, allocatable, optional :: mgrp(:,:)
+		integer :: i,k,n(size(stp)),m(size(stp)),pos(2),prod(size(stp)+1),idx(size(stp))
+
+		
+		if(any(stp>size(grp,3))) then
+			write(*,*)RAISEQQ(SIG$ABORT)
+		endif
+		
+		k=size(stp)
+		m=grp(1,2,stp)
+		n=grp(2,2,stp)
+
+		prod(1)=1
+		do i=1,k
+			prod(i+1)=prod(i)*(m(i)+n(i))
+		enddo
+
+		pos=1
+		do i=1,2**k
+			idx=mod(i-1,2**[1:k])/(2**[0:k-1])
+			if(product(1-2*idx)==1) then
+				pos(2)=pos(2)+product(merge(m,n,idx==0))
+			endif
+		enddo
+
+		if(present(mgrp)) then
+			if(allocated(mgrp)) deallocate(mgrp)
+			allocate(mgrp(2,2))
+			mgrp(:,1)=[1,-1]
+			mgrp(1,2)=pos(2)-1
+			mgrp(2,2)=prod(k+1)-mgrp(1,2)
+		endif
+
+		if(present(map)) then
+			if(allocated(map)) then
+				if(size(map)/=(prod(k+1)+1)) then
+					deallocate(map)
+				endif
+			endif
+			if(.not.allocated(map)) allocate(map(prod(k+1)))
+			do i=1,prod(k+1)
+				select case(product(sign(1,-mod(i-1,prod(2:))/prod(:k)/m)))
+				case(1)
+					map(pos(1))=i
+					pos(1)=pos(1)+1
+				case(-1)
+					map(pos(2))=i
+					pos(2)=pos(2)+1
+				end select
+			enddo
+		endif
+
+	end subroutine
 	function contract(self,label) result(rt)
 		class(t_tensor) :: self
 		type(t_tensor), target :: rt
@@ -461,7 +606,11 @@ contains
 
 		allocate(rt%rc)
 		rt%rc%T => T
-		call rt%new(self%label(size(label)+1:),self%shap(size(label)+1:))
+		if(allocated(self%stp)) then
+			call rt%new(self%label(size(label)+1:),self%shap(size(label)+1:),self%stp(size(label)+1:))
+		else
+			call rt%new(self%label(size(label)+1:),self%shap(size(label)+1:))
+		endif
 		rt%is_return=.true.
 		rt%is_conjg=self%is_conjg
 		if(self%is_return) then
@@ -550,7 +699,11 @@ contains
 
 		allocate(rt%rc)
 		rt%rc%T(1:size(T)) => T
-		call rt%new([character(5)::A%label(n+1:),B%label(n+1:)],[A%shap(n+1:),B%shap(n+1:)])
+		if(allocated(A%stp).and.allocated(B%stp)) then
+			call rt%new([character(5)::A%label(n+1:),B%label(n+1:)],[A%shap(n+1:),B%shap(n+1:)],[A%stp(n+1:),B%stp(n+1:)])
+		else
+			call rt%new([character(5)::A%label(n+1:),B%label(n+1:)],[A%shap(n+1:),B%shap(n+1:)])
+		endif
 		rt%is_return=.true.
 
 		if(A%is_return) then
@@ -596,9 +749,17 @@ contains
 		allocate(rt%rc)
 		rt%rc%T(1:size(T)) => T
 		if(size(MB,1)==size(MB,2)) then
-			call rt%new(A%label,A%shap)
+			if(allocated(A%stp)) then
+				call rt%new(A%label,A%shap,A%stp)
+			else
+				call rt%new(A%label,A%shap)
+			endif
 		elseif(size(label)==1) then
-			call rt%new(A%label,[A%shap(:n),size(MB,2)])
+			if(allocated(A%stp)) then
+				call rt%new(A%label,[A%shap(:n),size(MB,2)],A%stp)
+			else
+				call rt%new(A%label,[A%shap(:n),size(MB,2)])
+			endif
 		else
 			n=RAISEQQ(SIG$ABORT)
 		endif
@@ -644,9 +805,17 @@ contains
 		allocate(rt%rc)
 		rt%rc%T(1:size(T)) => T
 		if(size(MA,1)==size(MA,2)) then
-			call rt%new(B%label,B%shap)
+			if(allocated(B%stp)) then
+				call rt%new(B%label,B%shap,B%stp)
+			else
+				call rt%new(B%label,B%shap)
+			endif
 		elseif(size(label)==1) then
-			call rt%new(B%label,[size(MA,1),B%shap(n+1:)])
+			if(allocated(B%stp)) then
+				call rt%new(B%label,[size(MA,1),B%shap(n+1:)],B%stp)
+			else
+				call rt%new(B%label,[size(MA,1),B%shap(n+1:)])
+			endif
 		else
 			n=RAISEQQ(SIG$ABORT)
 		endif
@@ -689,7 +858,11 @@ contains
 
 		allocate(rt%rc)
 		rt%rc%T(1:size(T)) => T
-		call rt%new(A%label,A%shap)
+		if(allocated(A%stp)) then
+			call rt%new(A%label,A%shap,A%stp)
+		else
+			call rt%new(A%label,A%shap)
+		endif
 		rt%is_return=.true.
 		if(A%is_return) then
 			call A%clear()
@@ -729,14 +902,30 @@ contains
 
 		allocate(rt%rc)
 		rt%rc%T(1:size(T)) => T
-		call rt%new(B%label,B%shap)
+		if(allocated(B%stp)) then
+			call rt%new(B%label,B%shap,B%stp)
+		else
+			call rt%new(B%label,B%shap)
+		endif
 		rt%is_return=.true.
 		if(B%is_return) then
 			call B%clear()
 		endif
 
 	end function
-	subroutine svd_t(self,l,r,U,s,V)
+	!subroutine svd_t(self,l,r,U,s,V)
+		!class(t_tensor) :: self
+		!character(*) :: l(:),r(:)
+		!!real(8), allocatable :: H(:,:)
+		!real(8), allocatable, optional :: s(:)
+		!!real(8), allocatable, optional :: U(:,:),V(:,:)
+		!complex(8), allocatable :: H(:,:)
+		!!complex(8), allocatable, optional :: s(:)
+		!complex(8), allocatable, optional :: U(:,:),V(:,:)
+		!call self%get_mat(l,r,H)
+		!call svd(H,U,s,V)
+	!end subroutine
+	subroutine svd_t(self,l,r,U,s,V,cgrp)
 		class(t_tensor) :: self
 		character(*) :: l(:),r(:)
 		!real(8), allocatable :: H(:,:)
@@ -745,8 +934,71 @@ contains
 		complex(8), allocatable :: H(:,:)
 		!complex(8), allocatable, optional :: s(:)
 		complex(8), allocatable, optional :: U(:,:),V(:,:)
+		integer, optional :: cgrp(:,:)
+		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:)
+		integer :: i,mrg(2),lrg(2),rrg(2)
 		call self%get_mat(l,r,H)
-		call svd(H,U,s,V)
+		if(size(l)/=0) then
+			i=size(l)
+		else
+			i=size(self%shap)-size(r)
+		endif
+
+		if(allocated(self%stp)) then
+			call smerge(gstp(self%stp(1:i)),lmap,lgrp)
+			call smerge(gstp(self%stp(i+1:)),rmap,rgrp)
+			H=H(lmap,rmap)
+
+			mrg=0
+			do i=1,size(lgrp,1)
+				mrg(1)=mrg(1)+min(lgrp(i,2),rgrp(i,2))
+			enddo
+			if(present(cgrp)) then
+				mrg(1)=max(sum(cgrp(:,2)),mrg(1))
+			endif
+			call allocate(s,mrg(1))
+			call allocate(U,[size(H,1),size(s)])
+			call allocate(V,[size(s),size(H,2)])
+			s=0d0
+
+			lrg=0
+			rrg=0
+			mrg=0
+			do i=1,size(lgrp,1)
+				lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
+				rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
+				mrg=[mrg(2)+1,mrg(2)+min(lgrp(i,2),rgrp(i,2))]
+				U(:,mrg(1):mrg(2))=0d0
+				V(mrg(1):mrg(2),:)=0d0
+				call svd_1(H(lrg(1):lrg(2),rrg(1):rrg(2)),U(lrg(1):lrg(2),mrg(1):mrg(2)),s(mrg(1):mrg(2)),V(mrg(1):mrg(2),rrg(1):rrg(2)))
+				if(present(cgrp)) then
+					mrg(1)=mrg(2)+1
+					mrg(2)=sum(cgrp(1:i,2))
+					U(:,mrg(1):mrg(2))=0d0
+					V(mrg(1):mrg(2),:)=0d0
+				endif
+			enddo
+			lmap(lmap)=[1:size(lmap)]
+			rmap(rmap)=[1:size(rmap)]
+			U=U(lmap,:)
+			V=V(:,rmap)
+		else
+			call svd(H,U,s,V)
+		endif
+
+	end subroutine
+	subroutine svd_1(H,U,s,V)
+		!real(8) :: H(:,:)
+		real(8), optional :: s(:)
+		!real(8), allocatable, optional :: U(:,:),V(:,:)
+		complex(8) :: H(:,:)
+		complex(8), optional :: U(:,:),V(:,:)
+		if(.not.present(U)) then
+			call gesdd(H,s)
+		elseif(.not.present(s)) then
+		else
+			call gesdd(H,s,U,V,"S")
+		endif
 	end subroutine
 	subroutine svd(H,U,s,V)
 		!real(8) :: H(:,:)
@@ -760,9 +1012,9 @@ contains
 		elseif(.not.present(s)) then
 		else
 			call allocate(s,minval(shape(H)))
-			call allocate(U,shape(H))
-			call allocate(V,[size(H,2),size(H,2)])
-			call gesdd(H,s,U,V,"A")
+			call allocate(U,[size(H,1),size(s)])
+			call allocate(V,[size(s),size(H,2)])
+			call gesdd(H,s,U,V,"S")
 		endif
 	end subroutine
 	subroutine qr_t(self,l,r,MQ,MR)
@@ -772,8 +1024,67 @@ contains
 		!real(8), allocatable :: MQ(:,:),MR(:,:)
 		complex(8), allocatable :: H(:,:)
 		complex(8), allocatable :: MQ(:,:),MR(:,:)
+		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:)
+		integer :: i,mrg(2),lrg(2),rrg(2)
 		call self%get_mat(l,r,H)
-		call qr(H,MQ,MR)
+		if(size(l)/=0) then
+			i=size(l)
+		else
+			i=size(self%shap)-size(r)
+		endif
+		if(allocated(self%stp)) then
+			call smerge(gstp(self%stp(1:i)),lmap,lgrp)
+			call smerge(gstp(self%stp(i+1:)),rmap,rgrp)
+
+			mrg=0
+			do i=1,size(lgrp,1)
+				mrg(1)=mrg(1)+min(lgrp(i,2),rgrp(i,2))
+			enddo
+			call allocate(MQ,[size(H,1),mrg(1)])
+			call allocate(MR,[mrg(1),size(H,2)])
+			H=H(lmap,rmap)
+			MQ=0d0
+			MR=0d0
+
+			lrg=0
+			rrg=0
+			mrg=0
+			do i=1,size(lgrp,1)
+				lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
+				rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
+				mrg=[mrg(2)+1,mrg(2)+min(lgrp(i,2),rgrp(i,2))]
+				call qr_1(H(lrg(1):lrg(2),rrg(1):rrg(2)),MQ(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+			enddo
+			lmap(lmap)=[1:size(lmap)]
+			rmap(rmap)=[1:size(rmap)]
+
+			MQ=MQ(lmap,:)
+			MR=MR(:,rmap)
+		else
+			call qr(H,MQ,MR)
+		endif
+	end subroutine
+	subroutine qr_1(H,Q,R)
+		!real(8) :: H(:,:)
+		!real(8), allocatable :: Q(:,:),R(:,:)
+		!real(8) :: tau(minval(shape(H)))
+		complex(8) :: H(:,:)
+		complex(8) :: Q(:,:),R(:,:)
+		complex(8) :: tau(minval(shape(H)))
+		integer :: i,j
+		call geqrf(H,tau)
+		do i=1,size(H,1)
+			do j=1,size(H,2)
+				if(i>j) then
+					if(i<=size(R,1)) R(i,j)=0d0
+					Q(i,j)=H(i,j)
+				else
+					R(i,j)=H(i,j)
+				endif
+			enddo
+		enddo
+		!call orgqr(Q,tau)
+		call ungqr(Q,tau)
 	end subroutine
 	subroutine qr(H,Q,R)
 		!real(8) :: H(:,:)
@@ -799,6 +1110,28 @@ contains
 		!call orgqr(Q,tau)
 		call ungqr(Q,tau)
 	end subroutine
+	subroutine lq_1(H,Q,L)
+		!real(8) :: H(:,:)
+		!real(8), allocatable :: Q(:,:),L(:,:)
+		!real(8) :: tau(minval(shape(H)))
+		complex(8) :: H(:,:)
+		complex(8) :: Q(:,:),L(:,:)
+		complex(8) :: tau(minval(shape(H)))
+		integer :: i,j
+		call gelqf(H,tau)
+		do i=1,size(H,1)
+			do j=1,size(H,2)
+				if(i<j) then
+					if(j<=size(L,2)) L(i,j)=0d0
+					Q(i,j)=H(i,j)
+				else
+					L(i,j)=H(i,j)
+				endif
+			enddo
+		enddo
+		!call orglq(Q,tau)
+		call unglq(Q,tau)
+	end subroutine
 	subroutine lq(H,Q,L)
 		!real(8) :: H(:,:)
 		!real(8), allocatable :: Q(:,:),L(:,:)
@@ -823,6 +1156,48 @@ contains
 		!call orglq(Q,tau)
 		call unglq(Q,tau)
 	end subroutine
+	subroutine smat_inv(lstp,rstp,M)
+		integer :: lstp(:),rstp(:)
+		complex(8) :: M(:,:)
+		complex(8), allocatable :: Mp(:,:)
+		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:)
+		integer :: i,lrg(2),rrg(2)
+		call smerge(gstp(lstp),lmap,lgrp)
+		call smerge(gstp(rstp),rmap,rgrp)
+		call allocate(Mp,M)
+		M=M(lmap,rmap)
+		lrg=0
+		rrg=0
+		do i=1,size(lgrp,1)
+			lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
+			rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
+			call mat_inv(M(lrg(1):lrg(2),rrg(1):rrg(2)))
+		enddo
+		lmap(lmap)=[1:size(lmap)]
+		rmap(rmap)=[1:size(rmap)]
+		M=M(rmap,lmap)
+	end subroutine
+	subroutine smat_eg(lstp,rstp,M,Eg)
+		integer :: lstp(:),rstp(:)
+		complex(8) :: M(:,:)
+		real(8), allocatable :: Eg(:)
+		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:)
+		integer :: i,lrg(2),rrg(2)
+		call smerge(gstp(lstp),lmap,lgrp)
+		call smerge(gstp(rstp),rmap,rgrp)
+		call allocate(Eg,size(M,1))
+		M=M(lmap,rmap)
+		lrg=0
+		rrg=0
+		do i=1,size(lgrp,1)
+			lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
+			rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
+			call heev(M(lrg(1):lrg(2),rrg(1):rrg(2)),Eg(lrg(1):lrg(2)),"V")
+		enddo
+		lmap(lmap)=[1:size(lmap)]
+		rmap(rmap)=[1:size(rmap)]
+		M=M(rmap,:)
+	end subroutine
 	subroutine lq_t(self,l,r,MQ,ML)
 		class(t_tensor) :: self
 		character(*) :: l(:),r(:)
@@ -830,8 +1205,45 @@ contains
 		!real(8), allocatable :: MQ(:,:),ML(:,:)
 		complex(8), allocatable :: H(:,:)
 		complex(8), allocatable :: MQ(:,:),ML(:,:)
+		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:)
+		integer :: i,mrg(2),lrg(2),rrg(2)
 		call self%get_mat(l,r,H)
-		call lq(H,MQ,ML)
+		if(size(l)/=0) then
+			i=size(l)
+		else
+			i=size(self%shap)-size(r)
+		endif
+		if(allocated(self%stp)) then
+			call smerge(gstp(self%stp(1:i)),lmap,lgrp)
+			call smerge(gstp(self%stp(i+1:)),rmap,rgrp)
+
+			mrg=0
+			do i=1,size(lgrp,1)
+				mrg(1)=mrg(1)+min(lgrp(i,2),rgrp(i,2))
+			enddo
+			call allocate(ML,[size(H,1),mrg(1)])
+			call allocate(MQ,[mrg(1),size(H,2)])
+			H=H(lmap,rmap)
+			ML=0d0
+			MQ=0d0
+
+			lrg=0
+			rrg=0
+			mrg=0
+			do i=1,size(lgrp,1)
+				lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
+				rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
+				mrg=[mrg(2)+1,mrg(2)+min(lgrp(i,2),rgrp(i,2))]
+				call lq_1(H(lrg(1):lrg(2),rrg(1):rrg(2)),MQ(mrg(1):mrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)))
+			enddo
+			lmap(lmap)=[1:size(lmap)]
+			rmap(rmap)=[1:size(rmap)]
+
+			ML=ML(lmap,:)
+			MQ=MQ(:,rmap)
+		else
+			call lq(H,MQ,ML)
+		endif
 	end subroutine
 	subroutine remove(self,t)
 		class(t_tensor), target :: self
@@ -896,6 +1308,7 @@ contains
 	subroutine clear(self)
 		class(t_tensor) :: self
 		if(allocated(self%shap)) deallocate(self%label,self%shap)
+		if(allocated(self%stp)) deallocate(self%stp)
 		if(associated(self%rc)) then
 			if(self%rc%c==1) then
 				deallocate(self%rc%T)

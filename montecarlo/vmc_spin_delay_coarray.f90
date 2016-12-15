@@ -10,18 +10,18 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
-	integer, parameter :: ica1=1
+	integer, parameter :: ica1=8
 	integer :: ica2
 	integer :: Ns,vn
 	real(8) :: q(3,ica1)=reshape([&
-		pi*5d0/8d0,pi*5d0/8d0,0d0&
-		!pi*6d0/8d0,pi*6d0/8d0,0d0,&
-		!pi*7d0/8d0,pi*7d0/8d0,0d0,&
-		!pi,pi,0d0&
-		!pi,pi*7d0/8d0,0d0,&
-		!pi,pi*6d0/8d0,0d0,&
-		!pi,pi*5d0/8d0,0d0,&
-		!pi,pi*4d0/8d0,0d0&
+		pi*5d0/8d0,pi*5d0/8d0,0d0,&
+		pi*6d0/8d0,pi*6d0/8d0,0d0,&
+		pi*7d0/8d0,pi*7d0/8d0,0d0,&
+		pi,pi,0d0,&
+		pi,pi*7d0/8d0,0d0,&
+		pi,pi*6d0/8d0,0d0,&
+		pi,pi*5d0/8d0,0d0,&
+		pi,pi*4d0/8d0,0d0&
 		],[3,ica1])
 contains
 	subroutine initial()
@@ -33,10 +33,10 @@ contains
 		! lattice
 		latt%a1=(/1d0,0d0,0d0/)
 		latt%a2=(/0d0,1d0,0d0/)
-		latt%c1=(/8d0,0d0,0d0/)
-		latt%c2=(/0d0,2d0,0d0/)
-		!latt%c1=(/1d0,1d0,0d0/)
-		!latt%c2=(/-1d0,1d0,0d0/)
+		!latt%c1=(/8d0,0d0,0d0/)
+		!latt%c2=(/0d0,2d0,0d0/)
+		latt%c1=(/1d0,1d0,0d0/)
+		latt%c2=(/-1d0,1d0,0d0/)
 		!latt%c1=latt%a1
 		!latt%c2=latt%a2
 		latt%T1=(/1d0,0d0,0d0/)*16
@@ -71,32 +71,32 @@ contains
 		!enddo
 		!var(iv(0))%val=1d-3
 
-		!! ddw
-		!call gen_var(sg=3,nb=1)
-		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=ab(latt%nb(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)*img
-		!enddo
-		!var(iv(0))%val=1d-1
-
-		! sdw
-		call gen_var(sg=4,nb=0)
+		! ddw
+		call gen_var(sg=3,nb=1)
 		do i=1,size(var(iv(0))%bd)
-			var(iv(0))%bd(i)=ab(i)*sin(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+			var(iv(0))%bd(i)=ab(latt%nb(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)*img
 		enddo
 		var(iv(0))%val=1d-1
 
-		! on site cdw
-		call gen_var(sg=3,nb=0)
-		do i=1,size(var(iv(0))%bd)
-			var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
-		enddo
-		var(iv(0))%val=1.32678d-2
+		!! sdw
+		!call gen_var(sg=4,nb=0)
+		!do i=1,size(var(iv(0))%bd)
+			!var(iv(0))%bd(i)=ab(i)*sin(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+		!enddo
+		!var(iv(0))%val=1d-1
 
-		do l=2,size(t)
-			call gen_var(sg=3,nb=l)
-			var(iv(0))%bd=-1d0
-			var(iv(0))%val=-2.00021d-1
-		enddo
+		!! on site cdw
+		!call gen_var(sg=3,nb=0)
+		!do i=1,size(var(iv(0))%bd)
+			!var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+		!enddo
+		!var(iv(0))%val=1.32678d-2
+
+		!do l=2,size(t)
+			!call gen_var(sg=3,nb=l)
+			!var(iv(0))%bd=-1d0
+			!var(iv(0))%val=-2.00021d-1
+		!enddo
 
 		do l=1,size(t)
 			call gen_var(sg=-3,nb=l)
@@ -1008,6 +1008,7 @@ contains
 			if(this_image(self,2)/=1) then
 				self%phy=self[this_image(self,1),1]%phy; self%S=self[this_image(self,1),1]%S; self%g=self[this_image(self,1),1]%g
 			endif
+			sync all
 			call heev(self%S,eg,'V')
 			if(this_image()==1) write(*,"(es12.4$)")var(1:)%val(1),self%phy(iE),self%phy(ier)
 			if(this_image()==1) write(*,"(i3$)")int(sign(1d0,self%g))
@@ -1534,7 +1535,7 @@ program main
 	!var(1:)%val(1)=(/-1.53531E+00,8.07142E-01*2E0,-6.06570E-02,-2.62224E-01,-2.15494E-01/)
 	!var(1:)%val(1)=(/-8.0718E-01,2.0919E-01,-9.9164E-02/) ! 16x16
 	!var(1:)%val(1)=(/-6.6706E-01,2.1394E-01,-1.3299E-01/) ! 8x8
-	var(1:)%val(1)=(/0d0,3.9616d-1,0d0/) ! 8x8
+	!var(1:)%val(1)=(/0d0,3.9616d-1,0d0/) ! 8x8
 	!var(1:)%val(1)=(/1.9616d-1,0d0/) ! 8x8
 	!var(1:)%val(1)=(/-8.6811E-01,2.0951E-01,-9.7832E-02/) ! 12x12
 	!call variation()
@@ -1550,24 +1551,27 @@ program main
 	call omp_set_num_threads(mkl_get_max_threads())
 
 
-	mc%hot=1024*8
+	mc%hot=1
 	mc%step=Ns
 	mc%delay=2
-	mc%ne(1)=Ns/2-16
+	mc%ne(1)=Ns/2-18
 	mc%ne(2)=Ns-mc%ne(1)
 	!var(1:)%val(1)=(/-3.2296E-01,2.3218E-01,7.3575E-02,3.4608E-02/)
 	!var(1:)%val(1)=(/-8.1623E-01, 2.5240E-01,-1.2011E-01, 4.2456E-01, 2.0609E-01, 4.0513E-02/)
-	var(1:)%val(1)=(/-1.4051E+00,2.4353E+00,-1.9875E-01,-2.6827E-01/)
+	!var(1:)%val(1)=(/-1.4051E+00,2.4353E+00,-1.9875E-01,-2.6827E-01/)
 	!var(1:)%val(1)=(/2.0628E-01,0.0000E-00,1.9582E-01,1.1811E-01,2.6489E-02/)
 	!var(1:)%val(1)=(/-8.6811E-01,2.0951E-01,-9.7832E-02/) ! 1/8
 	!var(1:)%val(1)=(/-7.5957E-01,2.2205E-01,-8.2460E-02/) ! 16x16 -14
 	!var(1:)%val(1)=(/-9.5867E-01,1.6445E-01,-1.0910E-01/) ! 16x16 -22
 	!var(1:)%val(1)=(/-7.8290E-01,2.0821E-01,-7.6381E-02/)
 	!var(1:)%val(1)=(/2.1445d-01/)!0.125,ddw,compare
-	!var(1:)%val(1)=(/2.0268d-01/)!0.125,ddw,compare
+	!var(1:)%val(1)=(/2.1006d-01/)!0.125,ddw,compare
 	!var(1:)%val(1)=(/1.9268d-01/)!0.125,ddw,compare
+	!var(1:)%val(1)=(/1.60d-01/)!-18,ddw,compare
 	!var(1:)%val(1)=(/0.E+00,2.8386E-01,3.0E-01/)
 	!var(1:)%val(1)=(/2.8386E-01/)
+	var(1:2)%val(1)=(/-1.1299E+00,1.6504E-01/)!-18,ddw,compare
+	!var(1:2)%val(1)=(/-1.0050E+00,2.0495E-01/)!-18,dsc,compare
 	!var(vn+1:)%val(1)=0d0
 	!var(1:)%val(1)=(/6.1000d-01/)
 	!do i=-10,10
@@ -1578,12 +1582,18 @@ program main
 		!write(*,"(x)")
 	!enddo
 	!var(1:)%val(1)=(/1.6047E-01/)
-	!do i=1,100
-		!var(1)%val=1d-1+i/200d0
+	!mc%sg=1
+	mc%samp=1024*8
+	mc%hot=1024*8
+	mc%step=Ns
+	!do i=1,10
+		!var(1)%val=0.1d0+i/100d0
 		!write(*,*)var(1)%val
 		!call mc%init(.true.)
+		!call mc%do_vmc()
 	!enddo
 	!otime(0)=omp_get_wtime()
+	!mc%samp=1024
 	!call mc%do_var(100)
 	!otime(1)=otime(1)+omp_get_wtime()-otime(0)
 	!call show_time()
@@ -1603,8 +1613,8 @@ program main
 		do l=2,ica1
 			mc[1,1]%phy(iE)=mc[1,1]%phy(iE)+mc[l,1]%phy(iE)
 		enddo
-		!mc[1,1]%phy(iE)=mc[1,1]%phy(iE)*1d0/ica1
-		mc[1,1]%phy(iE)=-0.434235839825398d0
+		mc[1,1]%phy(iE)=mc[1,1]%phy(iE)*1d0/ica1
+		!mc[1,1]%phy(iE)=-0.434235839825398d0
 		sync images(*)
 	else
 		sync images(1)
@@ -1615,7 +1625,9 @@ program main
 	mc%sg=3
 	mc%ne=mc%ne+1
 	mc%hot=1024*8*8
-	mc%samp=1024*8*8*32*8*4/4
+	!mc%samp=1024*8*8*32*8*4 !stripe
+	!mc%samp=1024*8*8*32 !dsc
+	mc%samp=1024*8*8*32*2 !ddw
 	mc%step=nint(sqrt(real(Ns)))
 	call mc%init(.true.)
 	call mc%do_vmc()

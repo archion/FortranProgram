@@ -101,7 +101,7 @@ contains
 			shap=dat%T%shap
 			dat%T%label=[pack(dat1%T%label,flag1),pack(dat2%T%label,flag2)]
 			dat%cost(1)=product(shap)
-			dat%cost(2)=max(dat%cost(2),dat%cost(1)+dat1%cost(2)+dat1%cost(2))
+			dat%cost(2)=max(dat%cost(2),dat%cost(1)+dat1%cost(2)+dat2%cost(2))
 			dat%cost(1)=dat%cost(1)*cost+dat1%cost(1)+dat2%cost(1)
 			dat%link1 => dat1
 			dat%link2 => dat2
@@ -204,16 +204,7 @@ contains
 			dat1 => get_dat(pos1)
 			dat1%flag=.true.
 		enddo
-		pos1 => S(n)%head
 		dat => get_dat(S(n)%head)
-		do i=1,S(n)%num
-			if(i/=1) pos1 => pos1%next
-			dat1 => get_dat(pos1)
-			!write(*,*)i,dat1%cost
-			if(dat%cost(cm)>dat1%cost(cm)) then
-				dat => dat1
-			endif
-		enddo
 		!write(*,*)"the cost is: ",dat%cost
 		call get_que(que,dat)
 
@@ -426,15 +417,15 @@ contains
 		type(t_tensor) :: App,b(2)
 		real(8) :: ld(d,2*size(A)),alpha
 		type(t_figst) :: st(size(A))
-		integer :: ist(2),i,j,step,k,m
+		integer :: ist(2),i,j,step
 		real(8) :: ld1(d**3),ld2(d**3),ld0(d**4),He(size(H,1)),delta
 		real(8), allocatable :: s(:)
 		complex(8), allocatable :: U(:,:),V(:,:),Q1(:,:),Q2(:,:),R(:,:),L(:,:)
 		complex(8) :: HU(size(H,1),size(H,2)),Hexp(size(H,1),size(H,2))
 		integer :: ord1(4),ord2(4)
+		character(:), allocatable :: lgate
 
 		call random_number(ld)
-
 
 		HU=H
 		call heev(HU,He,"V")
@@ -446,14 +437,7 @@ contains
 		call allocate(st(2)%bd,[3,4,1,2])
 
 		do i=1,size(A)
-			do j=1,size(ld0)
-				m=j-1
-				ld0(j)=1d0
-				do k=4,1,-1
-					ld0(j)=ld0(j)*sqrt(ld(m/d**(k-1)+1,st(i)%bd(k)))
-					m=m-m/d**(k-1)*d**(k-1)
-				enddo
-			enddo
+			ld0=1d0/sqrt(outprod(outprod(ld(:,st(i)%bd(1)),ld(:,st(i)%bd(2))),outprod(ld(:,st(i)%bd(3)),ld(:,st(i)%bd(4)))))
 			A(i)=dot(cmplx(ld0,kind=8),A(i),st(i)%label)
 		enddo
 
@@ -466,13 +450,18 @@ contains
 			delta=delta0(1)*(exp(-6d0*step/n)-exp(-6d0))+delta0(2)
 			Hexp=matmul(matmul(HU,diag(exp(-He*delta))),transpose(conjg(HU)))
 			do i=1,size(ld,2)
+
 				ord1=[1:4]
 				ord2=[1:4]
-				if(i<=2) then
-					ist=[1,2]
-				else
-					ist=[2,1]
-				endif
+				ist=[1,2]
+				do j=1,size(st(1)%bd)
+					if(st(1)%bd(j)==i) then
+						if(st(1)%label(j)/="r".and.st(1)%label(j)/="d") then
+							ist=[2,1]
+						endif
+						exit
+					endif
+				enddo
 				do j=1,3
 					if(st(ist(1))%bd(j)==i) then
 						ord1([j,4])=ord1([4,j])
@@ -481,16 +470,8 @@ contains
 						ord2([j,4])=ord2([4,j])
 					endif
 				enddo
-				do j=1,size(ld1)
-					m=j-1
-					ld1(j)=1d0
-					ld2(j)=1d0
-					do k=3,1,-1
-						ld1(j)=ld1(j)*ld(m/d**(k-1)+1,st(ist(1))%bd(ord1(k)))
-						ld2(j)=ld2(j)*ld(m/d**(k-1)+1,st(ist(2))%bd(ord2(k)))
-						m=m-m/d**(k-1)*d**(k-1)
-					enddo
-				enddo
+				ld1=outprod(outprod(ld(:,st(ist(1))%bd(ord1(1))),ld(:,st(ist(1))%bd(ord1(2)))),ld(:,st(ist(1))%bd(ord1(3))))
+				ld2=outprod(outprod(ld(:,st(ist(2))%bd(ord2(1))),ld(:,st(ist(2))%bd(ord2(2)))),ld(:,st(ist(2))%bd(ord2(3))))
 				A(ist(1))=dot(cmplx(ld1,kind=8),A(ist(1)),st(ist(1))%label(ord1(1:3)))
 				A(ist(2))=dot(A(ist(2)),cmplx(ld2,kind=8),st(ist(2))%label(ord2(1:3)))
 
@@ -514,14 +495,7 @@ contains
 		enddo
 		ld=sqrt(ld)
 		do i=1,size(A)
-			do j=1,size(ld0)
-				m=j-1
-				ld0(j)=1d0
-				do k=4,1,-1
-					ld0(j)=ld0(j)*ld(m/d**(k-1)+1,st(i)%bd(k))
-					m=m-m/d**(k-1)*d**(k-1)
-				enddo
-			enddo
+			ld0=outprod(outprod(ld(:,st(i)%bd(1)),ld(:,st(i)%bd(2))),outprod(ld(:,st(i)%bd(3)),ld(:,st(i)%bd(4))))
 			A(i)=dot(cmplx(ld0,kind=8),A(i),st(i)%label)
 		enddo
 		call App%clear()
@@ -669,34 +643,31 @@ contains
 		type(t_list) :: que
 		complex(8) :: rt
 		integer :: i,n
-		type(t_tensor) :: E,tmp
+		type(t_tensor) :: E
 		character(:), allocatable :: label(:)
-		integer :: flag(size(st)*4)
+		type(t_dat), pointer :: dat
 		label=["u","u'","r","r'","d","d'","l","l'"]
 		rt=0d0
-		n=0
-		do i=1,size(fig%st)
-			if(any(i==st)) then
-				call insert_que(change_label(merge_label(dot(A(fig%st(i)%isub)%change_label(["p"],["p"//to_char(i)]),set_conjg(A(fig%st(i)%isub)%change_label([label(::2),"p"],[label(2::2),"P"//to_char(i)]))),label,label(::2)),fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
-				flag(n+1:n+2)=[i,-i]
-				n=n+2
-			else
-				call insert_que(aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
-			endif
-		enddo
-		call contract_order(que)
-		E=fig_contract(get_dat(que%tail))
-		do i=1,size(st)
-			tmp=contract(E,pack(merge("p","P",flag(:n)>0)//to_char(abs(flag(:n))),abs(flag(:n))/=st(i)))
-			tmp=contract(dot(tmp,H,"p"//[to_char(st(i))]),[["p","P"]//to_char(st(i))])
+		do n=1,size(st)
+			do i=1,size(fig%st)
+				if(i==st(n)) then
+					call insert_que(change_label(merge_label(&
+						dot(dot(A(fig%st(i)%isub),H,["p"]),set_conjg(A(fig%st(i)%isub)%change_label([label(::2)],[label(2::2)])))&
+						,label,label(::2)),fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+				else
+					call insert_que(aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+				endif
+			enddo
+			call contract_order(que)
+			E=fig_contract(get_dat(que%tail))
 			if(present(sg)) then
-				rt=rt+real(tmp%rc%T(1))*sg(i)
+				rt=rt+real(E%rc%T(1))*sg(i)
 			else
-				rt=rt+real(tmp%rc%T(1))
+				rt=rt+real(E%rc%T(1))
 			endif
+			call delete_list(que)
 		enddo
 		call E%clear()
-		call tmp%clear()
 	end function
 	function get_vbond(fig,A,aa,bd,H,sg) result(rt)
 		type(t_fig) :: fig
@@ -706,51 +677,124 @@ contains
 		real(8), optional :: sg(:)
 		type(t_list) :: que
 		complex(8) :: rt
-		integer :: i,n
-		type(t_tensor) :: E,tmp
-		character(:), allocatable :: label(:)
-		integer :: flag(size(bd)*4)
+		integer :: i,n,k
+		type(t_tensor) :: E
+		character(:), allocatable :: label(:),lgate
 		label=["u","u'","r","r'","d","d'","l","l'"]
 		rt=0d0
-		n=0
-		do i=1,size(fig%st)
-			if(any(i==fig%bd(bd,:))) then
-				call insert_que(change_label(merge_label(dot(A(fig%st(i)%isub)%change_label(["p"],["p"//to_char(i)]),set_conjg(A(fig%st(i)%isub)%change_label([label(::2),"p"],[label(2::2),"P"//to_char(i)]))),label,label(::2)),fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
-				flag(n+1:n+2)=[i,-i]
-				n=n+2
-			else
-				call insert_que(aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
-			endif
-		enddo
-		call contract_order(que)
-		E=fig_contract(get_dat(que%tail))
-		!tmp=E%clone()
-		!call E%reorder(["p"//to_char(flag(:n:2)),"P"//to_char(flag(:n:2))])
-		!call tmp%reorder(["P"//to_char(flag(:n:2)),"p"//to_char(flag(:n:2))])
-		!E%rc%T=0.5d0*(E%rc%T+conjg(tmp%rc%T))
-		do i=1,size(bd)
-			tmp=contract(E,pack(merge("p","P",flag(:n)>0)//to_char(abs(flag(:n))),abs(flag(:n))/=fig%bd(bd(i),1).and.abs(flag(:n))/=fig%bd(bd(i),2)))
-			tmp=contract(dot(tmp,H,"p"//[to_char(fig%bd(bd(i),1)),to_char(fig%bd(bd(i),2))]),[["p","P"]//to_char(fig%bd(bd(i),1)),["p","P"]//to_char(fig%bd(bd(i),2))])
+		do n=1,size(bd)
+			do i=1,size(fig%st)
+				if(any(i==fig%bd(bd(n),:))) then
+					call insert_que(change_label(merge_label(&
+						dot(A(fig%st(i)%isub)%change_label(["p"],["p"//to_char(i)]),set_conjg(A(fig%st(i)%isub)%change_label([label(::2),"p"],[label(2::2),"P"//to_char(i)])))&
+						,label,label(::2)),fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+				else
+					call insert_que(aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+				endif
+			enddo
+			call contract_order(que)
+			E=fig_contract(get_dat(que%tail))
+			E=contract(dot(E,H,"p"//[to_char(fig%bd(bd(n),1)),to_char(fig%bd(bd(n),2))]),[["p","P"]//to_char(fig%bd(bd(n),1)),["p","P"]//to_char(fig%bd(bd(n),2))])
 			if(present(sg)) then
-				rt=rt+real(tmp%rc%T(1))*sg(i)
+				rt=rt+real(E%rc%T(1))*sg(i)
 			else
-				rt=rt+real(tmp%rc%T(1))
+				rt=rt+real(E%rc%T(1))
 			endif
+			call delete_list(que)
 		enddo
 		call E%clear()
-		call tmp%clear()
 	end function
+	!function get_vsite(fig,A,aa,st,H,sg) result(rt)
+		!type(t_fig) :: fig
+		!type(t_tensor) :: A(:),aa(:,0:)
+		!integer :: st(:)
+		!complex(8) :: H(:,:)
+		!real(8), optional :: sg(:)
+		!type(t_list) :: que
+		!complex(8) :: rt
+		!integer :: i,n
+		!type(t_tensor) :: E,tmp
+		!character(:), allocatable :: label(:)
+		!integer :: flag(size(st)*4)
+		!label=["u","u'","r","r'","d","d'","l","l'"]
+		!rt=0d0
+		!n=0
+		!do i=1,size(fig%st)
+			!if(any(i==st)) then
+				!call insert_que(change_label(merge_label(dot(A(fig%st(i)%isub)%change_label(["p"],["p"//to_char(i)]),set_conjg(A(fig%st(i)%isub)%change_label([label(::2),"p"],[label(2::2),"P"//to_char(i)]))),label,label(::2)),fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+				!flag(n+1:n+2)=[i,-i]
+				!n=n+2
+			!else
+				!call insert_que(aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+			!endif
+		!enddo
+		!call contract_order(que)
+		!E=fig_contract(get_dat(que%tail))
+		!do i=1,size(st)
+			!tmp=contract(E,pack(merge("p","P",flag(:n)>0)//to_char(abs(flag(:n))),abs(flag(:n))/=st(i)))
+			!tmp=contract(dot(tmp,H,"p"//[to_char(st(i))]),[["p","P"]//to_char(st(i))])
+			!if(present(sg)) then
+				!rt=rt+real(tmp%rc%T(1))*sg(i)
+			!else
+				!rt=rt+real(tmp%rc%T(1))
+			!endif
+		!enddo
+		!call E%clear()
+		!call tmp%clear()
+	!end function
+	!function get_vbond(fig,A,aa,bd,H,sg) result(rt)
+		!type(t_fig) :: fig
+		!type(t_tensor) :: A(:),aa(:,0:)
+		!integer :: bd(:)
+		!complex(8) :: H(:,:)
+		!real(8), optional :: sg(:)
+		!type(t_list) :: que
+		!complex(8) :: rt
+		!integer :: i,n
+		!type(t_tensor) :: E,tmp
+		!character(:), allocatable :: label(:)
+		!integer :: flag(size(bd)*4)
+		!label=["u","u'","r","r'","d","d'","l","l'"]
+		!rt=0d0
+		!n=0
+		!do i=1,size(fig%st)
+			!if(any(i==fig%bd(bd,:))) then
+				!call insert_que(change_label(merge_label(dot(A(fig%st(i)%isub)%change_label(["p"],["p"//to_char(i)]),set_conjg(A(fig%st(i)%isub)%change_label([label(::2),"p"],[label(2::2),"P"//to_char(i)]))),label,label(::2)),fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+				!flag(n+1:n+2)=[i,-i]
+				!n=n+2
+			!else
+				!call insert_que(aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+			!endif
+		!enddo
+		!call contract_order(que)
+		!E=fig_contract(get_dat(que%tail))
+		!!tmp=E%clone()
+		!!call E%reorder(["p"//to_char(flag(:n:2)),"P"//to_char(flag(:n:2))])
+		!!call tmp%reorder(["P"//to_char(flag(:n:2)),"p"//to_char(flag(:n:2))])
+		!!E%rc%T=0.5d0*(E%rc%T+conjg(tmp%rc%T))
+		!do i=1,size(bd)
+			!tmp=contract(E,pack(merge("p","P",flag(:n)>0)//to_char(abs(flag(:n))),abs(flag(:n))/=fig%bd(bd(i),1).and.abs(flag(:n))/=fig%bd(bd(i),2)))
+			!tmp=contract(dot(tmp,H,"p"//[to_char(fig%bd(bd(i),1)),to_char(fig%bd(bd(i),2))]),[["p","P"]//to_char(fig%bd(bd(i),1)),["p","P"]//to_char(fig%bd(bd(i),2))])
+			!if(present(sg)) then
+				!rt=rt+real(tmp%rc%T(1))*sg(i)
+			!else
+				!rt=rt+real(tmp%rc%T(1))
+			!endif
+		!enddo
+		!call E%clear()
+		!call tmp%clear()
+	!end function
 end module
 
 
 program main
 	use M_fig
 	implicit none
-	real(8) :: delta=0.05d0,alpha=10d0,g=3.1d0
+	real(8) :: delta=0.05d0,alpha=10d0,g=3.10d0
 	complex(8), allocatable :: HU(:,:),Q(:,:),R(:,:),L(:,:),H(:,:)
 	real(8) :: He(p**2)
 	real(8), allocatable :: s(:),ps(:)
-	complex(8) :: Hexp(size(He),size(He)),energy
+	complex(8) :: Hexp(size(He),size(He)),energy,Hsx(p,p),Hsy(p,p),Hsz(p,p),sx,sy,sz
 	type(t_tensor), target :: A(2),aa(2,0:9),X(2),b(2),tmp1,tmp2,tH
 	type(t_tensor) :: E
 	type(t_fig) :: fig,figx,figy
@@ -770,17 +814,20 @@ program main
 	call mkl_set_num_threads(1)
 	call omp_set_num_threads(mkl_get_max_threads())
 
-	!! Heisenberg
-	!call tmp1%new(["u0","d0","r"],[p,p,3],"0")
-	!call tmp2%new(["u1","d1","l"],[p,p,3],"0")
-	!tmp1%rc%T(tmp1%get_idx([1,1,1, 2,2,1, 1,2,2, 2,1,3]))=[1d0,-1d0,1d0,1d0]/2d0
-	!tmp2%rc%T(tmp2%get_idx([1,1,1, 2,2,1, 2,1,2, 1,2,3]))=[1d0,-1d0,2d0,2d0]/2d0
+	! Heisenberg
+	call tmp1%new(["u0","d0","r"],[p,p,3],flag="0")
+	call tmp2%new(["u1","d1","l"],[p,p,3],flag="0")
+	tmp1%rc%T(tmp1%get_idx([1,1,1, 2,2,1, 1,2,2, 2,1,3]))=[1d0,-1d0,1d0,1d0]/2d0
+	tmp2%rc%T(tmp2%get_idx([1,1,1, 2,2,1, 2,1,2, 1,2,3]))=[1d0,-1d0,2d0,2d0]/2d0
+	Hsx=0d0;Hsx(1,2)=1d0;Hsx(2,1)=1d0
+	Hsy=0d0;Hsy(1,2)=img;Hsy(2,1)=-img
+	Hsz=0d0;Hsz(1,1)=1d0;Hsz(2,2)=-1d0
 
-	! ising
-	call tmp1%new(["u0","d0","r"],[p,p,3],"0")
-	call tmp2%new(["u1","d1","l"],[p,p,3],"0")
-	tmp1%rc%T(tmp1%get_idx([1,1,1, 2,2,1, 1,1,2, 2,2,2, 1,2,3, 2,1,3]))=[1d0,1d0,-1d0,1d0,-g*0.25d0,-g*0.25d0]
-	tmp2%rc%T(tmp2%get_idx([1,2,1, 2,1,1, 1,1,2, 2,2,2, 1,1,3, 2,2,3]))=[-g*0.25d0,-g*0.25d0,1d0,-1d0,1d0,1d0]
+	!! ising
+	!call tmp1%new(["u0","d0","r"],[p,p,3],flag="0")
+	!call tmp2%new(["u1","d1","l"],[p,p,3],flag="0")
+	!tmp1%rc%T(tmp1%get_idx([1,1,1, 2,2,1, 1,1,2, 2,2,2, 1,2,3, 2,1,3]))=[1d0,1d0,-1d0,1d0,-g*0.25d0,-g*0.25d0]
+	!tmp2%rc%T(tmp2%get_idx([1,2,1, 2,1,1, 1,1,2, 2,2,2, 1,1,3, 2,2,3]))=[-g*0.25d0,-g*0.25d0,1d0,-1d0,1d0,1d0]
 
 	tH=dot(tmp1,tmp2,["r","l"])
 	call tH%get_mat(["u0","u1"],["d0","d1"],H)
@@ -791,7 +838,7 @@ program main
 
 	label=["u","u'","r","r'","d","d'","l","l'"]
 	do i=1,size(A)
-		call A(i)%new([label(::2),"p"],[d,d,d,d,p],"r")
+		call A(i)%new([label(::2),"p"],[d,d,d,d,p],flag="r")
 	enddo
 	call simp_update(H,[0.2d0,0.001d0],A,1000)
 
@@ -805,8 +852,6 @@ program main
 	! 8---3---7
 	!
 
-	!call A(1)%new([label(::2),"p"],[d,d,d,d,p],"r")
-	!A(2)=A(1)%clone()
 	do i=1,size(A)
 		aa(i,0)=dot(A(i),set_conjg(A(i)%change_label(label(::2),label(2::2))))
 		do j=1,4
@@ -887,31 +932,10 @@ program main
 
 	call rescale(fig,aa(:,0:8),A)
 
-	!call allocate(ps,aa(1,5)%shap(1))
-	!ps=0d0
-	!k=0
-	!do 
-		!k=k+1
-		!call CTM(fig,reshape([1,4,7,10, 3,6,9,12],[4,2]),aa)
-		!fig%st%isub=mod(fig%st%isub,2)+1
-		!call rescale(fig,aa(:,0:8),A)
-		!call CTM(fig,reshape([13,14,15,16, 21,22,23,24],[4,2]),aa)
-		!fig%st%isub=mod(fig%st%isub,2)+1
-		!call rescale(fig,aa(:,0:8),A)
-		!call aa(1,5)%svd(["d"],["r"],s=s)
-		!if(sum(abs(ps/ps(1)-s/s(1)))<1d-4.or.k>40) then
-			!exit
-		!endif
-		!call allocate(ps,s)
-	!enddo
-	!energy=get_energy(fig,A,aa,[5,8,18,19],H)/2d0
-	!write(*,*)"Energy: ",energy
-	!stop
-
 	do step=0,Nstep-1
 		!delta=0.05d0*exp(-alpha*step/Nstep)
 		!delta=0.1d0
-		delta=max(0.1d0-(0.1d0-0.005d0)/(Nstep/4)*step,0.005d0)
+		delta=max(0.1d0-(0.1d0-0.005d0)/(Nstep/4)*step,0.001d0)
 		Hexp=matmul(matmul(HU,diag(exp(-He*delta))),transpose(conjg(HU)))
 		do n=1,4
 
@@ -1031,7 +1055,11 @@ program main
 			!read(*,*)
 		enddo
 		write(*,*)"Energy: ",get_vbond(fig,A,aa,[5,8,18,19],H)/2d0
-		write(*,*)"Mz: ",get_vsite(fig,A,aa,[6,7,10,11],cmplx(reshape([1d0,0d0,0d0,-1d0],[2,2]),kind=8))/4d0
+		!write(*,*)"Mz: ",get_vsite(fig,A,aa,[6,7,10,11],cmplx(reshape([1d0,0d0,0d0,-1d0],[2,2]),kind=8))/4d0
+		!sx=get_vsite(fig,A,aa,[6],Hsx)**2
+		!sy=get_vsite(fig,A,aa,[6],Hsy)**2
+		!sz=get_vsite(fig,A,aa,[6],Hsz)**2
+		!write(*,*)"M: ",0.5d0*sqrt(abs(sx+sy+sz))
 	enddo
 end program
 

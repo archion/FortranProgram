@@ -12,6 +12,9 @@ module M_matrix
 	interface mat_inv
 		module procedure cmat_inv,rmat_inv
 	end interface
+	interface outprod
+		module procedure outprod_i,outprod_r,outprod_c
+	end interface
 contains
 	subroutine det_ratio_row(c,ci,A,iA,pb)
 		complex(8) :: c(:),A(:,:),iA(:,:),pb
@@ -495,6 +498,33 @@ contains
 		tmp4(1,2)=0d0
 		A=matmul(A,tmp4)
 	end subroutine
+	function outprod_i(A,B) result(rt)
+		integer :: A(:),B(:)
+		integer :: rt(size(A)*size(B))
+		integer :: i,n
+		n=size(A)
+		do i=1,size(B)
+			rt(n*(i-1)+1:n*i)=A*B(i)
+		enddo
+	end function
+	function outprod_r(A,B) result(rt)
+		real(8) :: A(:),B(:)
+		real(8) :: rt(size(A)*size(B))
+		integer :: i,n
+		n=size(A)
+		do i=1,size(B)
+			rt(n*(i-1)+1:n*i)=A*B(i)
+		enddo
+	end function
+	function outprod_c(A,B) result(rt)
+		complex(8) :: A(:),B(:)
+		complex(8) :: rt(size(A)*size(B))
+		integer :: i,n
+		n=size(A)
+		do i=1,size(B)
+			rt(n*(i-1)+1:n*i)=A*B(i)
+		enddo
+	end function
 	!subroutine mat_diag(H,E,info)
 		!complex(8) :: H(:,:),tmp(size(H,1),size(H,2))
 		!real(8) :: E(:)

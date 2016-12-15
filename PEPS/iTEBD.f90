@@ -42,8 +42,8 @@ program main
 	call mkl_set_num_threads(1)
 	call omp_set_num_threads(mkl_get_max_threads())
 
-	call A(0)%new(["d0","l","r"],[d,chi,chi],"r")
-	call A(1)%new(["d1","l","r"],[d,chi,chi],"r")
+	call A(0)%new(["d0","l","r"],[d,chi,chi],flag="r")
+	call A(1)%new(["d1","l","r"],[d,chi,chi],flag="r")
 
 	call random_number(ld(0,:))
 	call random_number(ld(1,:))
@@ -56,8 +56,8 @@ program main
 	!tmp2%rc%T(tmp2%get_idx([1,2,1, 2,1,1, 1,1,2, 2,2,2, 1,1,3, 2,2,3]))=[-g*0.5d0,-g*0.5d0,1d0,-1d0,1d0,1d0]
 
 	! Heisenberg
-	call tmp1%new(["u0","d0","x"],[d,d,3],"0")
-	call tmp2%new(["u1","d1","x"],[d,d,3],"0")
+	call tmp1%new(["u0","d0","x"],[d,d,3],flag="0")
+	call tmp2%new(["u1","d1","x"],[d,d,3],flag="0")
 	tmp1%rc%T(tmp1%get_idx([1,1,1, 2,2,1, 1,2,2, 2,1,3]))=[1d0,-1d0,1d0,1d0]
 	tmp2%rc%T(tmp2%get_idx([1,1,1, 2,2,1, 2,1,2, 1,2,3]))=[1d0,-1d0,2d0,2d0]
 
