@@ -5,19 +5,19 @@ module M_fig
 	use M_list
 	use M_lattice_test1
 	implicit none
-	integer :: d=4,chi,p,Nstep=400
-	real(8) :: t(1)=1d0,DJ=1d0,DV=-1d0/4d0,DU=0d0,mu=0d0!DU/2d0
+	integer :: d=3,chi,p,Nstep=400
+	real(8) :: t(1)=1d0,DJ=1d0,DV=-1d0/4d0,DU=0d0,mu=0d0
 	type t_figst
-		integer :: tp
-		integer :: isub
-		character(:), allocatable :: label(:)
 		integer, allocatable :: bd(:)
-		integer, allocatable :: j(:)
+		integer, allocatable :: ltp(:)
 	end type
 	type t_fig
+		character(:), allocatable :: label(:)
 		integer, allocatable :: bd(:,:)
-		integer, allocatable :: bd2st(:,:)
+		integer, allocatable :: btp(:)
 		type(t_figst), allocatable :: st(:)
+		integer, allocatable :: stp(:)
+		integer, allocatable :: ttp(:)
 	end type
 	type t_dat
 		type(t_tensor) :: T
@@ -26,6 +26,7 @@ module M_fig
 		integer(8) :: cost(2)
 		!integer(8) :: icost(200)
 		integer :: cfg=0
+		integer :: n
 		logical :: flag=.false.
 	contains
 		final :: delete_dat
@@ -55,34 +56,64 @@ contains
 		!allocate(rt,source=self)
 		rt => self
 	end function
-	recursive function fig_contract(que) result(rt)
-		type(t_dat) :: que
+	function fig_contract(que,ord) result(rt)
+		type(t_tensor) :: que(:)
+		integer :: ord(2,*)
+		type(t_tensor) :: tmp(size(que)-2)
 		type(t_tensor) :: rt
-		if(.not.associated(que%T%rc)) then
-			if(.not.associated(que%link1%T%rc)) then
-				que%link1%T=fig_contract(que%link1)
-				que%link1%T%is_return=.true.
+		integer :: i,j
+		integer(8) :: cost(2),m,sz(3)
+		cost=0
+		m=0
+		do i=1,size(tmp)
+			if(ord(1,i)<0.and.ord(2,i)<0) then
+				sz(1:2)=[size(que(abs(ord(1,i)))%rc%T,kind=8),size(que(abs(ord(2,i)))%rc%T,kind=8)]
+				tmp(i)=dot(que(abs(ord(1,i))),que(abs(ord(2,i))))
+				tmp(i)%is_return=.true.
+				sz(3)=0
+			elseif(ord(1,i)<0) then
+				sz(1:2)=[size(que(abs(ord(1,i)))%rc%T,kind=8),size(tmp(ord(2,i))%rc%T,kind=8)]
+				tmp(i)=dot(que(abs(ord(1,i))),tmp(ord(2,i)))
+				tmp(i)%is_return=.true.
+				sz(3)=sz(2)
+			else
+				sz(1:2)=[size(tmp(ord(1,i))%rc%T,kind=8),size(tmp(ord(2,i))%rc%T,kind=8)]
+				tmp(i)=dot(tmp(ord(1,i)),tmp(ord(2,i)))
+				tmp(i)%is_return=.true.
+				sz(3)=sum(sz(1:2))
 			endif
-			if(.not.associated(que%link2%T%rc)) then
-				que%link2%T=fig_contract(que%link2)
-				que%link2%T%is_return=.true.
-			endif
-			!write(*,"(A$)")que%link1%T%label,"|",que%link2%T%label
-			rt=dot(que%link1%T,que%link2%T)
-			!write(*,"(A$)")"->",rt%label
-			!write(*,"(x)")
+			cost(1)=cost(1)+size(tmp(i)%rc%T,kind=8)*nint(sqrt(real(product(sz(1:2))/size(tmp(i)%rc%T,kind=8))))
+			cost(2)=max(cost(2),m+size(tmp(i)%rc%T,kind=8))
+			m=m-sz(3)+size(tmp(i)%rc%T,kind=8)
+		enddo
+		if(ord(1,i)<0.and.ord(2,i)<0) then
+			sz(1:2)=[size(que(abs(ord(1,i)))%rc%T,kind=8),size(que(abs(ord(2,i)))%rc%T,kind=8)]
+			rt=dot(que(abs(ord(1,i))),que(abs(ord(2,i))))
+			rt%is_return=.true.
+			sz(3)=0
+		elseif(ord(1,i)<0) then
+			sz(1:2)=[size(que(abs(ord(1,i)))%rc%T,kind=8),size(tmp(ord(2,i))%rc%T,kind=8)]
+			rt=dot(que(abs(ord(1,i))),tmp(ord(2,i)))
+			rt%is_return=.true.
+			sz(3)=sz(2)
 		else
-			rt=que%T
+			sz(1:2)=[size(tmp(ord(1,i))%rc%T,kind=8),size(tmp(ord(2,i))%rc%T,kind=8)]
+			rt=dot(tmp(ord(1,i)),tmp(ord(2,i)))
+			rt%is_return=.true.
+			sz(3)=sum(sz(1:2))
 		endif
-		rt%is_return=.true.
+		cost(1)=cost(1)+size(rt%rc%T,kind=8)*nint(sqrt(real(product(sz(1:2))/size(rt%rc%T,kind=8))))
+		cost(2)=max(cost(2),m+size(rt%rc%T,kind=8))
+		!write(*,*)cost
 	end function
 	function merge_node(dat1,dat2,dat) result(flag)
 		type(t_dat), pointer :: dat1,dat2
 		type(t_dat), pointer :: dat
 		logical :: flag
 		logical, allocatable :: flag1(:),flag2(:)
-		integer :: cost,i,j
-		integer(8), allocatable :: shap(:)
+		integer :: i,j
+		integer(8), allocatable :: shap(:),shap1(:),shap2(:)
+		integer(8) :: cost
 		flag=.true.
 		dat%cfg=ior(dat1%cfg,dat2%cfg)
 		if(popcnt(dat%cfg)==(popcnt(dat1%cfg)+popcnt(dat2%cfg))) then
@@ -104,7 +135,26 @@ contains
 			shap=dat%T%shap
 			dat%T%label=[pack(dat1%T%label,flag1),pack(dat2%T%label,flag2)]
 			dat%cost(1)=product(shap)
-			dat%cost(2)=max(dat%cost(2),dat%cost(1)+dat1%cost(2)+dat2%cost(2))
+
+			!dat%cost(2)=max(dat%cost(2),dat%cost(1)+dat1%cost(2)+dat2%cost(2))
+
+			dat%cost(2)=dat%cost(1)
+			allocate(shap1(size(dat1%T%shap)))
+			if(dat1%cost(2)/=0) then 
+				shap1=dat1%T%shap
+			else
+				shap1=0
+			endif
+			dat%cost(2)=dat%cost(2)+product(shap1)
+			allocate(shap2(size(dat2%T%shap)))
+			if(dat2%cost(2)/=0) then 
+				shap2=dat2%T%shap
+			else
+				shap2=0
+			endif
+			dat%cost(2)=dat%cost(2)+product(shap2)
+			dat%cost(2)=max(max(dat%cost(2),dat1%cost(2)+product(shap2)),dat2%cost(2)+product(shap1))
+
 			dat%cost(1)=dat%cost(1)*cost+dat1%cost(1)+dat2%cost(1)
 			dat%link1 => dat1
 			dat%link2 => dat2
@@ -113,24 +163,29 @@ contains
 			flag=.false.
 		endif
 	end function
-	subroutine contract_order(que)
-		type(t_list) :: que
-		type(t_list) :: S(que%num)
+	subroutine get_corder(que,ord)
+		type(t_tensor) :: que(:)
+		integer, allocatable :: ord(:)
+		type(t_list) :: S(size(que))
 		integer :: n,i,j,c,d,k,minx
 		integer(8) :: u(2),uc,u0
 		type(t_dat), pointer :: dat,dat1,dat2,dat3
 		type(t_node), pointer :: pos1,pos2,pos3
 		integer :: cm
+		!write(*,*)"corder start"
+		if(allocated(ord)) deallocate(ord)
+		allocate(ord(2*(size(que)-1)))
 		cm=1
-		n=que%num
+		n=size(que)
 		minx=10000
-		pos1 => que%head
 		do i=1,n
-			if(i/=1) pos1 => pos1%next
-			dat => get_dat(pos1)
+			allocate(dat)
+			dat%T=que(i)
 			dat%cfg=ibset(0,i-1)
+			dat%n=-i
 			if(minx>minval(dat%T%shap)) minx=minval(dat%T%shap)
-			dat%cost=[0,product(dat%T%shap)]
+			!dat%cost=[0,product(dat%T%shap)]
+			dat%cost=0
 			call S(1)%insert(put_dat(dat))
 		enddo
 		do i=1,n
@@ -143,7 +198,7 @@ contains
 		enddo
 		uc=1; u(1)=0
 		do while(S(n)%num==0)
-			u(2)=100000000000
+			u(2)=100000000000000
 			do c=2,n
 				do d=1,c/2
 					pos1 => S(d)%head
@@ -165,7 +220,7 @@ contains
 								endif
 								if(dat%cost(cm)>uc.and.dat%cost(cm)<u(2)) then
 									u(2)=dat%cost(cm)
-								elseif(dat%cost(cm)<=uc.and.dat%cost(cm)>u0) then
+								elseif(dat%cost(cm)<=uc.and.dat%cost(cm)>u0.and.dat%cost(2)<2000000000) then
 									!write(*,"(A$)")dat1%T%label,"|",dat2%T%label,"->",dat%T%label
 									!write(*,*)"cost:",dat%cost
 									pos3 => S(c)%head
@@ -173,8 +228,8 @@ contains
 										if(k/=1) pos3 => pos3%next
 										dat3 => get_dat(pos3)
 										if(dat%cfg==dat3%cfg) then
-											if((dat%cost(cm)<=dat3%cost(cm).and.dat%cost(mod(cm,2)+1)<dat3%cost(mod(cm,2)+1)).or.(c==n.and.dat3%cost(mod(cm,2)+1)/dat%cost(mod(cm,2)+1)>10.and.dat3%cost(mod(cm,2)+1)>40000000)) then
-											!if((dat%cost(cm)<=dat3%cost(cm).and.dat%cost(mod(cm,2)+1)<dat3%cost(mod(cm,2)+1))) then
+											!if((dat%cost(cm)<=dat3%cost(cm).and.dat%cost(mod(cm,2)+1)<dat3%cost(mod(cm,2)+1)).or.(c==n.and.dat3%cost(mod(cm,2)+1)/dat%cost(mod(cm,2)+1)>10.and.dat3%cost(mod(cm,2)+1)>40000000)) then
+											if((dat%cost(cm)<dat3%cost(cm)).or.(dat%cost(cm)==dat3%cost(cm).and.dat%cost(mod(cm,2)+1)<dat3%cost(mod(cm,2)+1))) then
 												dat3%flag=.true.
 												dat3%cost=dat%cost
 												dat3%link1 => dat%link1
@@ -184,6 +239,7 @@ contains
 										endif
 									enddo
 									if(k==S(c)%num+1) then
+										!write(*,*)c,k,dat%cost
 										call S(c)%insert(put_dat(dat))
 										cycle
 									endif
@@ -197,7 +253,7 @@ contains
 			u(1)=uc
 			!write(*,*)S%num
 			!write(*,*)uc
-			!!read(*,*)
+			!read(*,*)
 			uc=max(u(2),minx*uc)
 			do i=1,n
 				pos1 => S(i)%head
@@ -214,71 +270,92 @@ contains
 			dat1 => get_dat(pos1)
 			dat1%flag=.true.
 		enddo
+
+		k=0
 		dat => get_dat(S(n)%head)
 		!write(*,*)"the cost is: ",dat%cost
-		call get_que(que,dat)
+		call gen_ord(ord,k,dat)
 
-		do i=1,n
-			pos1 => S(i)%head
-			do j=1,S(i)%num
-				if(j/=1) pos1 => pos1%next
-				dat => get_dat(pos1)
-				if(dat%flag) nullify(pos1%dat)
-			enddo
-			!call delete_list(S(i))
-		enddo
 	end subroutine
-	recursive subroutine get_que(que,dat)
-		type(t_list) :: que
+	recursive subroutine gen_ord(ord,n,dat)
+		integer :: ord(2,*)
+		integer :: n
 		type(t_dat), pointer :: dat
 		if(dat%flag) return
 		if(.not.dat%link1%flag) then
-			call get_que(que,dat%link1)
+			call gen_ord(ord,n,dat%link1)
 		endif
 		if(.not.dat%link2%flag) then
-			call get_que(que,dat%link2)
+			call gen_ord(ord,n,dat%link2)
 		endif
+		n=n+1
+		ord(1,n)=dat%link1%n
+		ord(2,n)=dat%link2%n
+		if(ord(1,n)>0.and.ord(2,n)<0) then
+			ord([1,2],n)=ord([2,1],n)
+		endif
+		dat%n=n
 		dat%flag=.true.
-		call que%insert(put_dat(dat))
 	end subroutine
-	subroutine gen_fig(fig,bd,st)
+	subroutine gen_fig(fig,bd)
 		type(t_fig) :: fig
-		integer :: bd(:),st(:)
-		integer :: Ns,n,i
-		Ns=size(st)/2
-		allocate(fig%bd(size(bd)/3,2),fig%bd2st(size(bd)/3,2),fig%st(Ns))
-		fig%st(:)%isub=st(1::2)
-		fig%st(:)%tp=st(2::2)
-		do i=1,Ns
-			fig%st(i)%label=[character::]
+		integer :: bd(:)
+		integer, allocatable :: num(:)
+		integer :: i,n,k
+		fig%label=["r","l","d","u"]
+		allocate(fig%bd(2,size(bd)/3),fig%btp(size(bd)/3))
+		fig%bd(1,:)=bd(2::3)
+		fig%bd(2,:)=bd(3::3)
+		fig%btp=bd(1::3)
+		allocate(fig%st(1:maxval(fig%bd)))
+		allocate(fig%stp(size(fig%st)),fig%ttp(size(fig%st)),num(size(fig%st)))
+		num=0
+		do n=1,size(fig%bd,2)
+			num(fig%bd(:,n))=num(fig%bd(:,n))+1
 		enddo
-		do n=1,size(fig%bd,1)
-			fig%bd(n,:)=bd((n-1)*3+2:n*3)
-			do i=1,2
-				if(.not.allocated(fig%st(fig%bd(n,i))%bd)) then
-					select case(fig%st(fig%bd(n,i))%tp)
-					case(0)
-						allocate(fig%st(fig%bd(n,i))%bd(4),fig%st(fig%bd(n,i))%j(4))
-					case(1:4)
-						allocate(fig%st(fig%bd(n,i))%bd(3),fig%st(fig%bd(n,i))%j(3))
-					case(5:8)
-						allocate(fig%st(fig%bd(n,i))%bd(2),fig%st(fig%bd(n,i))%j(2))
-					end select
-				endif
+		do i=1,size(fig%st)
+			allocate(fig%st(i)%bd(num(i)),fig%st(i)%ltp(num(i)))
+		enddo
+		num=0
+		do n=1,size(fig%bd,2)
+			num(fig%bd(:,n))=num(fig%bd(:,n))+1
+			do k=1,2
+				fig%st(fig%bd(k,n))%bd(num(fig%bd(k,n)))=n
+				fig%st(fig%bd(k,n))%ltp(num(fig%bd(k,n)))=2*(fig%btp(n)-1)+k
+				do i=1,num(fig%bd(k,n))-1
+					if(fig%st(fig%bd(k,n))%ltp(i)>fig%st(fig%bd(k,n))%ltp(num(fig%bd(k,n)))) then
+						fig%st(fig%bd(k,n))%ltp([i,num(fig%bd(k,n))])=fig%st(fig%bd(k,n))%ltp([num(fig%bd(k,n)),i])
+						fig%st(fig%bd(k,n))%bd([i,num(fig%bd(k,n))])=fig%st(fig%bd(k,n))%bd([num(fig%bd(k,n)),i])
+						exit
+					endif
+				enddo
 			enddo
-			select case(bd((n-1)*3+1))
-			case(-1)
-				fig%st(fig%bd(n,1))%label=[fig%st(fig%bd(n,1))%label,"r"]
-				fig%st(fig%bd(n,2))%label=[fig%st(fig%bd(n,2))%label,"l"]
-			case(-2)
-				fig%st(fig%bd(n,1))%label=[fig%st(fig%bd(n,1))%label,"d"]
-				fig%st(fig%bd(n,2))%label=[fig%st(fig%bd(n,2))%label,"u"]
+		enddo
+		do i=1,size(fig%st)
+			select case(size(fig%st(i)%ltp))
+			case(2)
+				if(all(fig%st(i)%ltp-[1,3]==0)) then
+					fig%ttp(i)=5
+				elseif(all(fig%st(i)%ltp-[2,3]==0)) then
+					fig%ttp(i)=6
+				elseif(all(fig%st(i)%ltp-[2,4]==0)) then
+					fig%ttp(i)=7
+				else
+					fig%ttp(i)=8
+				endif
+			case(3)
+				if(all(fig%st(i)%ltp-[1,2,3]==0)) then
+					fig%ttp(i)=1
+				elseif(all(fig%st(i)%ltp-[2,3,4]==0)) then
+					fig%ttp(i)=2
+				elseif(all(fig%st(i)%ltp-[1,2,4]==0)) then
+					fig%ttp(i)=3
+				else
+					fig%ttp(i)=4
+				endif
+			case(4)
+				fig%ttp(i)=0
 			end select
-			fig%bd2st(n,:)=[size(fig%st(fig%bd(n,1))%label),size(fig%st(fig%bd(n,2))%label)]
-			fig%st(fig%bd(n,1))%bd(size(fig%st(fig%bd(n,1))%label))=n
-			fig%st(fig%bd(n,2))%bd(size(fig%st(fig%bd(n,2))%label))=n
-			fig%st(fig%bd(n,1))%j(size(fig%st(fig%bd(n,1))%label))=2
-			fig%st(fig%bd(n,2))%j(size(fig%st(fig%bd(n,2))%label))=1
 		enddo
 	end subroutine
 	subroutine insert_que(a,que)
@@ -289,176 +366,248 @@ contains
 		dat%T=a
 		call que%insert(put_dat(dat))
 	end subroutine
-	function cut_label(st,cut) result(rt)
-		type(t_figst) :: st
-		integer :: cut(:)
+	function cut_label(fig,i,cut) result(rt)
+		type(t_fig) :: fig
 		integer :: i
+		integer :: cut(:)
+		integer :: n
 		character(:), allocatable :: rt(:)
 		rt=[character::]
-		do i=1,size(st%bd)
-			if(any(st%bd(i)==cut)) then
-				rt=[rt,trim(st%label(i))//to_char(st%bd(i))]
+		do n=1,size(fig%st(i)%bd)
+			if(any(fig%st(i)%bd(n)==cut)) then
+				rt=[rt,trim(fig%label(fig%st(i)%ltp(n)))//to_char(fig%st(i)%bd(n))]
 			else
-				rt=[rt,to_char(st%bd(i))]
+				rt=[rt,to_char(fig%st(i)%bd(n))]
 			endif
 		enddo
 	end function
 	subroutine ini_que(fig,cut,rm,aa,que)
 		type(t_fig) :: fig
 		integer :: cut(:),rm(:)
-		type(t_tensor) :: aa(:,0:)
-		type(t_list) :: que
+		type(t_tensor) :: aa(:,-1:)
+		type(t_tensor), allocatable :: que(:)
 		!type(t_dat), pointer :: dat
-		integer :: i,n
-		if(associated(que%head)) then
-			call delete_list(que)
-		endif
-		do i=1,size(fig%st)
-			if(any(i==rm)) cycle
-			!allocate(dat)
-			!dat%T=aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,to_char(fig%st(i)%bd))
-			!do n=1,size(fig%st(i)%bd)
-				!if(any(fig%st(i)%bd(n)==cut).or.any(fig%bd(fig%st(i)%bd(n),fig%st(i)%j(n))==rm)) then
-					!dat%T=dat%T%change_label([to_char(fig%st(i)%bd(n))],&
-						![trim(fig%st(i)%label(n))//to_char(fig%st(i)%bd(n))])
-				!endif
-			!enddo
-			!call que%insert(put_dat(dat))
-			call insert_que(aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,cut_label(fig%st(i),cut)),que)
+		integer :: i,n,pos,k
+		character(:), allocatable :: to_label(:),label(:)
+		do k=1,2
+			pos=0
+			do i=1,size(fig%st)
+				if((any(i==abs(rm)).and.any(rm>0)).or.(all(i/=abs(rm)).and.any(rm<0))) cycle
+				label=[character::]
+				to_label=[character::]
+				select case(fig%ttp(i))
+				case(-1)
+					pos=pos+2
+					if(k==2) then
+						label=fig%label(fig%st(i)%ltp)
+						to_label=cut_label(fig,i,cut)
+						que(pos-1)=aa(fig%stp(i),fig%ttp(i))%change_label([label,"p"],[to_label,"p"//to_char(i)])
+						que(pos)=set_conjg(aa(fig%stp(i),fig%ttp(i))%change_label([label,"p"],[(trim(to_label(n))//"'",n=1,size(to_label)),"p"//to_char(i)]))
+
+
+					endif
+				!case(1:4)
+					!pos=pos+1
+					!if(k==2) then
+						!do n=1,size(fig%st(i)%ltp)
+							!label=[label,fig%label(fig%st(i)%ltp(n))]
+							!if(any(fig%st(i)%bd(n)==cut)) then
+								!to_label=[to_label,trim(fig%label(fig%st(i)%ltp(n)))//to_char(fig%st(i)%bd(n))]
+							!else
+								!to_label=[to_label,to_char(fig%st(i)%bd(n))]
+							!endif
+							!if(size(fig%st(merge(fig%bd(1,fig%st(i)%bd(n)),fig%bd(2,fig%st(i)%bd(n)),fig%bd(2,fig%st(i)%bd(n))==i))%bd)==4) then
+								!label=[label,trim(label(size(label)))//"'"]
+								!to_label=[to_label,trim(to_label(size(to_label)))//"'"]
+							!endif
+						!enddo
+						!que(pos)=aa(fig%stp(i),fig%ttp(i))%change_label(label,to_label)
+					!endif
+				case default
+					pos=pos+1
+					if(k==2) then
+						que(pos)=aa(fig%stp(i),fig%ttp(i))%change_label(fig%label(fig%st(i)%ltp),cut_label(fig,i,cut))
+					endif
+				end select
+			enddo
+			if(k==2) return
+			if(allocated(que)) then
+				deallocate(que)
+			endif
+			allocate(que(pos))
 		enddo
 	end subroutine
 	subroutine CTM(fig,pair,aa)
 		type(t_fig) :: fig
 		integer :: pair(:,:)
-		type(t_tensor) :: aa(:,0:)
-		type(t_tensor) :: tmp(size(pair)),a(2),P(size(pair,1)-1),E
-		integer :: n,i,j,cut(2,size(pair,1)-1),m,k,i2(2),n2,st(2),c(2)
-		integer :: pair_(size(pair))
-		character(:), allocatable :: label(:),lbd(:)
+		type(t_tensor) :: aa(:,-1:)
+		type(t_tensor) :: P(2),E
+		integer :: i,n1,n2,ist(2,size(pair)+size(pair,2)),n
+		character(:), allocatable :: lbd(:)
 		complex(8), allocatable :: U(:,:),V(:,:)
 		real(8), allocatable :: s(:)
-		integer, allocatable :: map(:)
-		integer, allocatable :: mgrp(:,:)
-		type(t_list) :: que
-		pair_=reshape(pair,shape(pair_))
-		do n=1,size(pair)
-			st=fig%bd(pair_(n),:)
-			if(mod(n-1,size(pair,1))+1==1) then
-				cut=0
-				m=0
+		type(t_tensor), allocatable :: que(:)
+		type(t_tensor) :: aa_(size(ist,2))
+		integer, allocatable :: cord(:)
+		select case(fig%btp(pair(1,1)))
+		case(2)
+			lbd=["d","u","r","l"]
+		case(1)
+			lbd=["r","l","d","u"]
+		end select
+		n=0
+		do n2=1,size(pair,2)
+			if(.not.(any(fig%label(fig%st(fig%bd(1,pair(1,n2)))%ltp)==lbd(3)))) then
+				lbd([3,4])=lbd([4,3])
 			endif
-
-			do k=1,2
-				a(k)=aa(fig%st(st(k))%isub,fig%st(st(k))%tp)%change_label(&
-					[fig%st(st(k))%label(fig%bd2st(pair_(n),k))],[to_char(pair_(n))])
-			enddo
-
-			if(size(a(1)%shap)>size(a(2)%shap)) then
-				c=[2,1]
-			else
-				c=[1,2]
-			endif
-			st=st(c)
-
-			n2=0
-			do i=1,size(fig%st(st(1))%bd)
-				label=[fig%st(st(1))%label(i)]
-				if(fig%st(st(1))%bd(i)/=pair_(n)) then
-					do j=1,size(fig%st(st(2))%bd)
-						if(label(1)==fig%st(st(2))%label(j)) then
-							lbd=[label(1),fig%st(fig%bd(fig%st(st(1))%bd(i),fig%st(st(1))%j(i)))%label(fig%bd2st(fig%st(st(1))%bd(i),fig%st(st(1))%j(i)))]
-							label=[to_char(fig%st(st(1))%bd(i)),to_char(fig%st(st(2))%bd(j))]
-							a(c(1))=a(c(1))%change_label([lbd(1)],[trim(lbd(1))//label(1)])
-							a(c(2))=a(c(2))%change_label([lbd(1)],[trim(lbd(1))//label(2)])
-							do k=1,m
-								if(all(cut(:,k)-[fig%st(st(1))%bd(i),fig%st(st(2))%bd(j)]==0)) then
-									n2=n2+1
-									P(k)=set_conjg(P(k)%change_label(trim(lbd(2))//[label(1),label(2),''],trim(lbd(1))//[label(1),label(2),'']))
-									i2(n2)=k
-									exit
-								endif
-							enddo
-							if(k==m+1) then
-								m=m+1
-								n2=n2+1
-								cut(:,m)=[fig%st(st(1))%bd(i),fig%st(st(2))%bd(j)]
-								call ini_que(fig,cut(:,m),[integer::],aa,que)
-								call contract_order(que)
-								E=fig_contract(get_dat(que%tail))
-								call E%svd(trim(lbd(1))//[label(1),label(2)],trim(lbd(2))//[label(1),label(2)],U,s,V,grp(:,:,4))
-								call P(m)%new(trim(lbd(1))//[label(1),label(2),''],[E%shap(1:2),chi],[E%stp(1:2),4])
-								call P(m)%get_tensor([P(m)%label],U(:,:chi))
-								P(m)=set_conjg(P(m))
-								i2(n2)=m
-								call E%clear()
-							endif
-						endif
-					enddo
-				endif
-			enddo
-
-			if(n2==1) then
-				tmp(n)=dot(dot(a(1),a(2)),P(i2(1)))
-				!write(*,*)a(1)%label,"|",a(2)%label,"|",P(i2(1))%label,P(i2(1))%is_conjg
-			else
-				tmp(n)=dot(dot(dot(a(1),a(2)),P(i2(1))),P(i2(2)))
-				!write(*,*)a(1)%label,"|",a(2)%label,"|",P(i2(1))%label,"|",P(i2(2))%label,P(i2(1:2))%is_conjg
-			endif
-			call a(1)%clear()
-			call a(2)%clear()
-			if(mod(n,size(pair,1))==0) then
-				do i=1,size(P)
-					call P(i)%clear()
+			do n1=1,size(pair,1),2
+				call ini_que(fig,pair(n1:n1+1,n2),[integer::],aa,que)
+				call get_corder(que,cord)
+				E=fig_contract(que,cord)
+				deallocate(que)
+				call E%svd([lbd(1)//to_char(pair(n1,n2)),lbd(1)//to_char(pair(n1+1,n2))],[lbd(2)//to_char(pair(n1,n2)),lbd(2)//to_char(pair(n1+1,n2))],U,s,V,grp(:,:,4))
+				call P(1)%new(lbd(1)//["1","2",""],[E%shap(1:2),chi],[E%stp(1:2),4])
+				call P(1)%get_tensor([P(1)%label],U(:,:chi))
+				P(1)=set_conjg(P(1))
+				P(2)=set_conjg(P(1)%change_label(lbd(1)//["1","2",""],lbd(2)//["1","2",""]))
+				P%is_return=.true.
+				do i=1,2
+					if(fig%bd(i,pair(n1,n2))/=ist(1,n)) then
+						n=n+1
+						ist(:,n)=fig%bd(i,pair(n1:n1+1,n2))
+					endif
+					if(allocated(aa_(n)%shap)) then
+						aa_(n)=dot(aa_(n),P(i))
+					else
+						aa_(n)=dot(dot(&
+							aa(fig%stp(ist(1,n)),fig%ttp(ist(1,n)))%change_label(pack([lbd(i),lbd(3),lbd(mod(i,2)+1)],[1:3]<=size(fig%st(ist(1,n))%bd)),pack([lbd(i)//"1","m ",lbd(mod(i,2)+1)//"1"],[1:3]<=size(fig%st(ist(1,n))%bd))),P(i)),&
+							aa(fig%stp(ist(2,n)),fig%ttp(ist(2,n)))%change_label(pack([lbd(i),lbd(4),lbd(mod(i,2)+1)],[1:3]<=size(fig%st(ist(1,n))%bd)),pack([lbd(i)//"2","m ",lbd(mod(i,2)+1)//"2"],[1:3]<=size(fig%st(ist(1,n))%bd))))
+					endif
 				enddo
-			endif
+			enddo
 		enddo
 
-		do n=1,size(pair)
-			tmp(n)%is_return=.true.
-			st=fig%bd(pair_(n),:)
-			if(size(aa(fig%st(st(1))%isub,fig%st(st(1))%tp)%shap)>size(aa(fig%st(st(2))%isub,fig%st(st(2))%tp)%shap)) st([1,2])=st([2,1])
-			aa(fig%st(st(2))%isub,fig%st(st(1))%tp)=tmp(n)
+		do i=1,n
+			aa(fig%stp(ist(2,i)),fig%ttp(ist(1,i)))=aa_(i)
 		enddo
-		!write(*,*)"CTM finished"
+
+	end subroutine
+	subroutine dCTM(fig,label,aa)
+		type(t_fig) :: fig
+		character(*) :: label(:)
+		type(t_tensor) :: aa(:,-1:)
+		type(t_tensor) :: C(2),E(2),a(4)
+		integer :: i,j,n,ist(8),l(8),st
+		character(:), allocatable :: bd(:),bdp(:),lbd(:)
+		complex(8), allocatable :: U1(:,:),U2(:,:),Z(:,:),W(:,:),cZ(:,:),cW(:,:)
+		real(8), allocatable :: Eg(:)
+		type(t_tensor), allocatable :: que(:,:)
+		integer, allocatable :: cord(:)
+		l=[1,2,5,6,5,6,1,2]
+		do n=1,size(label)
+			allocate(que(7,2))
+			select case(label(n))
+			case("r")
+				ist(:)=[1,2,5,6,9,10,13,14]
+				bd=["13","14","17","18","21","22"]
+				bdp=["2","5","8","11"]
+				lbd=["d","u"]
+			case("l")
+				ist(:)=[4,3,8,7,12,11,16,15]
+				bd=["16","15","20","19","24","23"]
+				bdp=["2","5","8","11"]
+				lbd=["d","u"]
+			case("d")
+				ist(:)=[1,5,2,6,3,7,4,8]
+				bd=["1","4","2","5","3","6"]
+				bdp=["17","18","19","20"]
+				lbd=["r","l"]
+			case("u")
+				ist(:)=[13,9,14,10,15,11,16,12]
+				bd=["10","7","11","8","12","9"]
+				bdp=["17","18","19","20"]
+				lbd=["r","l"]
+			end select
+			do i=1,2
+				do j=1,4
+					st=ist(j+(i-1)*4)
+					que(l(j+(i-1)*4),i)=aa(fig%stp(st),fig%ttp(st))%change_label(fig%label(fig%st(st)%ltp),to_char(fig%st(st)%bd))
+				enddo
+				call get_corder(que(1:2,i),cord)
+				C(i)=fig_contract(que(1:2,i),cord)
+				que(4,i)=C(i)
+				call get_corder(que(4:6,i),cord)
+				E(i)=fig_contract(que(4:6,i),cord)
+			enddo
+
+			call get_mat(dot(C(1),set_conjg(C(1)%change_label(bd(1:2),bd(1:2)//"'"))),bd(1:2),bd(1:2)//"'",U1)
+			call get_mat(dot(set_conjg(C(2)),C(2)%change_label(bd(5:6),bd(5:6)//"'")),bd(5:6),bd(5:6)//"'",U2)
+			call allocate(Z,U1+U2)
+			call que(3,1)%new([bd(1:2),lbd(1)],[C(1)%shap(C(1)%get_ldx(bd(1:2))),chi],[C(1)%stp(C(1)%get_ldx(bd(1:2))),4])
+			call smat_eg(que(3,1)%stp(1:2),Z,Eg,cZ,grp(:,:,4))
+			call que(3,1)%get_tensor(que(3,1)%label,cZ(:,:chi))
+			que(3,1)=set_conjg(que(3,1))
+			que(3,2)=set_conjg(que(3,1)%change_label([bd(1:2),lbd(1)],[bd(5:6),lbd(2)]))
+			que(4,1)=set_conjg(que(3,1)%change_label([lbd(1)],[lbd(2)]))
+			que(4,2)=que(3,1)%change_label(bd(1:2),bd(5:6))
+
+			call get_mat(dot(E(1),set_conjg(E(1)%change_label(bd(3:4),bd(3:4)//"'"))),bd(3:4),bd(3:4)//"'",U1)
+			call get_mat(dot(set_conjg(E(2)),E(2)%change_label(bd(3:4),bd(3:4)//"'")),bd(3:4),bd(3:4)//"'",U2)
+			call allocate(W,U1+U2)
+			call que(7,1)%new([bd(3:4),lbd(1)],[E(1)%shap(E(1)%get_ldx(bd(3:4))),chi],[E(1)%stp(E(1)%get_ldx(bd(3:4))),4])
+			call smat_eg(que(7,1)%stp(1:2),W,Eg,cW,grp(:,:,4))
+			call que(7,1)%get_tensor(que(7,1)%label,cW(:,:chi))
+			que(7,2)=que(7,1)%change_label([lbd(1)],[lbd(2)])
+			que(7,1)=set_conjg(que(7,1))
+
+			call get_corder(que(1:3,1),cord)
+			a(1)=change_label(fig_contract(que(1:3,1),cord),[bdp(1)],[label(n)])
+			call get_corder(que(1:3,2),cord)
+			a(4)=change_label(fig_contract(que(1:3,2),cord),[bdp(4)],[label(n)])
+			call get_corder(que(4:7,1),cord)
+			a(2)=change_label(fig_contract(que(4:7,1),cord),[bdp(2)],[label(n)])
+			call get_corder(que(4:7,2),cord)
+			a(3)=change_label(fig_contract(que(4:7,2),cord),[bdp(3)],[label(n)])
+			deallocate(que)
+			aa(fig%stp(ist(2)),fig%ttp(ist(1)))=a(1)
+			aa(fig%stp(ist(4)),fig%ttp(ist(3)))=a(2)
+			aa(fig%stp(ist(6)),fig%ttp(ist(5)))=a(3)
+			aa(fig%stp(ist(8)),fig%ttp(ist(7)))=a(4)
+		enddo
+
 	end subroutine
 	subroutine simp_update(H,delta0,A,n)
 		complex(8) :: H(:,:)
 		real(8) :: delta0(:)
 		type(t_tensor) :: A(:)
 		integer :: n
-		type(t_tensor) :: App,b(2)
+		type(t_tensor) :: App,b(2),Q(2)
 		real(8) :: ld(d,2*size(A)),alpha
-		type(t_figst) :: st(size(A))
 		type(t_fig) :: fig
-		integer :: ist(2),i,j,step
+		integer :: i,j,step,ist(2)
 		real(8) :: ld1(d**3),ld2(d**3),ld0(d**4),delta
 		real(8), allocatable :: s(:),He(:)
 		complex(8), allocatable :: U(:,:),V(:,:),Q1(:,:),Q2(:,:),R(:,:),L(:,:)
 		complex(8) :: HU(size(H,1),size(H,2)),Hexp(size(H,1),size(H,2))
-		integer :: ord1(4),ord2(4),fst
-		character(:), allocatable :: lgate
+		integer :: bord1(4),bord2(4),lord1(4),lord2(4)
+		character(:), allocatable :: lgate,lbd(:)
 
 		call random_number(ld)
 
 		HU=H
 		!call allocate(He,size(HU,1))
 		!call heev(HU,He,"V")
-		call smat_eg([1,1],[1,1],HU,He)
+		call smat_eg([1,1],HU,He)
 
-
-		call allocate(st(1)%bd,[4,1,3,2])
-		st(1)%label=["u","r","d","l"]
-		call allocate(st(2)%bd,[3,2,4,1])
-		st(2)%label=["u","r","d","l"]
+		call gen_fig(fig,[1,1,2, 1,2,1, 2,1,2, 2,2,1])
+		fig%stp=[1,2]
 
 		do i=1,size(A)
-			ld0=1d0/sqrt(outprod(outprod(ld(:,st(i)%bd(1)),ld(:,st(i)%bd(2))),outprod(ld(:,st(i)%bd(3)),ld(:,st(i)%bd(4)))))
-			A(i)=dot(cmplx(ld0,kind=8),A(i),st(i)%label)
+			ld0=1d0/sqrt(outprod(outprod(ld(:,fig%st(i)%bd(1)),ld(:,fig%st(i)%bd(2))),outprod(ld(:,fig%st(i)%bd(3)),ld(:,fig%st(i)%bd(4)))))
+			A(i)=dot(cmplx(ld0,kind=8),A(i),fig%label(fig%st(i)%ltp))
 		enddo
 
 		ist=[1,2]
-		call b(1)%new(["l1","p1","r1"],[d*p,p,d],[3,1,2])
-		call b(2)%new(["l2","p2","r2"],[d,p,d*p],[2,1,3])
 		do step=1,n
 			!delta=(delta0(1)-delta0(2))*(1d0/(1d0+exp(8d0*step/n-4d0))-1d0/(1d0+exp(4d0)))/(1d0/(1d0+exp(-4d0))-1d0/(1d0+exp(4d0)))+delta0(2)
 			!delta=max(delta0(1)-(delta0(1)-delta0(2))/(n/2d0)*step,delta0(2))
@@ -467,89 +616,73 @@ contains
 			Hexp=matmul(matmul(HU,diag(exp(-He*delta))),transpose(conjg(HU)))
 			do i=1,size(ld,2)
 
-				ord1=[1:4]
-				ord2=[1:4]
-				ist=[1,2]
-				do j=1,size(st(1)%bd)
-					if(st(1)%bd(j)==i) then
-						if(st(1)%label(j)/="r".and.st(1)%label(j)/="d") then
-							ist=[2,1]
-						endif
-						exit
-					endif
-				enddo
+				bord1=fig%st(fig%bd(1,i))%bd
+				lord1=fig%st(fig%bd(1,i))%ltp
+				bord2=fig%st(fig%bd(2,i))%bd
+				lord2=fig%st(fig%bd(2,i))%ltp
 				do j=1,3
-					if(st(ist(1))%bd(j)==i) then
-						ord1([j,4])=ord1([4,j])
+					if(fig%st(fig%bd(1,i))%bd(j)==i) then
+						bord1([j,4])=bord1([4,j])
+						lord1([j,4])=lord1([4,j])
 					endif
-					if(st(ist(2))%bd(j)==i) then
-						ord2([j,4])=ord2([4,j])
+					if(fig%st(fig%bd(2,i))%bd(j)==i) then
+						bord2([j,4])=bord2([4,j])
+						lord2([j,4])=lord2([4,j])
 					endif
 				enddo
-				ld1=outprod(outprod(ld(:,st(ist(1))%bd(ord1(1))),ld(:,st(ist(1))%bd(ord1(2)))),ld(:,st(ist(1))%bd(ord1(3))))
-				ld2=outprod(outprod(ld(:,st(ist(2))%bd(ord2(1))),ld(:,st(ist(2))%bd(ord2(2)))),ld(:,st(ist(2))%bd(ord2(3))))
-				A(ist(1))=dot(cmplx(ld1,kind=8),A(ist(1)),st(ist(1))%label(ord1(1:3)))
-				A(ist(2))=dot(A(ist(2)),cmplx(ld2,kind=8),st(ist(2))%label(ord2(1:3)))
+				ld1=outprod(outprod(ld(:,bord1(1)),ld(:,bord1(2))),ld(:,bord1(3)))
+				ld2=outprod(outprod(ld(:,bord2(1)),ld(:,bord2(2))),ld(:,bord2(3)))
+				ist=fig%stp(fig%bd(:,i))
 
-				select case(st(ist(2))%label(ord2(4)))
-				case("l")
+				select case(fig%btp(i))
+				case(1)
 					lgate="d"
-					fst=1
-				case("u")
+					lbd=["r","l"]
+				case(2)
 					lgate="l"
-					fst=2
+					lbd=["d","u"]
 				end select
 
-				A(ist(fst))=dot(fgate([2,1]),A(ist(fst)),[lgate,"p"])
+				A(fig%bd(fig%btp(i),i))=dot(fgate([2,1]),A(fig%bd(fig%btp(i),i)),[lgate,"p"])
 
-				call A(ist(1))%qr([st(ist(1))%label(ord1(1:3))],["p",st(ist(1))%label(ord1(4))],Q1,R)
-				call b(1)%get_tensor(["l1","p1","r1"],R)
-				call A(ist(2))%lq([st(ist(2))%label(ord2(4)),"p"],[st(ist(2))%label(ord2(1:3))],Q2,L)
-				call b(2)%get_tensor(["l2","p2","r2"],L)
-
-				App=dot(dot(dot(b(1),cmplx(ld(:,i),kind=8),["r1"]),b(2),["r1","l2"]),Hexp,["p1","p2"])
-				call App%svd(["l1","p1"],["p2","r2"],U,s,V,grp(:,:,2))
+				A(ist(1))=dot(cmplx(ld1,kind=8),A(ist(1)),fig%label(lord1(1:3)))
+				A(ist(2))=dot(A(ist(2)),cmplx(ld2,kind=8),fig%label(lord2(1:3)))
+				call A(ist(1))%qr(fig%label(lord1(1:3)),["p",fig%label(lord1(4))],Q(1),b(1),lbd,3)
+				call A(ist(2))%lq([fig%label(lord2(4)),"p"],fig%label(lord2(1:3)),Q(2),b(2),lbd,3)
+				App=dot(dot(dot(b(1)%change_label(["p"],["p1"]),cmplx(ld(:,i),kind=8),[lbd(1)]),b(2)%change_label(["p"],["p2"]),lbd),Hexp,["p1","p2"])
+				call App%svd([lbd(2),"p1"],["p2",lbd(1)],U,s,V,grp(:,:,2))
 				ld(:,i)=s(:d)/sqrt(sum(s(:d)**2))
-				call b(1)%get_tensor(["l1","p1","r1"],U(:,:d))
-				call b(2)%get_tensor(["l2","p2","r2"],V(:d,:))
-				do j=1,size(ld1)
-					Q1(j,:)=1d0/ld1(j)*Q1(j,:)
-					Q2(:,j)=1d0/ld2(j)*Q2(:,j)
-				enddo
-				b(1)%stp(b(1)%get_ldx(["l1"]))=222
-				b(2)%stp(b(2)%get_ldx(["r2"]))=222
-				A(ist(1))=split_label(change_label(dot(Q1,b(1),["l1"]),["p1","r1"],["p",st(ist(1))%label(ord1(4))]),["l1"],st(ist(1))%label(ord1(1:3)))
-				A(ist(2))=split_label(change_label(dot(b(2),Q2,["r2"]),["p2","l2"],["p",st(ist(2))%label(ord2(4))]),["r2"],st(ist(2))%label(ord2(1:3)))
-				b(1)%stp(b(1)%get_ldx(["l1"]))=3
-				b(2)%stp(b(2)%get_ldx(["r2"]))=3
+				call b(1)%get_tensor([lbd(2),"p",lbd(1)],U(:,:d))
+				call b(2)%get_tensor([lbd(2),"p",lbd(1)],V(:d,:))
+				A(ist(1))=dot(Q(1),b(1),lbd)
+				A(ist(2))=dot(b(2),Q(2),lbd)
+				A(ist(1))=dot(cmplx(1d0/ld1,kind=8),A(ist(1)),fig%label(lord1(1:3)))
+				A(ist(2))=dot(A(ist(2)),cmplx(1d0/ld2,kind=8),fig%label(lord2(1:3)))
 
-				A(ist(fst))=dot(fgate([2,1]),A(ist(fst)),[lgate,"p"])
+				A(fig%bd(fig%btp(i),i))=dot(fgate([2,1]),A(fig%bd(fig%btp(i),i)),[lgate,"p"])
 			enddo
 		enddo
 		ld=sqrt(ld)
 		do i=1,size(A)
-			ld0=outprod(outprod(ld(:,st(i)%bd(1)),ld(:,st(i)%bd(2))),outprod(ld(:,st(i)%bd(3)),ld(:,st(i)%bd(4))))
-			A(i)=dot(cmplx(ld0,kind=8),A(i),st(i)%label)
+			ld0=outprod(outprod(ld(:,fig%st(i)%bd(1)),ld(:,fig%st(i)%bd(2))),outprod(ld(:,fig%st(i)%bd(3)),ld(:,fig%st(i)%bd(4))))
+			write(*,*)fig%st(i)%bd(:),fig%label(fig%st(i)%ltp)
+			A(i)=dot(cmplx(ld0,kind=8),A(i),fig%label(fig%st(i)%ltp))
 		enddo
-		call App%clear()
-		call b(1)%clear()
-		call b(2)%clear()
 	end subroutine
-	subroutine full_update(E,Hexp,lbd,b)
+	subroutine full_update(E,Hexp,b)
 		type(t_tensor) :: E,b(:)
 		complex(8) :: Hexp(:,:)
-		character(*) :: lbd(:)
 		type(t_tensor) :: Q,Qt,T,Z
-		complex(8), allocatable :: MS(:,:),MR(:,:),Mtmp(:,:),MZ(:,:),MQ(:,:),R(:,:),iR(:,:),L(:,:),iL(:,:),U(:,:),V(:,:)
+		complex(8), allocatable :: MS(:,:),MR(:,:),Mtmp(:,:),MZ(:,:),MQ(:,:),R(:,:),L(:,:),U(:,:),V(:,:)
 		real(8), allocatable :: Eg(:),s(:)
 		integer :: i,j,n
 		complex(8) :: cost,cost0,pcost
 
-		call E%get_mat(lbd,lbd//"'",MZ)
+		call E%get_mat(["r","l"],["r'","l'"],MZ)
 		MZ=0.5d0*(MZ+transpose(conjg(MZ)))
 		!call allocate(Eg,size(MZ,1))
 		!call heev(MZ,Eg,"V")
-		call smat_eg([3,3],[3,3],MZ,Eg)
+		call smat_eg([3,3],MZ,Eg)
 		do i=1,size(MZ,2)
 			if(Eg(i)>0d0) then
 				MZ(:,i)=MZ(:,i)*sqrt(Eg(i))
@@ -559,92 +692,96 @@ contains
 		enddo
 
 		!!! Gauge Fixing
-		call Z%new([lbd,"p"],[E%shap(1:2),size(MZ,2)],[3,3,5])
-		call Z%get_tensor([lbd,"p"],MZ)
-		call Z%qr([lbd(1),"p"],[lbd(2)],MQ,R)
-		call Z%lq([lbd(1)],[lbd(2),"p"],MQ,L)
-		call allocate(iL,L)
-		!call mat_inv(iL)
-		call smat_inv([3],[3],iL)
-		call allocate(iR,R)
-		!call mat_inv(iR)
-		call smat_inv([3],[3],iR)
-		b(1)=dot(b(1),L,[lbd(2)])
-		b(2)=dot(R,b(2),[lbd(1)])
-		Z=dot(dot(iL,Z,[lbd(1)]),iR,[lbd(2)])
-		!call E%get_tensor(E%label,matmul(MZ,transpose(conjg(MZ))))
-		E=dot(Z,set_conjg(Z%change_label(lbd,lbd//"'")))
+		call Z%new(["r","l","p"],[E%shap(1:2),size(MZ,2)],[3,3,5])
+		call Z%get_tensor(["r","l","p"],MZ)
+		call Z%qr(["r","p"],["l"],MQ,R)
+		call Z%lq(["r"],["l","p"],MQ,L)
+		b(2)=dot(R,b(2),["r"])
+		b(1)=dot(b(1),L,["l"])
+		!call allocate(U,R)
+		!call allocate(V,L)
+		!call mat_inv(L)
+		call smat_inv([3],[3],L)
+		!call mat_inv(R)
+		call smat_inv([3],[3],R)
+		Z=dot(dot(L,Z,["r"]),R,["l"])
+		!!call E%get_tensor(E%label,matmul(MZ,transpose(conjg(MZ))))
+		E=dot(Z,set_conjg(Z%change_label(["r","l"],["r'","l'"])))
 		call Z%clear()
 
-		T=dot(dot(b(1)%change_label(["p"],["p1"]),b(2)%change_label(["p"],["p2"]),lbd),Hexp,["p1","p2"])
+		T=dot(dot(b(1)%change_label(["p"],["p1"]),b(2)%change_label(["p"],["p2"]),["r","l"]),Hexp,["p1","p2"])
 
-		call T%svd([lbd(2),"p1"],[lbd(1),"p2"],U,s,V,grp(:,:,2))
+		call T%svd(["l","p1"],["p2","r"],U,s,V,grp(:,:,2))
 		do i=1,d
 			U(:,i)=U(:,i)*sqrt(s(i))
 			V(i,:)=V(i,:)*sqrt(s(i))
 		enddo
-		call b(1)%get_tensor([lbd(2),"p",lbd(1)],U(:,:d))
-		call b(2)%get_tensor([lbd(2),lbd(1),"p"],V(:d,:))
+		call b(1)%get_tensor(["l","p","r"],U(:,:d))
+		call b(2)%get_tensor(["l","p","r"],V(:d,:))
 
-		Q=dot(E,T,[lbd,lbd(2:1:-1)])
-		Qt=dot(E,set_conjg(T%change_label(lbd,lbd//"'")),[lbd//"'",lbd(2:1:-1)//"'"])
-		cost0=get_value(dot(E,dot(T,set_conjg(T%change_label(lbd,lbd//"'"))),[lbd,lbd(2:1:-1),lbd//"'",lbd(2:1:-1)//"'"]),1)
+		Q=dot(E,T,["r","l","l","r"])
+		Qt=dot(E,set_conjg(T),["r'","l","l'","r"])
+		cost0=get_value(dot(Qt,T,["p1","p1","p2","p2","r","l","l","r"]),1)
 		pcost=-1d0
 		n=0
 		!write(*,*)"cost: "
 		do 
 			n=n+1
 			cost=cost0
-			T=dot(b(1)%change_label(["p"],["p1"]),b(2)%change_label(["p"],["p2"]),lbd)
-			cost=cost-get_value(dot(Q,set_conjg(T%change_label(lbd,lbd//"'")),["p1","p1","p2","p2",lbd//"'",lbd(2:1:-1)//"'"]),1)
-			cost=cost-get_value(dot(Qt,T,["p1","p1","p2","p2",lbd,lbd(2:1:-1)]),1)
-			cost=cost+get_value(dot(E,dot(T,set_conjg(T%change_label(lbd,lbd//"'"))),[lbd,lbd(2:1:-1),lbd//"'",lbd(2:1:-1)//"'"]),1)
+			T=dot(b(1)%change_label(["p"],["p1"]),b(2)%change_label(["p"],["p2"]),["r","l"])
+			cost=cost-get_value(dot(Q,set_conjg(T),["p1","p1","p2","p2","r'","l","l'","r"]),1)
+			cost=cost-get_value(dot(Qt,T,["p1","p1","p2","p2","r","l","l","r"]),1)
+			cost=cost+get_value(dot(dot(E,T,["r","l","l","r"]),set_conjg(T),["p1","p1","p2","p2","r'","l","l'","r"]),1)
+			if(n==1) then
+				write(*,"(es12.4,' -> '$)")abs(cost)
+			endif
 			!write(*,"(2es14.6','2es14.6)")T%rc%T(1),cost
 			!read(*,*)
 			if(abs(cost-pcost)<1d-10) then
-				write(*,*)"update finished",cost,n
+				write(*,"(es12.4,i5)")abs(cost),n
 				exit
 			endif
 			!write(*,*)cost
 			pcost=cost
 			do i=1,2
 				j=mod(i,2)+1
-				call get_mat(dot(Q,set_conjg(b(j)%change_label([lbd],lbd//"'")),[character(5)::"p"//to_char(j),"p",lbd(j)//"'",lbd(i)//"'"]),lbd//"'",[character::],MS)
-				call get_mat(dot(E,dot(b(j),set_conjg(b(j)%change_label([lbd],lbd//"'"))),[character(5)::lbd(j),lbd(i),lbd(j)//"'",lbd(i)//"'"]),lbd//"'",lbd,MR)
+				call get_mat(dot(Q,set_conjg(b(j)%change_label(["r","l"],["r'","l'"])),merge(["p2","p","l'","r'"],["p1","p","r'","l'"],i==1)),["r'","l'"],[character::],MS)
+				call get_mat(dot(dot(E,b(j),merge(["l","r"],["r","l"],i==1)),set_conjg(b(j)%change_label(["r","l"],["r'","l'"])),merge(["p","p","l'","r'"],["p","p","r'","l'"],i==1)),["r'","l'"],["r","l"],MR)
 				!call allocate(MZ,MR)
 				!call mat_inv(MR)
-				call smat_inv(b(i)%stp(b(i)%get_ldx(lbd(2:1:-1))),b(i)%stp(b(i)%get_ldx(lbd(2:1:-1))),MR)
+				call smat_inv(b(i)%stp(b(i)%get_ldx(["l","r"])),b(i)%stp(b(i)%get_ldx(["l","r"])),MR)
 				!call smat_eg(b(i)%stp(b(i)%get_ldx(lbd(2:1:-1))),b(i)%stp(b(i)%get_ldx(lbd(2:1:-1))),MR,Eg)
 				!MR=matmul(matmul(MR,diag(merge(0d0,1d0/Eg,abs(Eg)<1d-8))),transpose(conjg(MR)))
-				!cost=sum(abs(matmul(MZ,MR)-diag(1d0,size(MR))))
+				cost=sum(abs(matmul(MZ,MR)-diag(1d0,size(MR))))
 				!if(abs(cost)>1d-5) then
 					!write(*,*)"inverse: ",cost
 					!!stop
 				!endif
-				call b(i)%get_tensor([lbd(2),lbd(1),"p"],matmul(MR,MS))
+				call b(i)%get_tensor(["l","r","p"],matmul(MR,MS))
 			enddo
 		enddo
-		b(1)=dot(b(1),iL,[lbd(2)])
-		b(2)=dot(iR,b(2),[lbd(1)])
+		b(2)=dot(R,b(2),["r"])
+		b(1)=dot(b(1),L,["l"])
 	end subroutine
-	subroutine rescale(fig,aa,A)
+	subroutine rescale(fig,aa)
 		type(t_fig) :: fig
-		type(t_tensor) :: aa(:,0:),A(:)
-		type(t_list) :: que
+		type(t_tensor) :: aa(:,-1:)
+		type(t_tensor), allocatable :: que(:)
 		integer :: i,loc(size(fig%st)),ne
 		complex(8) :: scale,cp
 		real(8) :: norm
 		type(t_tensor) :: E
 		logical :: flag(size(aa,1),0:size(aa,2)-1)
+		integer, allocatable :: cord(:)
 		call ini_que(fig,[integer::],[integer::],aa,que)
-		call contract_order(que)
-		E=fig_contract(get_dat(que%tail))
+		call get_corder(que,cord)
+		E=fig_contract(que,cord)
 		norm=1d0
 		ne=0
 		do i=1,size(fig%st)
-			loc(i:i)=maxloc(abs(aa(fig%st(i)%isub,fig%st(i)%tp)%rc%T))
-			norm=norm*(abs(aa(fig%st(i)%isub,fig%st(i)%tp)%rc%T(loc(i))))
-			if(fig%st(i)%tp/=0) then
+			loc(i:i)=maxloc(abs(aa(fig%stp(i),fig%ttp(i))%rc%T))
+			norm=norm*(abs(aa(fig%stp(i),fig%ttp(i))%rc%T(loc(i))))
+			if(fig%ttp(i)/=0) then
 				ne=ne+1
 			endif
 		enddo
@@ -652,55 +789,60 @@ contains
 		norm=(norm/abs(E%rc%T(1)))**(1d0/16d0)
 		flag=.false.
 		do i=1,size(fig%st)
-			if(flag(fig%st(i)%isub,fig%st(i)%tp)) then
+			if(flag(fig%stp(i),fig%ttp(i))) then
 				cycle
 			endif
-			flag(fig%st(i)%isub,fig%st(i)%tp)=.true.
+			flag(fig%stp(i),fig%ttp(i))=.true.
 
-			scale=norm/abs(aa(fig%st(i)%isub,fig%st(i)%tp)%rc%T(loc(i)))
-			if(fig%st(i)%tp==0) then
-				A(fig%st(i)%isub)%rc%T=A(fig%st(i)%isub)%rc%T*scale**0.5d0
+			scale=norm/abs(aa(fig%stp(i),fig%ttp(i))%rc%T(loc(i)))
+			if(fig%ttp(i)==0) then
+				aa(fig%stp(i),-1)%rc%T=aa(fig%stp(i),-1)%rc%T*scale**0.5d0
 			else
 				scale=scale*cp
 			endif
-			aa(fig%st(i)%isub,fig%st(i)%tp)%rc%T=aa(fig%st(i)%isub,fig%st(i)%tp)%rc%T*scale
-			if(fig%st(i)%tp==0) then
-				E=merge_label(dot(A(fig%st(i)%isub),set_conjg(A(fig%st(i)%isub)%change_label(["u","d","l","r"],["u","d","l","r"]//"'"))),["u","u'","d","d'","l","l'","r","r'"],["u","d","l","r"])
-				call E%reorder(aa(fig%st(i)%isub,fig%st(i)%tp)%label)
+			aa(fig%stp(i),fig%ttp(i))%rc%T=aa(fig%stp(i),fig%ttp(i))%rc%T*scale
+			if(fig%ttp(i)==0) then
+				E=merge_label(dot(aa(fig%stp(i),-1),set_conjg(aa(fig%stp(i),-1)%change_label(["u","d","l","r"],["u","d","l","r"]//"'"))),["u","u'","d","d'","l","l'","r","r'"],["u","d","l","r"])
+				call E%reorder(aa(fig%stp(i),fig%ttp(i))%label)
 				!write(*,*)"check: ",sum(abs(E%rc%T-aa(fig%st(i)%isub,fig%st(i)%tp)%rc%T))
 			endif
 		enddo
 		call E%clear()
 	end subroutine
-	function get_vsite(fig,A,aa,st,H,sg) result(rt)
+	function get_vsite(fig,aa,st,H,sg) result(rt)
 		type(t_fig) :: fig
-		type(t_tensor) :: A(:),aa(:,0:)
+		type(t_tensor) :: aa(:,-1:)
 		integer :: st(:)
 		complex(8) :: H(:,:)
 		real(8), optional :: sg(:)
-		type(t_list) :: que
+		type(t_tensor), allocatable :: que(:)
 		complex(8) :: rt
 		complex(8) :: rt_(size(st))
-		integer :: i,n
+		integer :: i,n,pos
 		type(t_tensor) :: E
 		character(:), allocatable :: label(:)
 		type(t_dat), pointer :: dat
+		integer, allocatable :: cord(:)
 		label=["u","u'","r","r'","d","d'","l","l'"]
 		do n=1,size(st)
+			pos=0
+			allocate(que(16))
 			do i=1,size(fig%st)
 				if(i==st(n)) then
-					call insert_que(change_label(merge_label(&
+					pos=pos+1
+					que(pos)=change_label(merge_label(&
 						dot(dot(fgate([2,2,2]),&
-						dot(dot(A(fig%st(i)%isub),H,["p"]),set_conjg(A(fig%st(i)%isub)%change_label([label(::2)],[label(2::2)])))&
-						,["r'","d'","d"]),fgate([2,2,2]),["u'","l'","l"])&
-						,label,label(::2)),fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+						dot(dot(aa(fig%stp(i),-1),H,["p"]),set_conjg(aa(fig%stp(i),-1)%change_label([label(::2)],[label(2::2)])))&
+						,["u'","l'","l"]),fgate([2,2,2]),["r'","d'","d"])&
+						,label,label(::2)),fig%label(fig%st(i)%ltp),to_char(fig%st(i)%bd))
 				else
-					call insert_que(aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+					pos=pos+1
+					que(pos)=aa(fig%stp(i),fig%ttp(i))%change_label(fig%label(fig%st(i)%ltp),to_char(fig%st(i)%bd))
 				endif
 			enddo
-			call contract_order(que)
-			rt_(n)=get_value(fig_contract(get_dat(que%tail)),1)
-			call delete_list(que)
+			call get_corder(que,cord)
+			rt_(n)=get_value(fig_contract(que,cord),1)
+			deallocate(que)
 		enddo
 		write(*,*)rt_
 		if(present(sg)) then
@@ -710,53 +852,58 @@ contains
 		endif
 		call E%clear()
 	end function
-	function get_vbond(fig,A,aa,bd,H,sg) result(rt)
+	function get_vbond(fig,aa,bd,H,sg) result(rt)
 		type(t_fig) :: fig
-		type(t_tensor) :: A(:),aa(:,0:)
+		type(t_tensor) :: aa(:,-1:)
 		integer :: bd(:)
 		complex(8) :: H(:,:)
 		real(8), optional :: sg(:)
-		type(t_list) :: que
+		type(t_tensor), allocatable :: que(:)
 		complex(8) :: rt
 		complex(8) :: rt_(size(bd))
-		integer :: i,n,k,fst(2)
+		integer :: i,n,k,fst(2),pos
 		type(t_tensor) :: E
 		character(:), allocatable :: label(:),lgate
+		integer, allocatable :: cord(:)
 		label=["u","u'","r","r'","d","d'","l","l'"]
 		rt=0d0
 		do n=1,size(bd)
+			pos=0
+			allocate(que(16))
 			do i=1,size(fig%st)
-				do k=1,2
-					if(i==fig%bd(bd(n),k)) then
+				do k=1,size(fig%st(i)%bd)
+					if(fig%st(i)%bd(k)==bd(n)) then
 						exit
 					endif
 				enddo
-				if(k/=3) then
-					select case(fig%st(i)%label(fig%bd2st(bd(n),k)))
+				if(k/=(size(fig%st(i)%bd)+1)) then
+					select case(fig%label(fig%st(i)%ltp(k)))
 					case("r")
 						lgate="d"
 					case("l")
 						lgate="u'"
 					case("d")
-						lgate="l'"
+						lgate="r'"
 					case("u")
-						lgate="r"
+						lgate="l"
 					end select
-					call insert_que(change_label(merge_label(&
+					pos=pos+1
+					que(pos)=change_label(merge_label(&
 						dot(fgate([2,1,1]),&
 						dot(dot(fgate([2,2,2]),&
-						dot(A(fig%st(i)%isub)%change_label(["p"],["p"//to_char(i)]),set_conjg(A(fig%st(i)%isub)%change_label([label(::2),"p"],[label(2::2),"P"//to_char(i)])))&
-						,["r'","d'","d"]),fgate([2,2,2]),["u'","l'","l"])&
+						dot(aa(fig%stp(i),-1)%change_label(["p"],["p"//to_char(i)]),set_conjg(aa(fig%stp(i),-1)%change_label([label(::2),"p"],[label(2::2),"P"//to_char(i)])))&
+						,["u'","l'","l"]),fgate([2,2,2]),["r'","d'","d"])&
 						,[lgate,"p"//to_char(i),"P"//to_char(i)])&
-						,label,label(::2)),fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+						,label,label(::2)),fig%label(fig%st(i)%ltp),to_char(fig%st(i)%bd))
 				else
-					call insert_que(aa(fig%st(i)%isub,fig%st(i)%tp)%change_label(fig%st(i)%label,cut_label(fig%st(i),[integer::])),que)
+					pos=pos+1
+					que(pos)=aa(fig%stp(i),fig%ttp(i))%change_label(fig%label(fig%st(i)%ltp),to_char(fig%st(i)%bd))
 				endif
 			enddo
-			call contract_order(que)
-			E=fig_contract(get_dat(que%tail))
-			rt_(n)=get_value(contract(dot(E,H,"p"//[to_char(fig%bd(bd(n),1)),to_char(fig%bd(bd(n),2))]),[["p","P"]//to_char(fig%bd(bd(n),1)),["p","P"]//to_char(fig%bd(bd(n),2))]),1)
-			call delete_list(que)
+			call get_corder(que,cord)
+			E=fig_contract(que,cord)
+			rt_(n)=get_value(contract(dot(E,H,"p"//[to_char(fig%bd(1,bd(n))),to_char(fig%bd(2,bd(n)))]),[["p","P"]//to_char(fig%bd(1,bd(n))),["p","P"]//to_char(fig%bd(2,bd(n)))]),1)
+			deallocate(que)
 		enddo
 		write(*,*)rt_
 		if(present(sg)) then
@@ -809,20 +956,21 @@ program main
 	real(8) :: delta=0.05d0,alpha=10d0,g=3.10d0
 	complex(8), allocatable :: HU(:,:),Q(:,:),R(:,:),L(:,:),H(:,:),U(:,:),V(:,:),Hexp(:,:),Hn(:,:),Hdb(:,:)
 	real(8), allocatable :: s(:),ps(:),He(:)
-	complex(8) :: energy
-	type(t_tensor), target :: A(2),aa(2,0:9),X(2),b(2),tmp1,tmp2,tH
+	complex(8) :: val
+	type(t_tensor), target :: aa(2,-1:9),X(2),b(2),tmp1,tmp2,tH
 	type(t_tensor) :: E
 	type(t_fig) :: fig,figx,figy
-	type(t_list) :: que
+	type(t_tensor), allocatable :: que(:)
 	type(t_dat), pointer :: dat
 	integer :: flag(8)=[1,1,2,2,3,3,4,4]
 	character(:), allocatable :: label(:),lbd(:)
-	integer :: step,n,i,j,k,bd
+	integer :: step,n,i,j,k,bd,st(2)
 	integer, allocatable :: map(:),mgrp(:,:)
+	integer, allocatable :: cord(:)
 
-	chi=d*10
+	chi=min(d*10,64)
 
-	call random_seed()
+	!call random_seed()
 	call omp_set_nested(.false.)
 	!call omp_set_max_active_levels(1)
 	call omp_set_dynamic(.false.)
@@ -877,25 +1025,17 @@ program main
 	call allocate(HU,H)
 	!call syev(HU,He,"V")
 	!call heev(HU,He,"V")
-	call smat_eg([1,1],[1,1],HU,He)
+	call smat_eg([1,1],HU,He)
 
 	label=["u","u'","r","r'","d","d'","l","l'"]
 
-	do i=1,size(A)
-		call A(i)%new([label(::2),"p"],[d,d,d,d,p],[2,2,2,2,1],"r")
+	do i=1,size(aa,1)
+		call aa(i,-1)%new([label(::2),"p"],[d,d,d,d,p],[2,2,2,2,1],"r")
 	enddo
-	call gen_figp(figp,[ 1,1,2, 1,2,3, 1,3,4, 1,5,6, 1,6,7, 1,7,8, 1,9,10, 1,10,11, 1,11,12, 1,13,14, 1,14,15, 1,15,16,&
-		2,1,5, 2,2,6, 2,3,7, 2,4,8, 2,5,9, 2,6,10, 2,7,11, 2,8,12, 2,9,13, 2,10,14, 2,11,15, 2,12,16])
-	write(*,*)figp%bd
-	write(*,*)figp%btp
-	do i=1,size(figp%st)
-		write(*,*)figp%st(i)%bd
-		write(*,*)figp%label(figp%st(i)%ltp)
-		read(*,*)
-	enddo
-	stop
+	!call aa(1,-1)%new([label(::2),"p"],[d,d,d,d,p],[2,2,2,2,1],"r")
+	!aa(2,-1)=aa(1,-1)%clone()
 
-	call simp_update(H,[0.1d0,0.005d0],A,3000)
+	call simp_update(H,[0.5d0,0.005d0],aa(:,-1),3000)
 
     !tp:        
     !
@@ -906,13 +1046,12 @@ program main
 	! 8---3---7
 	!
 
-	!call A(1)%new([label(::2),"p"],[d,d,d,d,p],"r")
-	!A(2)=A(1)%clone()
-	do i=1,size(A)
-		aa(i,0)=dot(A(i),set_conjg(A(i)%change_label(label(::2),label(2::2))))
+	do i=1,size(aa,1)
+		aa(i,0)=dot(aa(i,-1),set_conjg(aa(i,-1)%change_label(label(::2),label(2::2))))
 		aa(i,0)=dot(dot(fgate([2,2,2]),aa(i,0),["u'","l'","l"]),fgate([2,2,2]),["r'","d'","d"])
 		do j=1,4
 			aa(i,j)=contract(aa(i,0),pack(label,flag==j))
+			!aa(i,j)=aa(i,j)%merge_label(pack(label,.not.((flag==j).or.(flag==mod(j+1,4)+1))),pack(label(::2),.not.((flag(::2)==j).or.(flag(::2)==mod(j+1,4)+1))))
 			aa(i,j)=aa(i,j)%merge_label(pack(label,.not.(flag==j)),pack(label(::2),.not.(flag(::2)==j)))
 		enddo
 		do j=1,4
@@ -920,10 +1059,16 @@ program main
 			aa(i,j+4)=aa(i,j+4)%merge_label(pack(label,.not.(flag==j.or.flag==mod(j-2+4,4)+1)),&
 				pack(label(::2),.not.(flag(::2)==j.or.flag(::2)==mod(j-2+4,4)+1)))
 		enddo
+		!call aa(i,1)%new(["l","r","d"],[chi,chi,d*d],[4,4,22],"r")
+		!call aa(i,2)%new(["u","d","l"],[chi,chi,d*d],[4,4,22],"r")
+		!call aa(i,3)%new(["l","r","u"],[chi,chi,d*d],[4,4,22],"r")
+		!call aa(i,4)%new(["u","d","r"],[chi,chi,d*d],[4,4,22],"r")
+		!call aa(i,5)%new(["r","d"],[chi,chi],[4,4],"r")
+		!call aa(i,6)%new(["l","d"],[chi,chi],[4,4],"r")
+		!call aa(i,7)%new(["l","u"],[chi,chi],[4,4],"r")
+		!call aa(i,8)%new(["u","r"],[chi,chi],[4,4],"r")
 		aa(i,0)=aa(i,0)%merge_label(label,label(::2))
-		aa(i,9)=aa(i,0)%clone()
 	enddo
-
 
 
 
@@ -947,41 +1092,26 @@ program main
 	!    13-------14--------15--------16
 	!
 
-	!call gen_fig(fig,[ -1,1,2, -1,2,3, -1,3,4, -1,5,6, -1,6,7, -1,7,8, -1,9,10, -1,10,11, -1,11,12, -1,13,14, -1,14,15, -1,15,16,&
-		!-2,1,5, -2,2,6, -2,3,7, -2,4,8, -2,5,9, -2,6,10, -2,7,11, -2,8,12, -2,9,13, -2,10,14, -2,11,15, -2,12,16],&
-			![1,5, 2,1, 1,1, 2,6, 2,4, 1,0, 2,0, 1,2, 1,4, 2,0, 1,0, 2,2, 2,8, 1,3, 2,3, 1,7])
+	call gen_fig(fig,[1,1,2, 1,2,3, 1,3,4, 1,5,6, 1,6,7, 1,7,8, 1,9,10, 1,10,11, 1,11,12, 1,13,14, 1,14,15, 1,15,16,&
+		2,1,5, 2,2,6, 2,3,7, 2,4,8, 2,5,9, 2,6,10, 2,7,11, 2,8,12, 2,9,13, 2,10,14, 2,11,15, 2,12,16])
+	fig%stp=[1,2,1,2,2,1,2,1,1,2,1,2,2,1,2,1]
+	!fig%ttp([6,7,10,11])=-1
 
+	call rescale(fig,aa(:,-1:8))
 
-
-	call rescale(fig,aa(:,0:8),A)
-
-	write(*,*)"Energy: "
-	write(*,*)get_vbond(fig,A,aa,[5,8,18,19],H)/2d0
-	write(*,*)"n: "
-	write(*,*)get_vsite(fig,A,aa,[6,7,10,11],Hn)/4d0
+	val=get_vsite(fig,aa,[6,7,10,11],Hn)/4d0
+	write(*,*)"n: ",val
+	val=get_vbond(fig,aa,[5,8,18,19],H)/2d0+mu*val
+	write(*,*)"Energy: ",val
 	stop
-	!do
-		!call CTM(fig,reshape([1,4,7,10, 3,6,9,12],[4,2]),aa)
-		!fig%st%isub=mod(fig%st%isub,2)+1
-		!call rescale(fig,aa(:,0:8),A)
-		!call CTM(fig,reshape([13,14,15,16, 21,22,23,24],[4,2]),aa)
-		!fig%st%isub=mod(fig%st%isub,2)+1
-		!call rescale(fig,aa(:,0:8),A)
-		!call aa(1,5)%svd(["d"],["r"],U,s,V)
-		!write(*,"(es10.2$)")s
-		!write(*,"(x)")
-		!read(*,*)
-	!enddo
-	!write(*,*)"Energy: "
-	!write(*,*)get_vbond(fig,A,aa,[5,8,18,19],H)/2d0
-	!write(*,*)"n: "
-	!write(*,*)get_vsite(fig,A,aa,[6,7,10,11],Hn)/4d0
 
 	do step=0,Nstep-1
 		!delta=0.05d0*exp(-alpha*step/Nstep)
 		!delta=0.1d0
-		delta=max(0.1d0-(0.1d0-0.005d0)/(Nstep/4)*step,0.001d0)
+		delta=max(0.1d0-(0.1d0-0.01d0)/(Nstep/4)*step,0.01d0)
 		Hexp=matmul(matmul(HU,diag(exp(-He*delta))),transpose(conjg(HU)))
+		!Hexp=diag(1d0,size(Hexp,1))
+		write(*,"('step: ',i4,es12.4)")step,delta
 		do n=1,4
 
 			select case(n)
@@ -990,119 +1120,86 @@ program main
 			case(3:4)
 				bd=18
 			end select
+			st=fig%bd(:,bd)
 
-			lbd=[fig%st(fig%bd(bd,1))%label(fig%bd2st(bd,1)),fig%st(fig%bd(bd,2))%label(fig%bd2st(bd,2))]
-			do i=1,2
-				k=fig%st(fig%bd(bd,i))%isub
+			!if(fig%btp(bd)==1) then
+				!lbd=["r","l"]
+				!aa(fig%stp(st(1)),-1)=dot(fgate([2,1]),aa(fig%stp(st(1)),-1),["d","p"])
+			!else                                                       
+				!lbd=["d","u"]
+				!aa(fig%stp(st(2)),-1)=dot(fgate([2,1]),aa(fig%stp(st(2)),-1),["l","p"])
+			!endif
 
-				if(i==1) then
-					call X(i)%new([label(::2)],merge(d*p,d,label(::2)==lbd(1)),merge(3,2,label(::2)==lbd(1)))
-					call b(i)%new([lbd,"p"],[d,d*p,p],[2,3,1])
-					call A(k)%qr([character::],[lbd(1),"p"],Q,R)
-					call X(i)%get_tensor(A(k)%label(1:4),Q)
-					call b(i)%get_tensor([lbd(2),A(k)%label(4:)],R)
-				else
-					if(lbd(2)=="l") then
-						A(k)=dot(fgate([2,1]),A(k),["d","p"])
-					else
-						A(k)=dot(fgate([2,1]),A(k),["r","p"])
-					endif
-					call X(i)%new([label(::2)],merge(d*p,d,label(::2)==lbd(2)),merge(3,2,label(::2)==lbd(2)))
-					call b(i)%new([lbd,"p"],[d*p,d,p],[3,2,1])
-					call A(k)%lq([lbd(2),"p"],[character::],Q,L)
-					call X(i)%get_tensor([A(k)%label(1),A(k)%label(3:)],Q)
-					call b(i)%get_tensor([A(k)%label(1:2),lbd(1)],L)
-				endif
+			!call aa(fig%stp(st(1)),-1)%qr([character::],[lbd(1),"p"],X(1),b(1),lbd,3)
+			!call aa(fig%stp(st(2)),-1)%lq([lbd(2),"p"],[character::],X(2),b(2),lbd,3)
 
-				aa(k,9)=dot(X(i),set_conjg(X(i)%change_label(label(::2),label(2::2))))
-				aa(k,9)=dot(dot(fgate(aa(k,9)%stp(aa(k,9)%get_ldx(["l'","d","d'"]))),aa(k,9),["l'","d","d'"]),fgate(aa(k,9)%stp(aa(k,9)%get_ldx(["u'","r","r'"]))),["u'","r","r'"])
-				aa(k,9)=aa(k,9)%merge_label(label,label(::2))
-			enddo
-
-			fig%st(fig%bd(bd,:))%tp=9
-
-
-			call ini_que(fig,[bd],[integer::],aa,que)
-			call contract_order(que)
-			E=fig_contract(get_dat(que%tail))
-			E=E%split_label(E%label,[character(2)::E%label(1)(1:1),E%label(1)(1:1)//"'",E%label(2)(1:1),E%label(2)(1:1)//"'"])
-			!write(*,*)E%label,E%shap,E%stp
-			!stop
-
-
-			call full_update(E,Hexp,lbd,b)
-
-			do i=1,size(A)
-				k=fig%st(fig%bd(bd,i))%isub
-				if(i==1) then
-					A(k)=dot(X(i),b(i),lbd)
-				else
-					A(k)=dot(b(i),X(i),lbd)
-					if(lbd(2)=="l") then
-						A(k)=dot(fgate([2,1]),A(k),["d","p"])
-					else
-						A(k)=dot(fgate([2,1]),A(k),["r","p"])
-					endif
-				endif
-				aa(k,9)=dot(A(k),set_conjg(A(k)%change_label(label(::2),label(2::2))))
-				aa(k,9)=dot(dot(fgate([2,2,2]),aa(k,9),["l'","d","d'"]),fgate([2,2,2]),["u'","r","r'"])
-				aa(k,9)=aa(k,9)%merge_label(label,label(::2))
-			enddo
-
-
-			!call allocate(ps,aa(1,5)%shap(1))
-			!ps=0d0
-			!k=0
-			!do 
-				!k=k+1
-				if(n==1.or.n==2) then
-					!call CTM(fig,[1,4,7,10],aa)
-					!call CTM(fig,[3,6,9,12],aa)
-					call CTM(fig,reshape([1,4,7,10, 3,6,9,12],[4,2]),aa)
-					!fig%st%isub=mod(fig%st%isub,2)+1
-					!call rescale(fig,aa(:,0:8),A)
-					!call ini_que(figx,[integer::],[integer::],aa,que)
-					!call contract_order(que)
-					!E=fig_contract(get_dat(que%tail))
-					!write(*,*)E%label,E%shap,E%rc%T(1),figx%st(1)%isub
-					!figx%st%isub=mod(figx%st%isub,2)+1
-				else
-					!call CTM(fig,[13,14,15,16],aa)
-					!call CTM(fig,[21,22,23,24],aa)
-					call CTM(fig,reshape([13,14,15,16, 21,22,23,24],[4,2]),aa)
-					!fig%st%isub=mod(fig%st%isub,2)+1
-					!call rescale(fig,aa(:,0:8),A)
-					!call ini_que(figy,[integer::],[integer::],aa,que)
-					!call contract_order(que)
-					!E=fig_contract(get_dat(que%tail))
-					!write(*,*)E%label,E%shap,E%rc%T(1),figy%st(1)%isub
-					!figy%st%isub=mod(figy%st%isub,2)+1
-				endif
-				!call aa(1,5)%svd(["d"],["r"],s=s)
-				!if(sum(abs(ps/ps(1)-s/s(1)))<1d-4.or.k>40) then
-					!exit
-				!endif
-				!call allocate(ps,s)
-				!call aa(2,5)%svd(["d"],["r"],s=s)
-				!write(*,*)s(1),s(size(s))
-				!read(*,*)
+			!do i=1,2
+				!aa(fig%stp(st(i)),9)=dot(X(i),set_conjg(X(i)%change_label(label(::2),label(2::2))))
+				!aa(fig%stp(st(i)),9)=dot(dot(fgate(aa(fig%stp(st(i)),9)%stp(aa(fig%stp(st(i)),9)%get_ldx(["u'","l'","l"]))),aa(fig%stp(st(i)),9),["u'","l'","l"]),fgate(aa(fig%stp(st(i)),9)%stp(aa(fig%stp(st(i)),9)%get_ldx(["r'","d'","d"]))),["r'","d'","d"])
+				!aa(fig%stp(st(i)),9)=aa(fig%stp(st(i)),9)%merge_label(label,label(::2))
 			!enddo
 
-			if(fig%st(fig%bd(bd,1))%tp==9) then
-				fig%st(fig%bd(bd,:))%tp=0
-				do i=1,size(A)
-					aa(i,0)=aa(i,9)%clone()
+			!fig%ttp(fig%bd(:,bd))=9
+
+
+			!call ini_que(fig,[bd],[integer::],aa,que)
+			!call get_corder(que,cord)
+			!E=fig_contract(que,cord)
+			!E=E%split_label([lbd(1)//to_char(bd),lbd(2)//to_char(bd)],["r","r'","l","l'"])
+			!deallocate(que)
+
+
+			!if(fig%btp(bd)==2) then
+				!do i=1,2
+					!b(i)=b(i)%change_label(["u","d"],["l","r"])
+				!enddo
+			!endif
+			!call full_update(E,Hexp,b)
+			!if(fig%btp(bd)==2) then
+				!do i=1,2
+					!b(i)=b(i)%change_label(["l","r"],["u","d"])
+				!enddo
+			!endif
+
+			!aa(fig%stp(st(1)),-1)=dot(X(1),b(1),lbd)
+			!aa(fig%stp(st(2)),-1)=dot(b(2),X(2),lbd)
+			!if(fig%btp(bd)==1) then
+				!aa(fig%stp(st(1)),-1)=dot(fgate([2,1]),aa(fig%stp(st(1)),-1),["d","p"])
+			!else                                                       
+				!aa(fig%stp(st(2)),-1)=dot(fgate([2,1]),aa(fig%stp(st(2)),-1),["l","p"])
+			!endif
+			!do i=1,2
+				!aa(fig%stp(st(i)),9)=dot(aa(fig%stp(st(i)),-1),set_conjg(aa(fig%stp(st(i)),-1)%change_label(label(::2),label(2::2))))
+				!aa(fig%stp(st(i)),9)=dot(dot(fgate([2,2,2]),aa(fig%stp(st(i)),9),["u'","l'","l"]),fgate([2,2,2]),["r'","d'","d"])
+				!aa(fig%stp(st(i)),9)=aa(fig%stp(st(i)),9)%merge_label(label,label(::2))
+			!enddo
+
+			if(fig%btp(bd)==1) then
+				!call CTM(fig,reshape([13,14,17,18,21,22, 16,15,20,19,24,23],[6,2]),aa)
+				call dCTM(fig,["r","l"],aa)
+			else
+				!call CTM(fig,reshape([1,4,2,5,3,6, 10,7,11,8,12,9],[6,2]),aa)
+				call dCTM(fig,["d","u"],aa)
+			endif
+
+			if(fig%ttp(st(1))==9) then
+				fig%ttp(st)=0
+				do i=1,2
+					aa(fig%stp(st(i)),0)=aa(fig%stp(st(i)),9)
 				enddo
 			endif
-			fig%st%isub=mod(fig%st%isub,2)+1
+			fig%stp=mod(fig%stp,2)+1
 
-			call rescale(fig,aa(:,0:8),A)
-			!read(*,*)
+			call rescale(fig,aa(:,-1:8))
 		enddo
-		write(*,*)"Energy: "
-		write(*,*)get_vbond(fig,A,aa,[5,8,18,19],H)/2d0
-		write(*,*)get_vsite(fig,A,aa,[6,7,10,11],Hn)/4d0
-		!write(*,*)"Mz: ",get_vsite(fig,A,aa,[6,7,10,11],cmplx(reshape([1d0,0d0,0d0,-1d0],[2,2]),kind=8))/4d0
+
+		if(mod(step,10)==0) then
+			val=get_vsite(fig,aa,[6,7,10,11],Hn)/4d0
+			write(*,*)"n: ",val
+			val=get_vbond(fig,aa,[5,8,18,19],H)/2d0+mu*val
+			write(*,*)"Energy: ",val
+			!write(*,*)"Mz: ",get_vsite(fig,aa,[6,7,10,11],cmplx(reshape([1d0,0d0,0d0,-1d0],[2,2]),kind=8))/4d0
+		endif
 	enddo
 end program
 
