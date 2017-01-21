@@ -10,19 +10,30 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
-	integer, parameter :: ica1=8
+	integer, parameter :: ica1=9
 	integer :: ica2
 	integer :: Ns,vn
 	real(8) :: q(3,ica1)=reshape([&
-		pi*5d0/8d0,pi*5d0/8d0,0d0,&
-		pi*6d0/8d0,pi*6d0/8d0,0d0,&
-		pi*7d0/8d0,pi*7d0/8d0,0d0,&
+		pi*6d0/10d0,pi*6d0/10d0,0d0,&
+		pi*7d0/10d0,pi*7d0/10d0,0d0,&
+		pi*8d0/10d0,pi*8d0/10d0,0d0,&
+		pi*9d0/10d0,pi*9d0/10d0,0d0,&
 		pi,pi,0d0,&
-		pi,pi*7d0/8d0,0d0,&
-		pi,pi*6d0/8d0,0d0,&
-		pi,pi*5d0/8d0,0d0,&
-		pi,pi*4d0/8d0,0d0&
+		pi,pi*9d0/10d0,0d0,&
+		pi,pi*8d0/10d0,0d0,&
+		pi,pi*7d0/10d0,0d0,&
+		pi,pi*6d0/10d0,0d0&
 		],[3,ica1])
+	!real(8) :: q(3,ica1)=reshape([&
+		!pi*5d0/8d0,pi*5d0/8d0,0d0,&
+		!pi*6d0/8d0,pi*6d0/8d0,0d0,&
+		!pi*7d0/8d0,pi*7d0/8d0,0d0,&
+		!pi,pi,0d0,&
+		!pi,pi*7d0/8d0,0d0,&
+		!pi,pi*6d0/8d0,0d0,&
+		!pi,pi*5d0/8d0,0d0,&
+		!pi,pi*4d0/8d0,0d0&
+		!],[3,ica1])
 contains
 	subroutine initial()
 		integer :: i,l
@@ -39,8 +50,8 @@ contains
 		latt%c2=(/-1d0,1d0,0d0/)
 		!latt%c1=latt%a1
 		!latt%c2=latt%a2
-		latt%T1=(/1d0,0d0,0d0/)*16
-		latt%T2=(/0d0,1d0,0d0/)*16
+		latt%T1=(/1d0,0d0,0d0/)*20
+		latt%T2=(/0d0,1d0,0d0/)*20
 		latt%bdc=(/1d0,1d0,0d0/)
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=(/0d0,0d0,0d0/)
@@ -52,17 +63,17 @@ contains
 		!call check_lattice(101)
 		if(this_image()==1) write(*,*)"Total site number is: ",latt%Ns
 
-		! cp
-		call gen_var(sg=1,nb=0)
-		var(iv(0))%bd=-1d0
-		var(iv(0))%val=-1.39752d0
+		!! cp
+		!call gen_var(sg=1,nb=0)
+		!var(iv(0))%bd=-1d0
+		!var(iv(0))%val=-1.39752d0
 
-		! dsc
-		call gen_var(sg=-2,nb=1)
-		do i=1,size(var(iv(0))%bd)
-			var(iv(0))%bd(i)=dwave(i)
-		enddo
-		var(iv(0))%val=1d-4
+		!! dsc
+		!call gen_var(sg=-2,nb=1)
+		!do i=1,size(var(iv(0))%bd)
+			!var(iv(0))%bd(i)=dwave(i)
+		!enddo
+		!var(iv(0))%val=1d-4
 
 		!! ssc
 		!call gen_var(sg=-2,nb=0)
@@ -1554,7 +1565,7 @@ program main
 	mc%hot=1
 	mc%step=Ns
 	mc%delay=2
-	mc%ne(1)=Ns/2-18
+	mc%ne(1)=Ns/2-26
 	mc%ne(2)=Ns-mc%ne(1)
 	!var(1:)%val(1)=(/-3.2296E-01,2.3218E-01,7.3575E-02,3.4608E-02/)
 	!var(1:)%val(1)=(/-8.1623E-01, 2.5240E-01,-1.2011E-01, 4.2456E-01, 2.0609E-01, 4.0513E-02/)
@@ -1570,7 +1581,8 @@ program main
 	!var(1:)%val(1)=(/1.60d-01/)!-18,ddw,compare
 	!var(1:)%val(1)=(/0.E+00,2.8386E-01,3.0E-01/)
 	!var(1:)%val(1)=(/2.8386E-01/)
-	var(1:2)%val(1)=(/-1.1299E+00,1.6504E-01/)!-18,ddw,compare
+	var(1:)%val(1)=(/0.18d0/) ! ddw E=-4.2454E-01
+	!var(1:2)%val(1)=(/-1.1299E+00,1.6504E-01/)!-18,ddw,compare
 	!var(1:2)%val(1)=(/-1.0050E+00,2.0495E-01/)!-18,dsc,compare
 	!var(vn+1:)%val(1)=0d0
 	!var(1:)%val(1)=(/6.1000d-01/)
@@ -1583,15 +1595,19 @@ program main
 	!enddo
 	!var(1:)%val(1)=(/1.6047E-01/)
 	!mc%sg=1
-	mc%samp=1024*8
-	mc%hot=1024*8
-	mc%step=Ns
-	!do i=1,10
+	!mc%samp=1024*8*16
+	!mc%hot=1024*8*2
+	!!mc%step=Ns
+	!mc%step=nint(sqrt(real(Ns)))
+	!mc%sg=1
+	!do i=21,25
 		!var(1)%val=0.1d0+i/100d0
-		!write(*,*)var(1)%val
+		!if(this_image()==1) write(*,*)var(1)%val
 		!call mc%init(.true.)
 		!call mc%do_vmc()
+		!sync all
 	!enddo
+	!stop
 	!otime(0)=omp_get_wtime()
 	!mc%samp=1024
 	!call mc%do_var(100)
@@ -1602,9 +1618,10 @@ program main
 	mc%num=this_image(mc,1)
 
 	mc%sg=1
-	mc%samp=1024*8*8
+	mc%samp=1024*8*16
 	mc%hot=1024*8*8
-	mc%step=Ns
+	mc%step=nint(sqrt(real(Ns)))
+	!mc%step=Ns
 
 	call mc%init(.true.)
 	call mc%do_vmc()
@@ -1627,7 +1644,8 @@ program main
 	mc%hot=1024*8*8
 	!mc%samp=1024*8*8*32*8*4 !stripe
 	!mc%samp=1024*8*8*32 !dsc
-	mc%samp=1024*8*8*32*2 !ddw
+	!mc%samp=1024*8*8*32*8 !ddw
+	mc%samp=1024*8*8*32*16 !ddw
 	mc%step=nint(sqrt(real(Ns)))
 	call mc%init(.true.)
 	call mc%do_vmc()

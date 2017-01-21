@@ -46,6 +46,10 @@ module M_tensor
 		generic :: lq => lq_t,lq_2t
 		procedure :: lq_t
 		procedure :: lq_2t
+		generic :: fact => fact_t,fact_a
+		procedure :: fact_a
+		procedure :: fact_p
+		procedure :: fact_t
 		procedure :: clear
 		procedure :: insert
 		procedure :: remove
@@ -78,12 +82,12 @@ contains
 				!endif
 			!endif
 		endif
-		to%rc => from%rc
 		if(allocated(from%stp)) then
-			call to%new(from%label,from%shap,from%stp)
+			call to%new(from%label,from%shap,from%stp,flag="n")
 		else
-			call to%new(from%label,from%shap)
+			call to%new(from%label,from%shap,flag="n")
 		endif
+		to%rc => from%rc
 		to%is_conjg=from%is_conjg
 		call from%insert(to)
 		if(from%is_return) then
@@ -98,28 +102,19 @@ contains
 		character, optional :: flag
 		integer :: i,j
 		integer, allocatable :: map(:),grp(:,:)
-		if(.not.associated(self%rc)) then
-			allocate(self%rc)
-		else
-			! if self has alias, is it ok to remove self from alias and create new rc? (this will make trouble when new is to make alias other than make new tensor)
-		endif
 		if(product(int(shap,kind=8))>2147483647) then
 			write(*,*)"err: the size of tensor is large than integer(4), try integer(8) as default integer"
 		endif
-		call allocate(self%rc%T,product(shap))
-		call allocate(self%shap,shap)
-		self%label=label
-		if(present(stp)) then
-			call allocate(self%stp,stp)
-		else
-			if(allocated(self%stp)) deallocate(self%stp)
-		endif
-		if(size(self%label)==0) return
+		if(associated(self%rc)) call self%remove(self)
+		allocate(self%rc)
 		if(present(flag)) then
 			select case(flag)
+			case("n")
 			case("0")
+				call allocate(self%rc%T,product(shap))
 				self%rc%T=0d0
 			case("r")
+				call allocate(self%rc%T,product(shap))
 				if(present(stp)) then
 					call smerge(gstp(stp),map,grp)
 					!call random_number(self%rc%T)
@@ -131,6 +126,15 @@ contains
 					call random_number(self%rc%T)
 				endif
 			end select
+		else
+			call allocate(self%rc%T,product(shap))
+		endif
+		call allocate(self%shap,shap)
+		self%label=label
+		if(present(stp)) then
+			call allocate(self%stp,stp)
+		else
+			if(allocated(self%stp)) deallocate(self%stp)
 		endif
 		self%is_conjg=.false.
 		self%is_return=.false.
@@ -156,12 +160,12 @@ contains
 	function set_conjg(self) result(rt)
 		class(t_tensor) :: self
 		type(t_tensor) :: rt
-		rt%rc => self%rc
 		if(allocated(self%stp)) then
-			call rt%new(self%label,self%shap,self%stp)
+			call rt%new(self%label,self%shap,self%stp,flag="n")
 		else
-			call rt%new(self%label,self%shap)
+			call rt%new(self%label,self%shap,flag="n")
 		endif
+		rt%rc => self%rc
 		rt%is_conjg=(.not.self%is_conjg)
 		rt%is_return=.true.
 		call self%insert(rt)
@@ -313,12 +317,12 @@ contains
 			endif
 		enddo
 
-		rt%rc => self%rc
 		if(allocated(self%stp)) then
-			call rt%new(label,shap,stp)
+			call rt%new(label,shap,stp,flag="n")
 		else
-			call rt%new(label,shap)
+			call rt%new(label,shap,flag="n")
 		endif
+		rt%rc => self%rc
 		call self%insert(rt)
 		rt%is_return=.true.
 		rt%is_conjg=self%is_conjg
@@ -381,12 +385,12 @@ contains
 			enddo
 		endif
 		
-		rt%rc => self%rc
 		if(allocated(self%stp)) then
-			call rt%new(label,shap,stp)
+			call rt%new(label,shap,stp,flag="n")
 		else
-			call rt%new(label,shap)
+			call rt%new(label,shap,flag="n")
 		endif
+		rt%rc => self%rc
 		call self%insert(rt)
 		rt%is_return=.true.
 		rt%is_conjg=self%is_conjg
@@ -407,12 +411,12 @@ contains
 			label(ord(i))=l_to(i)
 		enddo
 
-		rt%rc => self%rc
 		if(allocated(self%stp)) then
-			call rt%new(label,self%shap,self%stp)
+			call rt%new(label,self%shap,self%stp,flag="n")
 		else
-			call rt%new(label,self%shap)
+			call rt%new(label,self%shap,flag="n")
 		endif
+		rt%rc => self%rc
 		call self%insert(rt)
 		rt%is_return=.true.
 		rt%is_conjg=self%is_conjg
@@ -628,13 +632,12 @@ contains
 			enddo
 		enddo
 
-		allocate(rt%rc)
-		rt%rc%T => T
 		if(allocated(self%stp)) then
-			call rt%new(self%label(size(label)+1:),self%shap(size(label)+1:),self%stp(size(label)+1:))
+			call rt%new(self%label(size(label)+1:),self%shap(size(label)+1:),self%stp(size(label)+1:),flag="n")
 		else
-			call rt%new(self%label(size(label)+1:),self%shap(size(label)+1:))
+			call rt%new(self%label(size(label)+1:),self%shap(size(label)+1:),flag="n")
 		endif
+		rt%rc%T => T
 		rt%is_return=.true.
 		rt%is_conjg=self%is_conjg
 		if(self%is_return) then
@@ -771,13 +774,12 @@ contains
 		endif
 
 
-		allocate(rt%rc)
-		rt%rc%T(1:size(T)) => T
 		if(allocated(A%stp).and.allocated(B%stp)) then
-			call rt%new([character(5)::A%label(n+1:),B%label(n+1:)],[A%shap(n+1:),B%shap(n+1:)],[A%stp(n+1:),B%stp(n+1:)])
+			call rt%new([character(5)::A%label(n+1:),B%label(n+1:)],[A%shap(n+1:),B%shap(n+1:)],[A%stp(n+1:),B%stp(n+1:)],flag="n")
 		else
-			call rt%new([character(5)::A%label(n+1:),B%label(n+1:)],[A%shap(n+1:),B%shap(n+1:)])
+			call rt%new([character(5)::A%label(n+1:),B%label(n+1:)],[A%shap(n+1:),B%shap(n+1:)],flag="n")
 		endif
+		rt%rc%T(1:size(T)) => T
 		rt%is_return=.true.
 
 		if(A%is_return) then
@@ -787,12 +789,13 @@ contains
 			call B%clear()
 		endif
 	end function
-	function dot_tm(A,MB,label) result(rt)
+	function dot_tm(A,MB,label,stp) result(rt)
 		class(t_tensor) :: A
 		!real(8) :: MB(:,:)
 		complex(8) :: MB(:,:)
 		type(t_tensor), target :: rt
 		character(*) :: label(:)
+		integer, optional :: stp
 		integer :: n
 		!real(8), pointer, contiguous :: T(:,:),MA(:,:)
 		complex(8), pointer, contiguous :: T(:,:),MA(:,:)
@@ -820,34 +823,38 @@ contains
 			!T=matmul(MA,MB)
 		endif
 
-		allocate(rt%rc)
-		rt%rc%T(1:size(T)) => T
-		if(size(MB,1)==size(MB,2)) then
-			if(allocated(A%stp)) then
-				call rt%new(A%label,A%shap,A%stp)
+		if(size(MB,1)/=size(MB,2).and.size(label)/=1) write(*,*)RAISEQQ(SIG$ABORT)
+
+		if(allocated(A%stp)) then
+			if(present(stp)) then
+				call rt%new(A%label,[A%shap(:n),size(MB,2)],[A%stp(:n),stp],flag="n")
 			else
-				call rt%new(A%label,A%shap)
-			endif
-		elseif(size(label)==1) then
-			if(allocated(A%stp)) then
-				call rt%new(A%label,[A%shap(:n),size(MB,2)],A%stp)
-			else
-				call rt%new(A%label,[A%shap(:n),size(MB,2)])
+				if(size(MB,1)==size(MB,2)) then
+					call rt%new(A%label,A%shap,A%stp,flag="n")
+				else
+					write(*,*)RAISEQQ(SIG$ABORT)
+				endif
 			endif
 		else
-			n=RAISEQQ(SIG$ABORT)
+			if(size(MB,1)==size(MB,2)) then
+				call rt%new(A%label,A%shap,flag="n")
+			else
+				call rt%new(A%label,[A%shap(:n),size(MB,2)],flag="n")
+			endif
 		endif
+		rt%rc%T(1:size(T)) => T
 		rt%is_return=.true.
 		if(A%is_return) then
 			call A%clear()
 		endif
 	end function
-	function dot_mt(MA,B,label) result(rt)
+	function dot_mt(MA,B,label,stp) result(rt)
 		!real(8) :: MA(:,:)
 		complex(8) :: MA(:,:)
 		class(t_tensor) :: B
 		type(t_tensor), target :: rt
 		character(*) :: label(:)
+		integer, optional :: stp
 		integer :: n
 		!real(8), pointer, contiguous :: T(:,:),MB(:,:)
 		complex(8), pointer, contiguous :: T(:,:),MB(:,:)
@@ -875,24 +882,27 @@ contains
 			!T=matmul(MA,MB)
 		endif
 
+		if(size(MA,1)/=size(MA,2).and.size(label)/=1) write(*,*)RAISEQQ(SIG$ABORT)
 
-		allocate(rt%rc)
-		rt%rc%T(1:size(T)) => T
-		if(size(MA,1)==size(MA,2)) then
-			if(allocated(B%stp)) then
-				call rt%new(B%label,B%shap,B%stp)
+		if(allocated(B%stp)) then
+			if(present(stp)) then
+				call rt%new(B%label,[size(MA,1),B%shap(n+1:)],[stp,B%stp(n+1:)],flag="n")
 			else
-				call rt%new(B%label,B%shap)
-			endif
-		elseif(size(label)==1) then
-			if(allocated(B%stp)) then
-				call rt%new(B%label,[size(MA,1),B%shap(n+1:)],B%stp)
-			else
-				call rt%new(B%label,[size(MA,1),B%shap(n+1:)])
+				if(size(MA,1)==size(MA,2)) then
+					call rt%new(B%label,B%shap,B%stp,flag="n")
+				else
+					write(*,*)RAISEQQ(SIG$ABORT)
+				endif
 			endif
 		else
-			n=RAISEQQ(SIG$ABORT)
+			if(size(MA,1)==size(MA,2)) then
+				call rt%new(B%label,B%shap,flag="n")
+			else
+				call rt%new(B%label,[size(MA,1),B%shap(n+1:)],flag="n")
+			endif
 		endif
+
+		rt%rc%T(1:size(T)) => T
 		rt%is_return=.true.
 		if(B%is_return) then
 			call B%clear()
@@ -900,8 +910,8 @@ contains
 	end function
 	function dot_td(A,dB,label) result(rt)
 		class(t_tensor) :: A
-		!real(8) :: dB(:)
-		complex(8) :: dB(:)
+		real(8) :: dB(:)
+		!complex(8) :: dB(:)
 		type(t_tensor), target :: rt
 		character(*) :: label(:)
 		integer :: i,n
@@ -930,21 +940,20 @@ contains
 			!$omp end parallel do
 		endif
 
-		allocate(rt%rc)
-		rt%rc%T(1:size(T)) => T
 		if(allocated(A%stp)) then
-			call rt%new(A%label,A%shap,A%stp)
+			call rt%new(A%label,A%shap,A%stp,flag="n")
 		else
-			call rt%new(A%label,A%shap)
+			call rt%new(A%label,A%shap,flag="n")
 		endif
+		rt%rc%T(1:size(T)) => T
 		rt%is_return=.true.
 		if(A%is_return) then
 			call A%clear()
 		endif
 	end function
 	function dot_dt(dA,B,label) result(rt)
-		!real(8) :: dA(:)
-		complex(8) :: dA(:)
+		real(8) :: dA(:)
+		!complex(8) :: dA(:)
 		class(t_tensor) :: B
 		type(t_tensor), target :: rt
 		character(*) :: label(:)
@@ -974,13 +983,12 @@ contains
 			!$omp end parallel do
 		endif
 
-		allocate(rt%rc)
-		rt%rc%T(1:size(T)) => T
 		if(allocated(B%stp)) then
-			call rt%new(B%label,B%shap,B%stp)
+			call rt%new(B%label,B%shap,B%stp,flag="n")
 		else
-			call rt%new(B%label,B%shap)
+			call rt%new(B%label,B%shap,flag="n")
 		endif
+		rt%rc%T(1:size(T)) => T
 		rt%is_return=.true.
 		if(B%is_return) then
 			call B%clear()
@@ -999,7 +1007,7 @@ contains
 		!call self%get_mat(l,r,H)
 		!call svd(H,U,s,V)
 	!end subroutine
-	subroutine svd_t(self,l,r,U,s,V,cgrp)
+	subroutine svd_t(self,l,r,U,s,V,cgrp,ctp)
 		class(t_tensor) :: self
 		character(*) :: l(:),r(:)
 		!real(8), allocatable :: H(:,:)
@@ -1009,8 +1017,15 @@ contains
 		!complex(8), allocatable, optional :: s(:)
 		complex(8), allocatable, optional :: U(:,:),V(:,:)
 		integer, optional :: cgrp(:,:)
+		character(*), optional :: ctp
 		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:)
 		integer :: i,mrg(2),lrg(2),rrg(2)
+		logical :: is_return
+		!if(any(isnan(abs(self%rc%T)))) then
+			!write(*,*)RAISEQQ(SIG$ABORT)
+		!endif
+		is_return=self%is_return
+		self%is_return=.false.
 		call self%get_mat(l,r,H)
 		if(size(l)/=0) then
 			i=size(l)
@@ -1021,6 +1036,7 @@ contains
 		if(allocated(self%stp)) then
 			call smerge(gstp(self%stp(1:i)),lmap,lgrp)
 			call smerge(gstp(self%stp(i+1:)),rmap,rgrp)
+			
 			H=H(lmap,rmap)
 
 			mrg=0
@@ -1044,7 +1060,11 @@ contains
 				mrg=[mrg(2)+1,mrg(2)+min(lgrp(i,2),rgrp(i,2))]
 				U(:,mrg(1):mrg(2))=0d0
 				V(mrg(1):mrg(2),:)=0d0
-				call svd_1(H(lrg(1):lrg(2),rrg(1):rrg(2)),U(lrg(1):lrg(2),mrg(1):mrg(2)),s(mrg(1):mrg(2)),V(mrg(1):mrg(2),rrg(1):rrg(2)))
+				if(present(ctp)) then
+					call svd(H(lrg(1):lrg(2),rrg(1):rrg(2)),U(lrg(1):lrg(2),mrg(1):mrg(2)),s(mrg(1):mrg(2)),V(mrg(1):mrg(2),rrg(1):rrg(2)),ctp)
+				else
+					call svd(H(lrg(1):lrg(2),rrg(1):rrg(2)),U(lrg(1):lrg(2),mrg(1):mrg(2)),s(mrg(1):mrg(2)),V(mrg(1):mrg(2),rrg(1):rrg(2)))
+				endif
 				if(present(cgrp)) then
 					mrg(1)=mrg(2)+1
 					mrg(2)=sum(cgrp(1:i,2))
@@ -1057,38 +1077,67 @@ contains
 			U=U(lmap,:)
 			V=V(:,rmap)
 		else
-			call svd(H,U,s,V)
+			if(present(ctp)) then
+				call svd_a(H,U,s,V,ctp)
+			else
+				call svd_a(H,U,s,V)
+			endif
 		endif
 
+		if(is_return) then
+			call self%clear()
+		endif
 	end subroutine
-	subroutine svd_1(H,U,s,V)
+	subroutine svd(H,U,s,V,ctp)
 		!real(8) :: H(:,:)
 		real(8), optional :: s(:)
 		!real(8), allocatable, optional :: U(:,:),V(:,:)
 		complex(8) :: H(:,:)
 		complex(8), optional :: U(:,:),V(:,:)
+		character(*), optional :: ctp
 		if(.not.present(U)) then
 			call gesdd(H,s)
 		elseif(.not.present(s)) then
 		else
 			call gesdd(H,s,U,V,"S")
 		endif
+		if(present(ctp)) then
+			select case(ctp)
+			case("s")
+				s=s(size(s):1:-1)
+				if(present(U)) then
+					U=U(:,size(s):1:-1)
+					V=V(size(s):1:-1,:)
+				endif
+			case default
+				write(*,*)RAISEQQ(SIG$ABORT)
+			end select
+		endif
 	end subroutine
-	subroutine svd(H,U,s,V)
+	subroutine svd_a(H,U,s,V,ctp)
 		!real(8) :: H(:,:)
 		real(8), allocatable, optional :: s(:)
 		!real(8), allocatable, optional :: U(:,:),V(:,:)
 		complex(8) :: H(:,:)
 		complex(8), allocatable, optional :: U(:,:),V(:,:)
+		character(*), optional :: ctp
 		if(.not.present(U)) then
 			call allocate(s,minval(shape(H)))
-			call gesdd(H,s)
+			if(present(ctp)) then
+				call svd(H,s=s,ctp=ctp)
+			else
+				call svd(H,s=s)
+			endif
 		elseif(.not.present(s)) then
 		else
 			call allocate(s,minval(shape(H)))
 			call allocate(U,[size(H,1),size(s)])
 			call allocate(V,[size(s),size(H,2)])
-			call gesdd(H,s,U,V,"S")
+			if(present(ctp)) then
+				call svd(H,U,s,V,ctp)
+			else
+				call svd(H,U,s,V)
+			endif
 		endif
 	end subroutine
 	subroutine qr_2t(self,l,r,tQ,tR,label,stp)
@@ -1099,6 +1148,9 @@ contains
 		integer, optional :: stp
 		complex(8), allocatable :: MQ(:,:),MR(:,:)
 		integer :: i
+		logical :: is_return
+		is_return=self%is_return
+		self%is_return=.false.
 		if(size(l)/=0) then
 			i=size(l)
 		else
@@ -1114,8 +1166,11 @@ contains
 		endif
 		call tQ%get_tensor(tQ%label,MQ)
 		call tR%get_tensor(tR%label,MR)
+		if(is_return) then
+			call self%clear()
+		endif
 	end subroutine
-	subroutine lq_2t(self,l,r,tQ,tL,label,stp)
+	subroutine lq_2t(self,l,r,tL,tQ,label,stp)
 		class(t_tensor) :: self
 		character(*) :: l(:),r(:)
 		type(t_tensor) :: tQ,tL
@@ -1123,12 +1178,15 @@ contains
 		integer, optional :: stp
 		complex(8), allocatable :: MQ(:,:),ML(:,:)
 		integer :: i
+		logical :: is_return
+		is_return=self%is_return
+		self%is_return=.false.
 		if(size(l)/=0) then
 			i=size(l)
 		else
 			i=size(self%shap)-size(r)
 		endif
-		call self%lq_t(l,r,MQ,ML)
+		call self%lq_t(l,r,ML,MQ)
 		if(present(stp)) then
 			call tL%new([self%label(1:i),label(1)],[self%shap(1:i),size(ML,2)],[self%stp(1:i),stp])
 			call tQ%new([label(2),self%label(i+1:)],[size(MQ,1),self%shap(i+1:)],[stp,self%stp(i+1:)])
@@ -1138,6 +1196,222 @@ contains
 		endif
 		call tQ%get_tensor(tQ%label,MQ)
 		call tL%get_tensor(tL%label,ML)
+		if(is_return) then
+			call self%clear()
+		endif
+	end subroutine
+	subroutine fact_t(self,l,r,tL,tR,tp,label,stp)
+		class(t_tensor) :: self
+		character(*) :: l(:),r(:)
+		type(t_tensor) :: tL,tR
+		character(*) :: label(:),tp
+		integer, optional :: stp
+		integer, allocatable :: mgrp(:,:)
+		complex(8), pointer, contiguous :: ML(:,:),MR(:,:)
+		integer :: i
+		logical :: is_return
+		is_return=self%is_return
+		self%is_return=.false.
+		nullify(ML,MR)
+		if(size(l)/=0) then
+			i=size(l)
+		else
+			i=size(self%shap)-size(r)
+		endif
+		if(present(stp)) then
+			call self%fact_p(l,r,ML,MR,tp,mgrp)
+			call tL%new([self%label(1:i),label(1)],[self%shap(1:i),size(ML,2)],[self%stp(1:i),stp],flag="n")
+			call tR%new([label(2),self%label(i+1:)],[size(MR,1),self%shap(i+1:)],[stp,self%stp(i+1:)],flag="n")
+			if(sum(abs(grp(:,:,stp)-mgrp))/=0) then
+				if(sum(abs(grp(:,:,stp)))/=0) then
+					write(*,*)"warning, overwrite grp ",stp," from ",grp(:,:,stp)," to ", mgrp
+					write(*,*)RAISEQQ(SIG$ABORT)
+				endif
+				grp(:,:,stp)=mgrp
+			endif
+		else
+			call self%fact_p(l,r,ML,MR,tp)
+			call tL%new([self%label(1:i),label(1)],[self%shap(1:i),size(ML,2)],flag="n")
+			call tR%new([label(2),self%label(i+1:)],[size(MR,1),self%shap(i+1:)],flag="n")
+		endif
+		tL%rc%T(1:size(ML)) => ML
+		tR%rc%T(1:size(MR)) => MR
+		if(is_return) then
+			call self%clear()
+		endif
+	end subroutine
+	subroutine fact_p(self,l,r,ML,MR,tp,mgrp)
+		class(t_tensor) :: self
+		character(*) :: l(:),r(:),tp
+		integer, allocatable, optional :: mgrp(:,:)
+		!real(8), allocatable :: H(:,:)
+		!real(8), allocatable :: MQ(:,:),MR(:,:)
+		complex(8), allocatable :: H(:,:)
+		complex(8), contiguous, pointer :: ML(:,:),MR(:,:)
+		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:),mgrp_(:,:)
+		integer :: i,mrg(2),lrg(2),rrg(2)
+		logical :: is_return
+		is_return=self%is_return
+		self%is_return=.false.
+		call self%get_mat(l,r,H)
+		if(size(l)/=0) then
+			i=size(l)
+		else
+			i=size(self%shap)-size(r)
+		endif
+		if(allocated(self%stp)) then
+			call smerge(gstp(self%stp(1:i)),lmap,lgrp)
+			call smerge(gstp(self%stp(i+1:)),rmap,rgrp)
+
+			allocate(mgrp_(size(lgrp,1),size(lgrp,2)))
+			mgrp_(:,1)=lgrp(:,1)
+			do i=1,size(lgrp,1)
+				mgrp_(i,2)=min(lgrp(i,2),rgrp(i,2))
+			enddo
+			call allocate(ML,[size(H,1),sum(mgrp_(:,2))])
+			call allocate(MR,[sum(mgrp_(:,2)),size(H,2)])
+
+			!mrg=0
+			!do i=1,size(lgrp,1)
+				!mrg(1)=mrg(1)+min(lgrp(i,2),rgrp(i,2))
+			!enddo
+			!call allocate(ML,[size(H,1),mrg(1)])
+			!call allocate(MR,[mrg(1),size(H,2)])
+
+			H=H(lmap,rmap)
+			ML=0d0
+			MR=0d0
+
+			lrg=0
+			rrg=0
+			mrg=0
+			do i=1,size(lgrp,1)
+				lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
+				rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
+				mrg=[mrg(2)+1,mrg(2)+min(lgrp(i,2),rgrp(i,2))]
+				select case(tp)
+				case("qr")
+					call qr(H(lrg(1):lrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+				case("lq")
+					call lq(H(lrg(1):lrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+				case("rq")
+					call rq(H(lrg(1):lrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+				case("ql")
+					call ql(H(lrg(1):lrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+				end select
+			enddo
+			lmap(lmap)=[1:size(lmap)]
+			rmap(rmap)=[1:size(rmap)]
+
+			ML=ML(lmap,:)
+			MR=MR(:,rmap)
+			if(present(mgrp)) then
+				allocate(mgrp(size(mgrp_,1),size(mgrp_,2)))
+				mgrp=mgrp_
+			endif
+		else
+			call allocate(ML,[size(H,1),minval(shape(H))])
+			call allocate(MR,[minval(shape(H)),size(H,2)])
+			select case(tp)
+			case("qr")
+				call qr(H,ML,MR)
+			case("lq")
+				call lq(H,ML,MR)
+			case("rq")
+				call rq(H,ML,MR)
+			case("ql")
+				call ql(H,ML,MR)
+			end select
+		endif
+		if(is_return) then
+			call self%clear()
+		endif
+	end subroutine
+	subroutine fact_a(self,l,r,ML,MR,tp,mgrp)
+		class(t_tensor) :: self
+		character(*) :: l(:),r(:),tp
+		integer, allocatable, optional :: mgrp(:,:)
+		!real(8), allocatable :: H(:,:)
+		!real(8), allocatable :: MQ(:,:),MR(:,:)
+		complex(8), allocatable :: H(:,:)
+		complex(8), allocatable :: ML(:,:),MR(:,:)
+		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:),mgrp_(:,:)
+		integer :: i,mrg(2),lrg(2),rrg(2)
+		logical :: is_return
+		is_return=self%is_return
+		self%is_return=.false.
+		call self%get_mat(l,r,H)
+		if(size(l)/=0) then
+			i=size(l)
+		else
+			i=size(self%shap)-size(r)
+		endif
+		if(allocated(self%stp)) then
+			call smerge(gstp(self%stp(1:i)),lmap,lgrp)
+			call smerge(gstp(self%stp(i+1:)),rmap,rgrp)
+
+			allocate(mgrp_(size(lgrp,1),size(lgrp,2)))
+			mgrp_(:,1)=lgrp(:,1)
+			do i=1,size(lgrp,1)
+				mgrp_(i,2)=min(lgrp(i,2),rgrp(i,2))
+			enddo
+			call allocate(ML,[size(H,1),sum(mgrp_(:,2))])
+			call allocate(MR,[sum(mgrp_(:,2)),size(H,2)])
+
+			!mrg=0
+			!do i=1,size(lgrp,1)
+				!mrg(1)=mrg(1)+min(lgrp(i,2),rgrp(i,2))
+			!enddo
+			!call allocate(ML,[size(H,1),mrg(1)])
+			!call allocate(MR,[mrg(1),size(H,2)])
+
+			H=H(lmap,rmap)
+			ML=0d0
+			MR=0d0
+
+			lrg=0
+			rrg=0
+			mrg=0
+			do i=1,size(lgrp,1)
+				lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
+				rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
+				!mrg=[mrg(2)+1,mrg(2)+min(lgrp(i,2),rgrp(i,2))]
+				mrg=[mrg(2)+1,mrg(2)+mgrp_(i,2)]
+				select case(tp)
+				case("qr")
+					call qr(H(lrg(1):lrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+				case("lq")
+					call lq(H(lrg(1):lrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+				case("rq")
+					call rq(H(lrg(1):lrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+				case("ql")
+					call ql(H(lrg(1):lrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+				end select
+			enddo
+			lmap(lmap)=[1:size(lmap)]
+			rmap(rmap)=[1:size(rmap)]
+
+			ML=ML(lmap,:)
+			MR=MR(:,rmap)
+			if(present(mgrp)) then
+				allocate(mgrp(size(mgrp_,1),size(mgrp_,2)))
+				mgrp=mgrp_
+			endif
+		else
+			select case(tp)
+			case("qr")
+				call qr_a(H,ML,MR)
+			case("lq")
+				call lq_a(H,ML,MR)
+			case("rq")
+				call rq_a(H,ML,MR)
+			case("ql")
+				call ql_a(H,ML,MR)
+			end select
+		endif
+		if(is_return) then
+			call self%clear()
+		endif
 	end subroutine
 	subroutine qr_t(self,l,r,MQ,MR)
 		class(t_tensor) :: self
@@ -1148,6 +1422,9 @@ contains
 		complex(8), allocatable :: MQ(:,:),MR(:,:)
 		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:)
 		integer :: i,mrg(2),lrg(2),rrg(2)
+		logical :: is_return
+		is_return=self%is_return
+		self%is_return=.false.
 		call self%get_mat(l,r,H)
 		if(size(l)/=0) then
 			i=size(l)
@@ -1175,7 +1452,7 @@ contains
 				lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
 				rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
 				mrg=[mrg(2)+1,mrg(2)+min(lgrp(i,2),rgrp(i,2))]
-				call qr_1(H(lrg(1):lrg(2),rrg(1):rrg(2)),MQ(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
+				call qr(H(lrg(1):lrg(2),rrg(1):rrg(2)),MQ(lrg(1):lrg(2),mrg(1):mrg(2)),MR(mrg(1):mrg(2),rrg(1):rrg(2)))
 			enddo
 			lmap(lmap)=[1:size(lmap)]
 			rmap(rmap)=[1:size(rmap)]
@@ -1183,44 +1460,78 @@ contains
 			MQ=MQ(lmap,:)
 			MR=MR(:,rmap)
 		else
-			call qr(H,MQ,MR)
+			call qr_a(H,MQ,MR)
+		endif
+		if(is_return) then
+			call self%clear()
 		endif
 	end subroutine
-	subroutine qr_1(H,Q,R)
-		!real(8) :: H(:,:)
-		!real(8), allocatable :: Q(:,:),R(:,:)
-		!real(8) :: tau(minval(shape(H)))
-		complex(8) :: H(:,:)
-		complex(8) :: Q(:,:),R(:,:)
-		complex(8) :: tau(minval(shape(H)))
-		integer :: i,j
-		call geqrf(H,tau)
-		do i=1,size(H,1)
-			do j=1,size(H,2)
-				if(i>j) then
-					if(i<=size(R,1)) R(i,j)=0d0
-					Q(i,j)=H(i,j)
-				else
-					R(i,j)=H(i,j)
-				endif
+	subroutine lq_t(self,l,r,ML,MQ)
+		class(t_tensor) :: self
+		character(*) :: l(:),r(:)
+		!real(8), allocatable :: H(:,:)
+		!real(8), allocatable :: MQ(:,:),ML(:,:)
+		complex(8), allocatable :: H(:,:)
+		complex(8), allocatable :: MQ(:,:),ML(:,:)
+		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:)
+		integer :: i,mrg(2),lrg(2),rrg(2)
+		logical :: is_return
+		is_return=self%is_return
+		self%is_return=.false.
+		call self%get_mat(l,r,H)
+		if(size(l)/=0) then
+			i=size(l)
+		else
+			i=size(self%shap)-size(r)
+		endif
+		if(allocated(self%stp)) then
+			call smerge(gstp(self%stp(1:i)),lmap,lgrp)
+			call smerge(gstp(self%stp(i+1:)),rmap,rgrp)
+
+			mrg=0
+			do i=1,size(lgrp,1)
+				mrg(1)=mrg(1)+min(lgrp(i,2),rgrp(i,2))
 			enddo
-		enddo
-		!call orgqr(Q,tau)
-		call ungqr(Q,tau)
+			call allocate(ML,[size(H,1),mrg(1)])
+			call allocate(MQ,[mrg(1),size(H,2)])
+			H=H(lmap,rmap)
+			ML=0d0
+			MQ=0d0
+
+			lrg=0
+			rrg=0
+			mrg=0
+			do i=1,size(lgrp,1)
+				lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
+				rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
+				mrg=[mrg(2)+1,mrg(2)+min(lgrp(i,2),rgrp(i,2))]
+				call lq(H(lrg(1):lrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)),MQ(mrg(1):mrg(2),rrg(1):rrg(2)))
+			enddo
+			lmap(lmap)=[1:size(lmap)]
+			rmap(rmap)=[1:size(rmap)]
+
+			ML=ML(lmap,:)
+			MQ=MQ(:,rmap)
+		else
+			call lq_a(H,ML,MQ)
+		endif
+		if(is_return) then
+			call self%clear()
+		endif
 	end subroutine
 	subroutine qr(H,Q,R)
 		!real(8) :: H(:,:)
 		!real(8), allocatable :: Q(:,:),R(:,:)
 		!real(8) :: tau(minval(shape(H)))
 		complex(8) :: H(:,:)
-		complex(8), allocatable :: Q(:,:),R(:,:)
+		complex(8) :: Q(:,:),R(:,:)
 		complex(8) :: tau(minval(shape(H)))
-		integer :: i,j
-		call allocate(Q,[size(H,1),minval(shape(H))])
-		call allocate(R,[minval(shape(H)),size(H,2)])
+		integer :: i,j,m,n
+		m=size(H,1)
+		n=size(H,2)
 		call geqrf(H,tau)
-		do i=1,size(H,1)
-			do j=1,size(H,2)
+		do i=1,m
+			do j=1,n
 				if(i>j) then
 					if(i<=size(R,1)) R(i,j)=0d0
 					Q(i,j)=H(i,j)
@@ -1232,17 +1543,19 @@ contains
 		!call orgqr(Q,tau)
 		call ungqr(Q,tau)
 	end subroutine
-	subroutine lq_1(H,Q,L)
+	subroutine lq(H,L,Q)
 		!real(8) :: H(:,:)
 		!real(8), allocatable :: Q(:,:),L(:,:)
 		!real(8) :: tau(minval(shape(H)))
 		complex(8) :: H(:,:)
 		complex(8) :: Q(:,:),L(:,:)
 		complex(8) :: tau(minval(shape(H)))
-		integer :: i,j
+		integer :: i,j,m,n
+		m=size(H,1)
+		n=size(H,2)
 		call gelqf(H,tau)
-		do i=1,size(H,1)
-			do j=1,size(H,2)
+		do i=1,m
+			do j=1,n
 				if(i<j) then
 					if(j<=size(L,2)) L(i,j)=0d0
 					Q(i,j)=H(i,j)
@@ -1254,29 +1567,120 @@ contains
 		!call orglq(Q,tau)
 		call unglq(Q,tau)
 	end subroutine
-	subroutine lq(H,Q,L)
+	subroutine rq(H,R,Q)
 		!real(8) :: H(:,:)
-		!real(8), allocatable :: Q(:,:),L(:,:)
+		!real(8), allocatable :: Q(:,:),R(:,:)
 		!real(8) :: tau(minval(shape(H)))
 		complex(8) :: H(:,:)
-		complex(8), allocatable :: Q(:,:),L(:,:)
+		complex(8) :: Q(:,:),R(:,:)
 		complex(8) :: tau(minval(shape(H)))
-		integer :: i,j
+		integer :: i,j,m,n,d
+		m=size(H,1)
+		n=size(H,2)
+		call gerqf(H,tau)
+		if(m<=n) then
+			d=n-m
+			do i=1,m
+				do j=1,n
+					if(i<=(j-d)) then
+						R(i,j-d)=H(i,j)
+					else
+						if(j>d) R(i,j-d)=0d0
+						Q(i,j)=H(i,j)
+					endif
+				enddo
+			enddo
+		else
+			d=m-n
+			do i=1,m
+				do j=1,n
+					if((i-d)<=j) then
+						R(i,j)=H(i,j)
+					else
+						R(i,j)=0d0
+						if(i>d) Q(i-d,j)=H(i,j)
+					endif
+				enddo
+			enddo
+		endif
+		!call orgqr(Q,tau)
+		call ungrq(Q,tau)
+	end subroutine
+	subroutine ql(H,Q,L)
+		!real(8) :: H(:,:)
+		!real(8), allocatable :: Q(:,:),R(:,:)
+		!real(8) :: tau(minval(shape(H)))
+		complex(8) :: H(:,:)
+		complex(8) :: Q(:,:),L(:,:)
+		complex(8) :: tau(minval(shape(H)))
+		integer :: i,j,m,n,d
+		m=size(H,1)
+		n=size(H,2)
+		call geqlf(H,tau)
+		if(m<=n) then
+			d=n-m
+			do i=1,m
+				do j=1,n
+					if(i>=(j-d)) then
+						L(i,j)=H(i,j)
+					else
+						L(i,j)=0d0
+						if(j>d) Q(i,j-d)=H(i,j)
+					endif
+				enddo
+			enddo
+		else
+			d=m-n
+			do i=1,m
+				do j=1,n
+					if((i-d)>=j) then
+						L(i-d,j)=H(i,j)
+					else
+						if(i>d) L(i-d,j)=0d0
+						Q(i,j)=H(i,j)
+					endif
+				enddo
+			enddo
+		endif
+		!call orgqr(Q,tau)
+		call ungql(Q,tau)
+	end subroutine
+	subroutine qr_a(H,Q,R)
+		!real(8) :: H(:,:)
+		!real(8), allocatable :: Q(:,:),R(:,:)
+		!real(8) :: tau(minval(shape(H)))
+		complex(8) :: H(:,:)
+		complex(8), allocatable :: Q(:,:),R(:,:)
+		call allocate(Q,[size(H,1),minval(shape(H))])
+		call allocate(R,[minval(shape(H)),size(H,2)])
+		call qr(H,Q,R)
+	end subroutine
+	subroutine lq_a(H,L,Q)
+		!real(8) :: H(:,:)
+		!real(8), allocatable :: Q(:,:),L(:,:)
+		complex(8) :: H(:,:)
+		complex(8), allocatable :: Q(:,:),L(:,:)
 		call allocate(Q,[minval(shape(H)),size(H,2)])
 		call allocate(L,[size(H,1),minval(shape(H))])
-		call gelqf(H,tau)
-		do i=1,size(H,1)
-			do j=1,size(H,2)
-				if(i<j) then
-					if(j<=size(L,2)) L(i,j)=0d0
-					Q(i,j)=H(i,j)
-				else
-					L(i,j)=H(i,j)
-				endif
-			enddo
-		enddo
-		!call orglq(Q,tau)
-		call unglq(Q,tau)
+		call lq(H,L,Q)
+	end subroutine
+	subroutine rq_a(H,R,Q)
+		!real(8) :: H(:,:)
+		!real(8), allocatable :: Q(:,:),R(:,:)
+		complex(8) :: H(:,:)
+		complex(8), allocatable :: Q(:,:),R(:,:)
+		call allocate(R,[size(H,1),minval(shape(H))])
+		call allocate(Q,[minval(shape(H)),size(H,2)])
+		call rq(H,R,Q)
+	end subroutine
+	subroutine ql_a(H,Q,L)
+		!real(8) :: H(:,:)
+		!real(8), allocatable :: Q(:,:),R(:,:)
+		complex(8) :: H(:,:)
+		complex(8), allocatable :: Q(:,:),L(:,:)
+		call allocate(Q,[size(H,1),minval(shape(H))])
+		call allocate(L,[minval(shape(H)),size(H,2)])
+		call ql(H,Q,L)
 	end subroutine
 	subroutine smat_inv(lstp,rstp,M)
 		integer :: lstp(:),rstp(:)
@@ -1325,8 +1729,11 @@ contains
 			crg=[crg(2)+1,crg(2)+grp(i,2)]
 			call heev(M(rg(1):rg(2),rg(1):rg(2)),Eg(crg(1):crg(2)),"V")
 			if(present(cgrp)) then
-				cM(rg(1):rg(2),crg(1):crg(2))=M(rg(1):rg(2),rg(1):rg(2))
-				crg(2)=sum(cgrp(1:i,2))
+				rg(2)=rg(1)-1+min(cgrp(i,2),grp(i,2))
+				crg(2)=crg(1)-1+min(cgrp(i,2),grp(i,2))
+				cM(rg(1):rg(1)-1+grp(i,2),crg(1):crg(2))=M(rg(1):rg(1)-1+grp(i,2),rg(1):rg(2))
+				rg(2)=rg(1)-1+grp(i,2)
+				crg(2)=crg(1)-1+cgrp(i,2)
 			endif
 		enddo
 		map(map)=[1:size(map)]
@@ -1337,59 +1744,16 @@ contains
 			M=M(map,:)
 		endif
 	end subroutine
-	subroutine lq_t(self,l,r,MQ,ML)
-		class(t_tensor) :: self
-		character(*) :: l(:),r(:)
-		!real(8), allocatable :: H(:,:)
-		!real(8), allocatable :: MQ(:,:),ML(:,:)
-		complex(8), allocatable :: H(:,:)
-		complex(8), allocatable :: MQ(:,:),ML(:,:)
-		integer, allocatable :: lmap(:),rmap(:),lgrp(:,:),rgrp(:,:)
-		integer :: i,mrg(2),lrg(2),rrg(2)
-		call self%get_mat(l,r,H)
-		if(size(l)/=0) then
-			i=size(l)
-		else
-			i=size(self%shap)-size(r)
-		endif
-		if(allocated(self%stp)) then
-			call smerge(gstp(self%stp(1:i)),lmap,lgrp)
-			call smerge(gstp(self%stp(i+1:)),rmap,rgrp)
-
-			mrg=0
-			do i=1,size(lgrp,1)
-				mrg(1)=mrg(1)+min(lgrp(i,2),rgrp(i,2))
-			enddo
-			call allocate(ML,[size(H,1),mrg(1)])
-			call allocate(MQ,[mrg(1),size(H,2)])
-			H=H(lmap,rmap)
-			ML=0d0
-			MQ=0d0
-
-			lrg=0
-			rrg=0
-			mrg=0
-			do i=1,size(lgrp,1)
-				lrg=[lrg(2)+1,lrg(2)+lgrp(i,2)]
-				rrg=[rrg(2)+1,rrg(2)+rgrp(i,2)]
-				mrg=[mrg(2)+1,mrg(2)+min(lgrp(i,2),rgrp(i,2))]
-				call lq_1(H(lrg(1):lrg(2),rrg(1):rrg(2)),MQ(mrg(1):mrg(2),rrg(1):rrg(2)),ML(lrg(1):lrg(2),mrg(1):mrg(2)))
-			enddo
-			lmap(lmap)=[1:size(lmap)]
-			rmap(rmap)=[1:size(rmap)]
-
-			ML=ML(lmap,:)
-			MQ=MQ(:,rmap)
-		else
-			call lq(H,MQ,ML)
-		endif
-	end subroutine
 	subroutine remove(self,t)
 		class(t_tensor), target :: self
 		type(t_tensor), target :: t
 		type(t_tensor), pointer :: node
 		integer :: i
 		self%rc%c=self%rc%c-1
+		if(self%rc%c==0) then
+			deallocate(self%rc%T)
+			deallocate(self%rc)
+		endif
 		do i=1,2
 			node => self
 			do
@@ -1399,7 +1763,7 @@ contains
 						node%link(2)%tg%link(1)%tg => node%link(1)%tg
 					elseif(associated(node%link(1)%tg)) then
 						nullify(node%link(1)%tg%link(2)%tg)
-					else
+					elseif(associated(node%link(2)%tg)) then
 						nullify(node%link(2)%tg%link(1)%tg)
 					endif
 					nullify(node%link(1)%tg)
@@ -1449,13 +1813,7 @@ contains
 		if(allocated(self%shap)) deallocate(self%label,self%shap)
 		if(allocated(self%stp)) deallocate(self%stp)
 		if(associated(self%rc)) then
-			if(self%rc%c==1) then
-				deallocate(self%rc%T)
-				deallocate(self%rc)
-			else
-				call self%remove(self)
-			endif
-			nullify(self%rc)
+			call self%remove(self)
 		endif
 		self%is_return=.false.
 		self%is_conjg=.false.

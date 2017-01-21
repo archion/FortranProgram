@@ -2,9 +2,9 @@ module pmt
 	use M_const
 	use mkl_service
 	implicit none
-	real(8), parameter :: t(3)=(/1d0,-0.25d0,0.1d0/),&
-		DJ=0.25d0,V=0.0625d0-DJ/4d0
-		!V=0.15d0,DJ=0.3d0
+	real(8), parameter :: t(3)=(/1d0,-0.00d0,0.0d0/),&
+		!DJ=0.25d0,V=0.0625d0-DJ/4d0
+		V=0.15d0,DJ=0.30d0
 		!V=-0.25d0/4d0,DJ=0.25d0
 		!V=0d0,DJ=0.25d0
 end module
@@ -57,31 +57,31 @@ contains
 		var(iv(0))%bd=-1d0
 
 		! d-wave sc
-		call gen_var(sg=2,nb=1,val=bd1,V=(-DJ*0.75d0+V))
-		!call gen_var(sg=2,nb=1,val=bd1,V=-DJ+V)
+		!call gen_var(sg=2,nb=1,val=bd1,V=(-DJ*0.75d0+V))
+		call gen_var(sg=2,nb=1,val=bd1,V=-DJ+V)
 		do i=1,size(var(iv(0))%bd)
 			var(iv(0))%bd(i)=dwave(i)
 		enddo
 		var(iv(0))%val=1d-1
 
-		!! ddw
+		! ddw
 		!call gen_var(sg=3,nb=1,V=(-DJ*0.75d0-V))
-		!!call gen_var(sg=3,nb=1,V=-DJ)
+		call gen_var(sg=-3,nb=1,V=-0.5d0*DJ-V)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=img*ab(latt%sb(1)%nb(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
+		enddo
+		var(iv(0))%val=0d0
+
+		!! sdw
+		!call gen_var(sg=4,nb=0,val=bd0,V=DJ,Vnb=1)
 		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=img*ab(latt%sb(1)%nb(var(iv(0))%nb)%bd(i)%i(1))*dwave(i)
+			!var(iv(0))%bd(i)=ab(i)
 		!enddo
 		!var(iv(0))%val=1d-1
 
-		! sdw
-		call gen_var(sg=4,nb=0,val=bd0,V=DJ,Vnb=1)
-		do i=1,size(var(iv(0))%bd)
-			var(iv(0))%bd(i)=ab(i)
-		enddo
-		var(iv(0))%val=1d-1
-
 		! bond order
-		call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))
-		!call gen_var(sg=3,nb=1,val=bd1,V=-DJ)
+		!call gen_var(sg=3,nb=1,val=bd1,V=(-DJ*0.75d0-V))
+		call gen_var(sg=3,nb=1,val=bd1,V=-0.5d0*DJ-V)
 		var(iv(0))%bd=1d0
 		var(iv(0))%val=0d0
 
@@ -118,7 +118,7 @@ contains
 	subroutine update()
 		integer :: l
 		do l=lbound(var,1),0
-			if(var(l)%sg==-3) then
+			if(var(l)%sg==-3.and.(.not.var(l)%is_V)) then
 				var(l)%bd(:)=-t(var(l)%nb)*abs(1d0-nf)
 			endif
 		enddo
@@ -199,7 +199,8 @@ contains
 		call nlo_destroy(opt)
 		if(present(fE)) fE=minf
 		write(*,"(i3$)")ires
-		write(*,"(es12.4$)")nf,Tk,minf,x,cst
+		!write(*,"(es12.4$)")nf,Tk,minf,x,cst
+		write(*,"(es12.4$)")nf,Tk,minf,var(1:)%val(1),cst
 		write(*,"(x)")
 	end subroutine
 	subroutine nlopt_fn(val, n, x, grad, need_gradient, f_data)
@@ -278,6 +279,43 @@ contains
 		endif
 		!write(*,"(es12.4$)")x,v
 		!write(*,"(x)")
+	end subroutine
+	subroutine rpainstable(od,Tk,q,den)
+		integer :: od
+		real(8) :: Tk,q(3),den
+		integer :: i,j,l,m,n,mr
+		complex(8) :: Uk(4,4),Ukq(4,4),gm(4,4)
+		real(8) :: ek(4),ekq(4),fk(4),fkq(4),Vrpa,tran,Xq,nf,bt
+		bt=1d0/Tk
+		Xq=0d0
+		Vrpa=var(od)%V
+		!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(Ek,Uk,fk,Ekq,Ukq,fkq,tran,gm)
+		do i=1,size(brizon%k,1)
+			!call Hamilton(var,Ukq,brizon%k(i,:))
+			call Hamilton(var,Uk,brizon%k(i,:))
+			call mat_diag(Uk,Ek)
+			fk=1d0/(1d0+exp(bt*Ek))
+			!call mat_diag(Ukq,Ekq)
+			!fkq=1d0/(1d0+exp(bt*Ekq))
+			Ukq=Uk
+			Ekq=Ek
+			fkq=fk
+			gm=0d0
+			!gm(1,2)=(sin(brizon%k(i,1))-sin(brizon%k(i,2)))*img
+			!gm(2,1)=(sin(brizon%k(i,1))-sin(brizon%k(i,2)))*(-img)
+			gm(1,2)=(cos(brizon%k(i,1))-cos(brizon%k(i,2)))*img
+			gm(2,1)=(cos(brizon%k(i,1))-cos(brizon%k(i,2)))*(-img)
+			gm(3,4)=gm(1,2)
+			gm(4,3)=gm(2,1)
+			gm=matmul(transpose(conjg(Uk)),matmul(gm,Ukq))
+			do n=1,4
+				do m=1,4
+					Xq=Xq+real(gm(n,m)*conjg(gm(n,m))*(fk(n)-fkq(m))*(Ek(m)-Ekq(n))/((Ek(m)-Ekq(n))**2+1d-10))
+				enddo
+			enddo
+		enddo
+		Xq=Xq/size(brizon%k,1)
+		den=1d0+Vrpa*Xq/4d0
 	end subroutine
 	subroutine raman_k(ut,gm,k,omg)
 		integer :: ut
@@ -442,11 +480,13 @@ program main
 	logical :: f,flag=.true.
 	integer :: l,m,i,nopt,od
 	real(8) :: n(0:40)=(/(min(1d0-0.005d0*i,0.999d0),i=0,80,2)/)
-	real(8) :: Ts(size(n),2),Td(size(n),2),Tc(2),Tnc,dnf,pnf,pTk(2)
+	real(8) :: Ts(size(n),2),Td(size(n),2),Tc(2),Tnc,dnf,pnf,pTk(2),den
 	real(8), allocatable :: peak(:)
+	complex(8) :: H(4,4)
+	real(8) :: E(4)
 	open(unit=10,file=fn('../data/phase.dat'))
-	!f=openfile(unit=20,file='../data/band.dat')
-	!f=openfile(unit=30,file='../data/order.dat')
+	f=openfile(unit=20,file='../data/band.dat')
+	f=openfile(unit=30,file='../data/order.dat')
 	!f=openfile(unit=40,file='../data/fermis.dat')
 	!f=openfile(unit=50,file='../data/DOS.dat')
 	!f=openfile(unit=60,file='../data/raman.dat')
@@ -455,7 +495,7 @@ program main
 	!f=openfile(unit=90,file='../data/energy.dat')
 	!f=openfile(unit=100,file='../data/gap.dat')
 	open(unit=110,file=fn('../data/bb.dat'))
-	!f=openfile(unit=101,file='../data/lattice.dat')
+	f=openfile(unit=101,file='../data/lattice.dat')
 
 	call initial()
 	call omp_set_nested(.false.)
@@ -516,9 +556,19 @@ program main
 	!call fermis(40,0.005d0,o_brizon%k,0d0)
 	!stop
 
+	nf=1d0-0.128d0
+	do i=1,60
+		Tk=0.06d0-0.001d0*i
+		call self_consist_nlopt()
+		write(30,"(es12.4$)")Tk,nf,var(1:)%val(1)
+		write(30,"(x)")
+		call rpainstable(0,Tk,[pi,pi,0d0],den)
+		write(*,*)Tk,den
+	enddo
+	stop
 
 	od=2
-	nf=1d0
+	nf=1d0-0.145d0
 	Tk=0.01d0
 	Tc(1)=find_order(od,-1,Tk,(/1d-4,0.3d0,2d-3/),1d-3)
 	Tk=1d-3
