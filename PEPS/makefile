@@ -1,5 +1,5 @@
 #out= $(patsubst %.f90,%.out,$(wildcard *.f90))
-out = fPEPS.out
+out = fPEPS_real.out
 #AFLAG = -qopenmp
 LFLAG =  -larpack
 include ../makefile
