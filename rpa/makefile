@@ -1,2 +1,2 @@
-out=rpa_tJ.out
+out = rpa_mc.out
 include ../makefile

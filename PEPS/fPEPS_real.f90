@@ -5,9 +5,9 @@ module M_fig
 	use M_list
 	use M_lattice_test1
 	implicit none
-	integer :: d=3,chi,p,Nstep=300
+	integer :: d=4,chi,p,Nstep=300
 	integer, parameter :: gp=1,gd=2,gchi=3,gpd=4,gdd=22,gtmp=5
-	real(8) :: t(1)=1d0,DJ=1d0,DV=2d0,DU=0d0,mu=0d0,norm=1d0
+	real(8) :: t(1)=1d0,DJ=1d0,DV=2d0,DU=0d0,mu=1d0,norm=1d0
 	type t_figst
 		integer, allocatable :: bd(:)
 		integer, allocatable :: ltp(:)
@@ -505,7 +505,6 @@ contains
 		real(8), allocatable :: Eg(:)
 		type(t_tensor), allocatable :: que(:,:)
 		integer, allocatable :: cord(:)
-		write(*,*)"dCTM"
 		l=[1,2,5,6,5,6,1,2]
 		do n=1,size(label)
 			allocate(que(7,2))
@@ -565,7 +564,6 @@ contains
 			call smat_eg(que(7,1)%stp(1:2),W,Eg,cW,grp(:,:,gchi))
 			call que(7,1)%get_tensor(que(7,1)%label,cW(:,:chi))
 			que(7,2)=que(7,1)%change_label([lbd(1)],[lbd(2)])
-			que(7,1)=que(7,1)
 
 			call get_corder(que(1:3,1),cord)
 			a(1)=change_label(fig_contract(que(1:3,1),cord),[bdp(1)],[label(n)])
@@ -650,7 +648,6 @@ contains
 					call P((i-1)*2+1)%get_tensor(lbd(3)//["1","2"," "],cW(:,:chi))
 
 					P(i*2)=P((i-1)*2+1)%change_label(lbd(3)//["1","2"," "],lbd(4)//["1","2"," "])
-					P((i-1)*2+1)=P((i-1)*2+1)
 					do j=i+1,3
 						if(fig%stp(mst(1,Pst(1,j)))==fig%stp(mst(1,Pst(1,i)))) then
 							if((Pst(2,j)==0).eqv.(Pst(2,i)==0)) then
@@ -1439,26 +1436,26 @@ program main
 	allocate(grp(2,2,8))
 	grp=0
 
-	!! spinless tight-binding
-	!p=2
-	!grp(:,:,gp)=reshape([1,-1, 1,1],[2,2])
-	!call tH%new(["u0","u1","d0","d1"],[p,p,p,p],[gp,gp,gp,gp],"0")
-	!tH%rc%T(tH%get_idx([1,2,2,1, 2,1,1,2],["u0","u1","d0","d1"]))=-t(1)*[1,1]
-	!tH%rc%T(tH%get_idx([1,2,1,2, 2,1,2,1, 2,2,2,2],["u0","u1","d0","d1"]))=[-mu/4d0,-mu/4d0,DV-mu/2d0]
-	!allocate(Hn(p,p),Hdb(p,p),Hexp(p**2,p**2))
-	!Hn=0d0; Hn(1,1)=1d0
-
-	! Hubbard
-	p=4
-	grp(:,:,gp)=reshape([1,-1, 2,2],[2,2])
+	! spinless tight-binding
+	p=2
+	grp(:,:,gp)=reshape([1,-1, 1,1],[2,2])
 	call tH%new(["u0","u1","d0","d1"],[p,p,p,p],[gp,gp,gp,gp],"0")
-	tH%rc%T(tH%get_idx([4,3,2,1, 4,3,1,2, 2,3,3,2, 2,4,4,2, 2,1,4,3, 1,2,4,3, 3,2,2,3, 4,2,2,4],["u0","u1","d0","d1"]))=t(1)*[1,1,1,1,1,1,1,1]
-	tH%rc%T(tH%get_idx([3,4,2,1, 1,3,3,1, 1,4,4,1, 3,4,1,2, 2,1,3,4, 3,1,1,3, 4,1,1,4, 1,2,3,4],["u0","u1","d0","d1"]))=-t(1)*[1,1,1,1,1,1,1,1]
-	tH%rc%T(tH%get_idx([2,1,2,1, 1,2,1,2, 2,2,2,2, 3,2,3,2, 4,2,4,2, 2,3,2,3, 2,4,2,4],["u0","u1","d0","d1"]))=0.25d0*DU*[1,1,2,1,1,1,1]
-	tH%rc%T(tH%get_idx([2,1,2,1, 3,1,3,1, 4,1,4,1, 1,2,1,2, 2,2,2,2, 3,2,3,2, 4,2,4,2, 1,3,1,3, 2,3,2,3, 3,3,3,3, 4,3,4,3, 1,4,1,4, 2,4,2,4, 3,4,3,4, 4,4,4,4],["u0","u1","d0","d1"]))=tH%rc%T(tH%get_idx([2,1,2,1, 3,1,3,1, 4,1,4,1, 1,2,1,2, 2,2,2,2, 3,2,3,2, 4,2,4,2, 1,3,1,3, 2,3,2,3, 3,3,3,3, 4,3,4,3, 1,4,1,4, 2,4,2,4, 3,4,3,4, 4,4,4,4],["u0","u1","d0","d1"]))-0.25d0*mu*[2,1,1,2,4,3,3,1,3,2,2,1,3,2,2]
+	tH%rc%T(tH%get_idx([1,2,2,1, 2,1,1,2],["u0","u1","d0","d1"]))=-t(1)*[1,1]
+	tH%rc%T(tH%get_idx([1,2,1,2, 2,1,2,1, 2,2,2,2],["u0","u1","d0","d1"]))=[-mu/4d0,-mu/4d0,DV-mu/2d0]
 	allocate(Hn(p,p),Hdb(p,p),Hexp(p**2,p**2))
-	Hn=0d0; Hn(2,2)=2d0; Hn(3,3)=1d0; Hn(4,4)=1d0
-	Hdb=0d0; Hdb(2,2)=1d0
+	Hn=0d0; Hn(1,1)=1d0
+
+	!! Hubbard
+	!p=4
+	!grp(:,:,gp)=reshape([1,-1, 2,2],[2,2])
+	!call tH%new(["u0","u1","d0","d1"],[p,p,p,p],[gp,gp,gp,gp],"0")
+	!tH%rc%T(tH%get_idx([4,3,2,1, 4,3,1,2, 2,3,3,2, 2,4,4,2, 2,1,4,3, 1,2,4,3, 3,2,2,3, 4,2,2,4],["u0","u1","d0","d1"]))=t(1)*[1,1,1,1,1,1,1,1]
+	!tH%rc%T(tH%get_idx([3,4,2,1, 1,3,3,1, 1,4,4,1, 3,4,1,2, 2,1,3,4, 3,1,1,3, 4,1,1,4, 1,2,3,4],["u0","u1","d0","d1"]))=-t(1)*[1,1,1,1,1,1,1,1]
+	!tH%rc%T(tH%get_idx([2,1,2,1, 1,2,1,2, 2,2,2,2, 3,2,3,2, 4,2,4,2, 2,3,2,3, 2,4,2,4],["u0","u1","d0","d1"]))=0.25d0*DU*[1,1,2,1,1,1,1]
+	!tH%rc%T(tH%get_idx([2,1,2,1, 3,1,3,1, 4,1,4,1, 1,2,1,2, 2,2,2,2, 3,2,3,2, 4,2,4,2, 1,3,1,3, 2,3,2,3, 3,3,3,3, 4,3,4,3, 1,4,1,4, 2,4,2,4, 3,4,3,4, 4,4,4,4],["u0","u1","d0","d1"]))=tH%rc%T(tH%get_idx([2,1,2,1, 3,1,3,1, 4,1,4,1, 1,2,1,2, 2,2,2,2, 3,2,3,2, 4,2,4,2, 1,3,1,3, 2,3,2,3, 3,3,3,3, 4,3,4,3, 1,4,1,4, 2,4,2,4, 3,4,3,4, 4,4,4,4],["u0","u1","d0","d1"]))-0.25d0*mu*[2,1,1,2,4,3,3,1,3,2,2,1,3,2,2]
+	!allocate(Hn(p,p),Hdb(p,p),Hexp(p**2,p**2))
+	!Hn=0d0; Hn(2,2)=2d0; Hn(3,3)=1d0; Hn(4,4)=1d0
+	!Hdb=0d0; Hdb(2,2)=1d0
 
 	!! t-J
 	!p=3
@@ -1490,7 +1487,7 @@ program main
 	!call aa(1,-1)%new([label(::2),"p"],[d,d,d,d,p],[gd,gd,gd,gd,gp],"r")
 	!aa(2,-1)=aa(1,-1)%clone()
 
-	call simp_update(H,[0.05d0,0.05d0],aa(:,-1),1000)
+	call simp_update(H,[0.05d0,0.01d0],aa(:,-1),10000)
 
     !tp:        
     !
@@ -1558,7 +1555,7 @@ program main
 	call rescale(fig,aa(:,-1:8))
 
 	delta=0.05d0
-	do step=0,Nstep
+	do step=0,Nstep*4
 		!delta=0.05d0*exp(-alpha*step/Nstep)
 		!delta=0.1d0
 		!delta=max(0.1d0-(0.1d0-0.1d0)/(Nstep)*step,0.1d0)
@@ -1573,116 +1570,117 @@ program main
 		write(*,"('step: ',i4,es12.4)")step,delta
 		nctm=0
 		do 
-			do n=1,4
+			!select case(mod(step,2)*5+sign(1,-mod(step,2))*n)
+			select case(mod(step+nctm,4)+1)
+			case(1:2)
+				bd=5
+				lbd=["r","l"]
+			case(3:4)
+				bd=18
+				lbd=["d","u"]
+			end select
+			st=fig%bd(:,bd)
 
-				select case(mod(step,2)*5+sign(1,-mod(step,2))*n)
-				case(1:2)
-					bd=5
-					lbd=["r","l"]
-				case(3:4)
-					bd=18
-					lbd=["d","u"]
-				end select
-				st=fig%bd(:,bd)
-
-				!if(.false.) then
-				if(nctm==0.and.step/=0.and.(.not.((step==1.and.n<=2).or.(step==Nstep.and.n>2)))) then
-					if(fig%btp(bd)==1) then
-						aa(fig%stp(st(1)),-1)=dot(fgate([gd,gp]),aa(fig%stp(st(1)),-1),["d","p"])
-					else                                                       
-						aa(fig%stp(st(2)),-1)=dot(fgate([gd,gp]),aa(fig%stp(st(2)),-1),["l","p"])
-					endif
-
-					call aa(fig%stp(st(1)),-1)%fact([character::],[lbd(1),"p"],X(1),b(1),"qr",lbd,gpd)
-					call aa(fig%stp(st(2)),-1)%fact([lbd(2),"p"],[character::],b(2),X(2),"lq",lbd,gpd)
-
-					do i=1,2
-						aa(fig%stp(st(i)),9)=dot(X(i),X(i)%change_label(label(::2),label(2::2)))
-						aa(fig%stp(st(i)),9)=dot(dot(fgate(aa(fig%stp(st(i)),9)%stp(aa(fig%stp(st(i)),9)%get_ldx(["u'","l'","l"]))),aa(fig%stp(st(i)),9),["u'","l'","l"]),fgate(aa(fig%stp(st(i)),9)%stp(aa(fig%stp(st(i)),9)%get_ldx(["r'","d'","d"]))),["r'","d'","d"])
-						aa(fig%stp(st(i)),9)=aa(fig%stp(st(i)),9)%merge_label(label,label(::2))
-					enddo
-
-					fig%ttp(fig%bd(:,bd))=9
-
-
-					call ini_que(fig,[bd],[integer::],aa,que)
-					call get_corder(que,cord)
-					E=fig_contract(que,cord)
-					E=E%split_label([lbd(1)//to_char(bd),lbd(2)//to_char(bd)],["r","r'","l","l'"])
-					deallocate(que)
-
-
-					if(fig%btp(bd)==2) then
-						do i=1,2
-							b(i)=b(i)%change_label(["u","d"],["l","r"])
-						enddo
-					endif
-					call full_update(E,Hexp,b)
-					if(fig%btp(bd)==2) then
-						do i=1,2
-							b(i)=b(i)%change_label(["l","r"],["u","d"])
-						enddo
-					endif
-
-					aa(fig%stp(st(1)),-1)=dot(X(1),b(1),lbd)
-					aa(fig%stp(st(2)),-1)=dot(b(2),X(2),lbd)
-					if(fig%btp(bd)==1) then
-						aa(fig%stp(st(1)),-1)=dot(fgate([gd,gp]),aa(fig%stp(st(1)),-1),["d","p"])
-					else                                                       
-						aa(fig%stp(st(2)),-1)=dot(fgate([gd,gp]),aa(fig%stp(st(2)),-1),["l","p"])
-					endif
-					do i=1,2
-						aa(fig%stp(st(i)),9)=dot(aa(fig%stp(st(i)),-1),aa(fig%stp(st(i)),-1)%change_label(label(::2),label(2::2)))
-						aa(fig%stp(st(i)),9)=dot(dot(fgate([gd,gd,gd]),aa(fig%stp(st(i)),9),["u'","l'","l"]),fgate([gd,gd,gd]),["r'","d'","d"])
-						aa(fig%stp(st(i)),9)=aa(fig%stp(st(i)),9)%merge_label(label,label(::2))
-					enddo
-				endif
+			!if(.false.) then
+			!if(nctm==0.and.step/=0.and.(.not.((step==1.and.n<=2).or.(step==Nstep.and.n>2)))) then
+			if(nctm==0.and.step/=0) then
 				if(fig%btp(bd)==1) then
-					!call CTM(fig,reshape([13,14,17,18,21,22, 16,15,20,19,24,23],[6,2]),aa)
-					!call dCTMp(fig,["r","l"],aa)
-					!if(step<=20) then
-						call vCTM(fig,["r","l"],aa)
-						!call vCTMp(fig,["r","l"],aa)
-					!else
-						!call cvCTM(fig,["r","l"],aa)
-					!endif
-				else
-					!call CTM(fig,reshape([1,4,2,5,3,6, 10,7,11,8,12,9],[6,2]),aa)
-					!call dCTMp(fig,["u","d"],aa)
-					!if(step<=20) then
-						call vCTM(fig,["u","d"],aa)
-						!call vCTMp(fig,["u","d"],aa)
-					!else
-						!call cvCTM(fig,["u","d"],aa)
-					!endif
+					aa(fig%stp(st(1)),-1)=dot(fgate([gd,gp]),aa(fig%stp(st(1)),-1),["d","p"])
+				else                                                       
+					aa(fig%stp(st(2)),-1)=dot(fgate([gd,gp]),aa(fig%stp(st(2)),-1),["l","p"])
 				endif
 
-				if(fig%ttp(st(1))==9) then
-					fig%ttp(st)=0
+				call aa(fig%stp(st(1)),-1)%fact([character::],[lbd(1),"p"],X(1),b(1),"qr",lbd,gpd)
+				call aa(fig%stp(st(2)),-1)%fact([lbd(2),"p"],[character::],b(2),X(2),"lq",lbd,gpd)
+				write(*,*)fig%stp(st(1)),fig%stp(st(2)),fig%btp(bd)
+
+				do i=1,2
+					aa(fig%stp(st(i)),9)=dot(X(i),X(i)%change_label(label(::2),label(2::2)))
+					aa(fig%stp(st(i)),9)=dot(dot(fgate(aa(fig%stp(st(i)),9)%stp(aa(fig%stp(st(i)),9)%get_ldx(["u'","l'","l"]))),aa(fig%stp(st(i)),9),["u'","l'","l"]),fgate(aa(fig%stp(st(i)),9)%stp(aa(fig%stp(st(i)),9)%get_ldx(["r'","d'","d"]))),["r'","d'","d"])
+					aa(fig%stp(st(i)),9)=aa(fig%stp(st(i)),9)%merge_label(label,label(::2))
+				enddo
+
+				fig%ttp(fig%bd(:,bd))=9
+
+
+				call ini_que(fig,[bd],[integer::],aa,que)
+				call get_corder(que,cord)
+				E=fig_contract(que,cord)
+				E=E%split_label([lbd(1)//to_char(bd),lbd(2)//to_char(bd)],["r","r'","l","l'"])
+				deallocate(que)
+
+
+				if(fig%btp(bd)==2) then
 					do i=1,2
-						aa(fig%stp(st(i)),0)=aa(fig%stp(st(i)),9)
+						b(i)=b(i)%change_label(["u","d"],["l","r"])
 					enddo
 				endif
-				!do i=1,size(fig%stp)
-					!write(*,*)aa(fig%stp(i),fig%ttp(i))%label,aa(fig%stp(i),fig%ttp(i))%shap,aa(fig%stp(i),fig%ttp(i))%stp
-				!enddo
+				call full_update(E,Hexp,b)
+				if(fig%btp(bd)==2) then
+					do i=1,2
+						b(i)=b(i)%change_label(["l","r"],["u","d"])
+					enddo
+				endif
 
-				fig%stp=mod(fig%stp,2)+1
+				aa(fig%stp(st(1)),-1)=dot(X(1),b(1),lbd)
+				aa(fig%stp(st(2)),-1)=dot(b(2),X(2),lbd)
+				if(fig%btp(bd)==1) then
+					aa(fig%stp(st(1)),-1)=dot(fgate([gd,gp]),aa(fig%stp(st(1)),-1),["d","p"])
+				else                                                       
+					aa(fig%stp(st(2)),-1)=dot(fgate([gd,gp]),aa(fig%stp(st(2)),-1),["l","p"])
+				endif
+				do i=1,2
+					aa(fig%stp(st(i)),9)=dot(aa(fig%stp(st(i)),-1),aa(fig%stp(st(i)),-1)%change_label(label(::2),label(2::2)))
+					aa(fig%stp(st(i)),9)=dot(dot(fgate([gd,gd,gd]),aa(fig%stp(st(i)),9),["u'","l'","l"]),fgate([gd,gd,gd]),["r'","d'","d"])
+					aa(fig%stp(st(i)),9)=aa(fig%stp(st(i)),9)%merge_label(label,label(::2))
+				enddo
+			endif
+			if(fig%btp(bd)==1) then
+				!call CTM(fig,reshape([13,14,17,18,21,22, 16,15,20,19,24,23],[6,2]),aa)
+				call dCTMp(fig,["r","l"],aa)
+				!if(step<=20) then
+					!call vCTM(fig,["r","l"],aa)
+					!call vCTMp(fig,["r","l"],aa)
+				!else
+					!call cvCTM(fig,["r","l"],aa)
+				!endif
+			else
+				!call CTM(fig,reshape([1,4,2,5,3,6, 10,7,11,8,12,9],[6,2]),aa)
+				call dCTMp(fig,["u","d"],aa)
+				!if(step<=20) then
+					!call vCTM(fig,["u","d"],aa)
+					!call vCTMp(fig,["u","d"],aa)
+				!else
+					!call cvCTM(fig,["u","d"],aa)
+				!endif
+			endif
+			write(*,*)nctm
 
-				call rescale(fig,aa(:,-1:8))
-			enddo
+			if(fig%ttp(st(1))==9) then
+				fig%ttp(st)=0
+				do i=1,2
+					aa(fig%stp(st(i)),0)=aa(fig%stp(st(i)),9)
+				enddo
+			endif
+
+			fig%stp=mod(fig%stp,2)+1
+
+			call rescale(fig,aa(:,-1:8))
 			nctm=nctm+1
-			if((step<Nstep-2.and.nctm>4).or.(step>=Nstep-2.and.nctm>30)) then
+			if(((.not.(step==0.or.step==Nstep*4)).and.nctm==5).or.((step==0.or.step==Nstep*4).and.nctm==40)) then
 				exit
 			endif
+			val=get_vsite(fig,aa,[6,7,10,11],Hn)/4d0
+			write(*,*)"n: ",val
 		enddo
 		val=get_vsite(fig,aa,[6,7,10,11],Hn)/4d0
 		write(*,*)"n: ",val
 		!write(10,"(i4,es12.4$)")step,real(val)
-		val=get_vbond(fig,aa,[5,8,18,19],H)/2d0+mu*val
+		val=get_vbond(fig,aa,[5,8,18,19],H)/2d0!+mu*val
 		write(*,*)"Energy: ",val
 		!write(10,"(es12.4)")real(val)
 		!write(*,*)"Mz: ",get_vsite(fig,aa,[6,7,10,11],cmplx(reshape([1d0,0d0,0d0,-1d0],[2,2]),kind=8))/4d0
+		stop
 	enddo
 end program
 

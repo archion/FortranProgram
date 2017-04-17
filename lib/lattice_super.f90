@@ -1,4 +1,4 @@
-module M_lattice_test1
+module M_lattice_super
 	use M_const
 	use M_utility
 	implicit none
@@ -29,7 +29,7 @@ module M_lattice_test1
 	real(8) :: err=1d-6
 	type t_latt
 		real(8) :: T1(3),T2(3),a1(3),a2(3),a3(3),c1(3),c2(3),c3(3)
-		integer :: Ns,layer=1,n1=1,n2=1
+		integer :: Ns,layer=1
 		complex(8) :: bdc(3)=(/1d0,1d0,0d0/)
 		type(t_nb), allocatable :: nb(:)
 		real(8), allocatable :: rsb(:,:)
@@ -150,12 +150,12 @@ contains
 		integer ::  st(5000,0:20,2)
 		integer, allocatable :: c(:)
 		sb=size(latt%rsb,1)
-		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,Ns=>self%Ns,layer=>self%layer,bdc=>self%bdc)
+		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,c1=>self%c1,c2=>self%c2,Ns=>self%Ns,layer=>self%layer,bdc=>self%bdc)
 			tf=reshape((/a2(2),-a1(2),-a2(1),a1(1)/)/(a1(1)*a2(2)-a1(2)*a2(1)),(/2,2/))
 			T(1,:)=0d0
-			T(2,:)=T1
-			T(3,:)=T1+T2
-			T(4,:)=T2
+			T(2,:)=c1
+			T(3,:)=c1+c2
+			T(4,:)=c2
 			Ns=0
 			allocate(self%nb(0:nb))
 			do n=1,sb
@@ -169,6 +169,7 @@ contains
 				enddo
 				Ns=Ns+size(tmp,1)
 			enddo
+
 			allocate(self%nb(0)%bd(Ns),self%nb(0)%st(Ns))
 			self%nb(0)%bd(:)=bd(:Ns)
 			do i=1,Ns
@@ -177,15 +178,8 @@ contains
 				self%nb(0)%st(i)%bd=i
 			enddo
 
-			!do i=2,layer
-				!do j=1,size(a3)
-					!self%i2r(1+Ns*(i-1):Ns*i,j)=self%i2r(:Ns,j)+a3(j)*(i-1)
-				!enddo
-			!enddo
-			!Ns=Ns*layer
-
-			l1=max(abs(nint(sum(l*a1*T1)/sum(T1**2))),1)
-			l2=max(abs(nint(sum(l*a2*T2)/sum(T2**2))),1)
+			l1=max(abs(nint(sum(l*a1*c1)/sum(c1**2))),1)
+			l2=max(abs(nint(sum(l*a2*c2)/sum(c2**2))),1)
 			if(abs(bdc(1))<err) l1=0
 			if(abs(bdc(2))<err) l2=0
 			k=0
@@ -193,7 +187,7 @@ contains
 				do j=1,Ns
 					do m1=-l1,l1
 						do m2=-l2,l2
-							dr=self%nb(0)%bd(j)%r-self%nb(0)%bd(i)%r+T1*m1+T2*m2
+							dr=self%nb(0)%bd(j)%r-self%nb(0)%bd(i)%r+c1*m1+c2*m2
 							k=k+1
 							sort(k)%val=sum(dr**2)
 							sort(k)%i=(/i,j/)
@@ -307,7 +301,7 @@ contains
 		real(8) :: p1(3),p2(3),k0(3),dr(3)
 		real(8), allocatable :: tmp(:,:),T(:,:)
 		integer :: n,i,j
-		associate(b1=>brizon%b1,b2=>brizon%b2,n1=>self%n1,n2=>self%n2,c1=>self%c1,c2=>self%c2,T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,bdc=>self%bdc)
+		associate(b1=>brizon%b1,b2=>brizon%b2,c1=>self%c1,c2=>self%c2,T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,bdc=>self%bdc)
 			k0=0d0
 			if(all(abs(bdc(:2))>err)) then
 				k0(:2)=matmul(reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/)),(/theta((/real(bdc(1)),imag(bdc(1))/)),theta((/real(bdc(2)),imag(bdc(2))/))/))
@@ -327,8 +321,8 @@ contains
 
 			p1=(/-T2(2),T2(1),0d0/)
 			p2=(/T1(2),-T1(1),0d0/)
-			p1=2d0*pi*p1/sum(T1*n2*p1)
-			p2=2d0*pi*p2/sum(T2*n1*p2)
+			p1=2d0*pi*p1/sum(T1*p1)
+			p2=2d0*pi*p2/sum(T2*p2)
 
 			b1=(/-c2(2),c2(1),0d0/)
 			b2=(/c1(2),-c1(1),0d0/)

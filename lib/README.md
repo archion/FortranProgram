@@ -59,6 +59,52 @@ brizon:
 check_lattice(ut): 输出晶格到文件ut
 ```
 
+### M_lattice_final
+```
+latt:
+输入
+	is_all: 是否生成整个晶格（否则只生成super cell）
+	a1: 基矢
+	a2: 基矢
+	c1: super cell基矢
+	c2: super cell基矢
+	T1: 边界矢量
+	T2: 边界矢量
+	bdc: 边界条件
+	layer: 层数
+	sub: 子格的空间坐标
+输出
+	Ns: 总格点数
+	Nc: super cell个数
+	nb: 近邻指标
+		bd: 键指标
+			sb: 两个格点的子格指标
+			sbc: 两个格点的super cell指标 
+			i: 两个格点的格点指标（若不生成整个晶格，则格点指标和super cell指标相同）
+			r: 键的中心坐标
+			dr: 键的方向向量（由i(1)指向i(2)）
+			bdc: 键上带的边界条件 
+		st: 格点指标
+			j: 近邻的格点指标
+			bd: 近邻的键指标
+			dir: 近邻的方向是否与键方向一致
+方法
+	gen_latt(l): 生成包含l近邻的latt
+	gen_brizon(brizon): 生成brizon
+
+brizon:
+输出
+	nk: 独立k点数
+	nq: 非独立的k点对应的平移动量数
+	b1: 倒格矢
+	b2: 倒格矢
+	T: super cell对应的第一布里渊区端点坐标
+	k: 独立的k点坐标
+	q: 非独立的k点对应的平移动量 
+
+check_lattice(ut): 输出晶格到文件ut
+```
+
 ### M_hamilton
 ```
 输入

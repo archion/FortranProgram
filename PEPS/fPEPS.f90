@@ -1285,7 +1285,8 @@ contains
 		enddo
 		E=contract(E,["p","P"])
 		rt_=rt_/E%rc%T(1)
-		write(*,*)rt_,E%rc%T(1)
+		write(*,"( *('(',es12.4,',',es12.4,')') )")rt_,E%rc%T(1)
+		write(*,*)abs(E%rc%T(1))
 		if(present(sg)) then
 			rt=sum(real(rt_)*sg)
 		else
@@ -1660,9 +1661,12 @@ program main
 				call rescale(fig,aa(:,-1:8))
 			enddo
 			nctm=nctm+1
-			if((step<Nstep-2.and.nctm>4).or.(step==Nstep.and.nctm>30)) then
+			if(((.not.(step==0.or.step==Nstep)).and.nctm==5).or.((step==0.or.step==Nstep).and.nctm==300)) then
+			!if((step<Nstep-2.and.nctm>4).or.(step==Nstep.and.nctm>30)) then
 				exit
 			endif
+			val=get_vsite(fig,aa,[6,7,10,11],Hn)/4d0
+			write(*,*)nctm,"n: ",val
 		enddo
 		val=get_vsite(fig,aa,[6,7,10,11],Hn)/4d0
 		write(*,*)"n: ",val

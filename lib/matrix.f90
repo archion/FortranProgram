@@ -192,8 +192,19 @@ contains
 	end subroutine
 	subroutine rmat_inv(A,info)
 		real(8) :: A(:,:)
+		real(8) :: det
 		integer :: ipiv(size(A,1)),info1
 		integer, optional :: info
+		if(size(A,1)==2.and.size(A,2)==2) then
+			det=(A(1,1)*A(2,2)-A(1,2)*A(2,1))
+			if(det<1d-10) then
+				write(*,*)"inverse matrix err det=0"
+				write(*,*)RAISEQQ(SIG$ABORT)
+			endif
+			det=1d0/det
+			A=det*reshape([A(2,2),-A(2,1),-A(1,2),A(1,1)],[2,2])
+			return
+		endif
 		if(present(info)) then
 			info=0
 		endif
@@ -220,8 +231,19 @@ contains
 	end subroutine
 	subroutine cmat_inv(A,info)
 		complex(8) :: A(:,:)
+		complex(8) :: det
 		integer :: ipiv(size(A,1)),info1
 		integer, optional :: info
+		if(size(A,1)==2.and.size(A,2)==2) then
+			det=(A(1,1)*A(2,2)-A(1,2)*A(2,1))
+			if(abs(det)<1d-10) then
+				write(*,*)"inverse matrix err det=0"
+				write(*,*)RAISEQQ(SIG$ABORT)
+			endif
+			det=1d0/det
+			A=det*reshape([A(2,2),-A(2,1),-A(1,2),A(1,1)],[2,2])
+			return
+		endif
 		if(present(info)) then
 			info=0
 		endif

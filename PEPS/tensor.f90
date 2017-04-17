@@ -70,6 +70,9 @@ contains
 	subroutine equal(to,from)
 		class(t_tensor), intent(inout) :: to
 		type(t_tensor) :: from
+		if(loc(to)==loc(from)) then
+			return
+		endif
 		if(.not.associated(to%rc,from%rc)) then
 			call to%clear()
 			!if(associated(to%rc)) then

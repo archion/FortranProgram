@@ -1,3 +1,3 @@
-out = twogap_tJ_super.out
+out = twogap_tJ_RPA.out
 AFLAG = -qopenmp
 include ../makefile

@@ -67,6 +67,9 @@ contains
 	subroutine equal(to,from)
 		class(t_tensor), intent(inout) :: to
 		type(t_tensor) :: from
+		if(loc(to)==loc(from)) then
+			return
+		endif
 		if(.not.associated(to%rc,from%rc)) then
 			call to%clear()
 			!if(associated(to%rc)) then
@@ -655,6 +658,7 @@ contains
 		MB(1:max(product(B%shap(1:n)),1),1:max(product(B%shap(n+1:)),1)) => B%rc%T
 
 		allocate(T(size(MA,2),size(MB,2)))
+
 
 		if(allocated(A%stp).and.allocated(B%stp)) then
 		!if(.false.) then
