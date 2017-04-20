@@ -2,6 +2,7 @@ ARCH := $(shell getconf LONG_BIT)
 FCC = ifort
 #CFLAG= $(AFLAG) -warn nounused -traceback -assume realloc_lhs
 CFLAG= $(AFLAG) -warn nounused -traceback
+#CFLAG= $(AFLAG) -warn nounused -traceback -check bounds -g -check all 
 #CFLAG= -O0 -warn nounused -check bounds -g -check all -fpe0 -traceback -debug extended  -fstack-protector  -assume protect_parens  -check -ftrapuv
 #LFLAG_64= $(LFLAG) -lmy -mkl=sequential -lmkl_lapack95_lp64 -lnlopt -lm
 #LFLAG_32= $(LFLAG) -lmy -mkl=sequential -lmkl_lapack95 -lnlopt -lm

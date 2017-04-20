@@ -96,16 +96,54 @@ brizon:
 输出
 	nk: 独立k点数
 	nq: 非独立的k点对应的平移动量数
-	b1: 倒格矢
-	b2: 倒格矢
-	T: super cell对应的第一布里渊区端点坐标
-	k: 独立的k点坐标
+	a1: 格子的倒格矢
+	a2: 格子的倒格矢
+	Ta: 格子对应的第一布里渊区端点坐标
+	c1: super cell的倒格矢
+	c2: super cell的倒格矢
+	Tc: super cell对应的第一布里渊区端点坐标
+	k: 全部的k点坐标
 	q: 非独立的k点对应的平移动量 
 
 check_lattice(ut): 输出晶格到文件ut
 ```
 
 ### M_hamilton
+```
+输入
+	spin: 自旋数，默认为2
+	is_sc: 是否有超导，默认为.true.
+输出
+	var(:): 不同类型的变分参数，其中var(:0)为不变分，var(1:)做变分
+		val(:)：变分参数的值
+		v2i(:)：对应变分参数的格点或键指标
+			i(:)：格点或键指标
+		i2v(:)：对应格点或键所对应的变分参数指标
+		bd_sg(:)：对应格点或键指标所带的因子
+		n：该类型变分参数的个数
+		V：该类型变分参数所带的相互作用
+		Vn：相互作用是第几近邻
+		nb：该类型变分参数是第几近邻
+		sg：变分参数的类型
+	方法
+		Hamilton：生成平均场Hamiltonian
+		dHamilton：生成平均场Hamiltonian对变分参数的导数
+		get：按val向量设置变分参数的值
+		put：生成保护变分参数值的向量val
+
+gen_var(sg,nb,V,val,Vn):
+var_shrink()
+Green(gm,k,omg)
+LDOS(ut,gm,i,omg,m)
+EDC(ut,gm,k,omg,m)
+DOS(ut,gm,omg,m,peak)
+fermis(ut,gm,k,omg)
+energy(ut,k)
+band_e(ut,gm,ki,kf,n,omg,m)
+band(ut,ki,kf,n)
+```
+
+### M_hamilton_final
 ```
 输入
 	spin: 自旋数，默认为2

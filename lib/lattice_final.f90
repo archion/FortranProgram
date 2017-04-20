@@ -41,8 +41,10 @@ module M_lattice_final
 	end type
 	type t_brizon
 		integer :: nk,nq
-		real(8) :: b1(3),b2(3)
-		real(8), allocatable :: T(:,:)
+		real(8) :: a1(3),a2(3)
+		real(8) :: c1(3),c2(3)
+		real(8), allocatable :: Ta(:,:)
+		real(8), allocatable :: Tc(:,:)
 		real(8), allocatable :: q(:,:)
 		real(8), allocatable :: k(:,:)
 	end type
@@ -75,8 +77,9 @@ contains
 	end subroutine
 	function is_in(r,T,dr)
 		logical :: is_in
-		real(8) :: r(3),tr(2),T(:,:),T1(3),T2(3),tf(2,2),rerr(3)
+		real(8) :: r(3),T(:,:)
 		real(8), optional :: dr(:)
+		real(8) :: tr(2),T1(3),T2(3),tf(2,2),rerr(3)
 		integer :: i
 		if(present(dr)) then
 			dr=0d0
@@ -90,7 +93,11 @@ contains
 			T1=T(mod(i-2+size(T,1),size(T,1))+1,:)-T(i,:)
 			T2=T(mod(i,size(T,1))+1,:)-T(i,:)
 			tf=reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/))
-			tr=matmul(tf,r(:2)-T(i,:2)+rerr(:2))
+			if(present(dr)) then
+				tr=matmul(tf,r(:2)+dr-T(i,:2)+rerr(:2))
+			else
+				tr=matmul(tf,r(:2)-T(i,:2)+rerr(:2))
+			endif
 			if(any(tr<0d0)) then
 				is_in=.false.
 				if(present(dr)) then
@@ -466,20 +473,33 @@ contains
 		class(t_latt) :: self
 		type(t_brizon) :: brizon
 		real(8) :: p1(3),p2(3),k0(3),dr(3)
-		real(8), allocatable :: tmp(:,:),T(:,:)
+		real(8), allocatable :: tmp(:,:)
 		integer :: n,i,j
-		associate(b1=>brizon%b1,b2=>brizon%b2,c1=>self%c1,c2=>self%c2,T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,bdc=>self%bdc)
+		associate(ba1=>brizon%a1,ba2=>brizon%a2,bc1=>brizon%c1,bc2=>brizon%c2,c1=>self%c1,c2=>self%c2,T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,bdc=>self%bdc)
 			p1=(/-T2(2),T2(1),0d0/)
 			p2=(/T1(2),-T1(1),0d0/)
 			p1=2d0*pi*p1/sum(T1*p1)
 			p2=2d0*pi*p2/sum(T2*p2)
 
-			b1=(/-c2(2),c2(1),0d0/)
-			b2=(/c1(2),-c1(1),0d0/)
-			b1=2d0*pi*b1/sum(b1*c1)
-			b2=2d0*pi*b2/sum(b2*c2)
+			ba1=(/-a2(2),a2(1),0d0/)
+			ba2=(/a1(2),-a1(1),0d0/)
+			ba1=2d0*pi*ba1/sum(ba1*a1)
+			ba2=2d0*pi*ba2/sum(ba2*a2)
+			call get_brizon(ba1,ba2,brizon%Ta)
 
-			call get_brizon(b1,b2,brizon%T)
+			!if(.not.is_in([2.30383461263251d0,-1.08827961854053d0,0d0],brizon%Ta,dr)) then
+				!write(*,*)brizon%a1(:2)
+				!write(*,*)brizon%a2(:2)
+				!write(*,*)dr(:2)
+			!endif
+			!stop
+
+			bc1=(/-c2(2),c2(1),0d0/)
+			bc2=(/c1(2),-c1(1),0d0/)
+			bc1=2d0*pi*bc1/sum(bc1*c1)
+			bc2=2d0*pi*bc2/sum(bc2*c2)
+			call get_brizon(bc1,bc2,brizon%Tc)
+
 
 			k0=0d0
 			if(all(abs(bdc(:2))>err)) then
@@ -500,23 +520,17 @@ contains
 				k0=theta((/real(bdc(2)),imag(bdc(2))/))*k0/sum(T2*k0)
 			endif
 
-			call gen_grid(p1,p2,k0,brizon%T,tmp)
+			call gen_grid(p1,p2,k0,brizon%Tc,tmp)
 			brizon%nk=size(tmp,1)
 
-			p1=(/-a2(2),a2(1),0d0/)
-			p2=(/a1(2),-a1(1),0d0/)
-			p1=2d0*pi*p1/sum(p1*a1)
-			p2=2d0*pi*p2/sum(p2*a2)
-			call get_brizon(p1,p2,T)
-
-			call gen_grid(b1,b2,(/0d0,0d0,0d0/),T,brizon%q)
+			call gen_grid(bc1,bc2,(/0d0,0d0,0d0/),brizon%Ta,brizon%q)
 			brizon%nq=size(brizon%q,1)
 			allocate(brizon%k(brizon%nk*brizon%nq,3))
 
 			do i=1,brizon%nq
 				do j=1,brizon%nk
 					brizon%k(j+(i-1)*brizon%nk,:)=tmp(j,:)+brizon%q(i,:)
-					if(.not.is_in(brizon%k(j+(i-1)*brizon%nk,:),T,dr)) then
+					if(.not.is_in(brizon%k(j+(i-1)*brizon%nk,:),brizon%Ta,dr)) then
 						brizon%k(j+(i-1)*brizon%nk,:2)=brizon%k(j+(i-1)*brizon%nk,:2)+dr
 					endif
 				enddo

@@ -10,33 +10,42 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
-	integer, parameter :: ica1=7
+	integer, parameter :: ica1=9
 	integer :: ica2
 	integer :: Ns,vn
 	real(8) :: q(3,ica1)=reshape([&
-		!pi*1d0/8d0,pi*1d0/8d0,0d0,&
-		!pi*2d0/8d0,pi*2d0/8d0,0d0,&
-		!pi*3d0/8d0,pi*3d0/8d0,0d0,&
-		!pi*4d0/8d0,pi*4d0/8d0,0d0,&
-		pi*5d0/8d0,pi*5d0/8d0,0d0,&
-		pi*6d0/8d0,pi*6d0/8d0,0d0,&
-		pi*7d0/8d0,pi*7d0/8d0,0d0,&
-		!pi,0d0,0d0,&
-		!pi*7d0/8d0,0d0,0d0,&
-		!pi*6d0/8d0,0d0,0d0,&
-		!pi*5d0/8d0,0d0,0d0,&
-		!pi*4d0/8d0,0d0,0d0,&
-		!pi*3d0/8d0,0d0,0d0,&
-		!pi*2d0/8d0,0d0,0d0,&
+		!!pi*1d0/8d0,pi*1d0/8d0,0d0,&
+		!!pi*2d0/8d0,pi*2d0/8d0,0d0,&
+		!!pi*3d0/8d0,pi*3d0/8d0,0d0,&
+		!!pi*4d0/8d0,pi*4d0/8d0,0d0,&
+		!pi*5d0/8d0,pi*5d0/8d0,0d0,&
+		!pi*6d0/8d0,pi*6d0/8d0,0d0,&
+		!pi*7d0/8d0,pi*7d0/8d0,0d0,&
+		!!pi,0d0,0d0,&
+		!!pi*7d0/8d0,0d0,0d0,&
+		!!pi*6d0/8d0,0d0,0d0,&
+		!!pi*5d0/8d0,0d0,0d0,&
+		!!pi*4d0/8d0,0d0,0d0,&
+		!!pi*3d0/8d0,0d0,0d0,&
+		!!pi*2d0/8d0,0d0,0d0,&
+		!pi,pi,0d0,&
+		!pi*7d0/8d0,pi,0d0,&
+		!pi*6d0/8d0,pi,0d0,&
+		!pi*5d0/8d0,pi,0d0&
+		!!pi*4d0/8d0,pi,0d0,&
+		!!pi*3d0/8d0,pi,0d0,&
+		!!pi*2d0/8d0,pi,0d0,&
+		!!pi*1d0/8d0,pi,0d0,&
+		!!0d0,pi,0d0&
+		pi*6d0/10d0,pi*6d0/10d0,0d0,&
+		pi*7d0/10d0,pi*7d0/10d0,0d0,&
+		pi*8d0/10d0,pi*8d0/10d0,0d0,&
+		pi*9d0/10d0,pi*9d0/10d0,0d0,&
 		pi,pi,0d0,&
-		pi*7d0/8d0,pi,0d0,&
-		pi*6d0/8d0,pi,0d0,&
-		pi*5d0/8d0,pi,0d0&
-		!pi*4d0/8d0,pi,0d0,&
-		!pi*3d0/8d0,pi,0d0,&
-		!pi*2d0/8d0,pi,0d0,&
-		!pi*1d0/8d0,pi,0d0,&
-		!0d0,pi,0d0&
+		pi,pi*9d0/10d0,0d0,&
+		pi,pi*8d0/10d0,0d0,&
+		pi,pi*7d0/10d0,0d0,&
+		pi,pi*6d0/10d0,0d0&
 		],[3,ica1])
 	!real(8) :: q(3,ica1)=reshape([&
 		!pi*5d0/8d0,pi*5d0/8d0,0d0,&
@@ -64,8 +73,8 @@ contains
 		!latt%c2=[-1d0,1d0,0d0]
 		latt%c1=latt%a1
 		latt%c2=latt%a2
-		latt%T1=[1d0,0d0,0d0]*16
-		latt%T2=[0d0,1d0,0d0]*16
+		latt%T1=[1d0,0d0,0d0]*20
+		latt%T2=[0d0,1d0,0d0]*20
 		latt%bdc=[1d0,1d0,0d0]
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=[0d0,0d0,0d0]
@@ -77,17 +86,17 @@ contains
 		!call check_lattice(101)
 		if(this_image()==1) write(*,*)"Total site number is: ",latt%Ns
 
-		!! cp
-		!call gen_var(sg=1,nb=0)
-		!var(iv(0))%bd=-1d0
-		!var(iv(0))%val=-1.09752d0
+		! cp
+		call gen_var(sg=1,nb=0)
+		var(iv(0))%bd=-1d0
+		var(iv(0))%val=-1.09752d0
 
-		!! dsc
-		!call gen_var(sg=2,nb=1)
-		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=dwave(i)
-		!enddo
-		!var(iv(0))%val=1d-1
+		! dsc
+		call gen_var(sg=2,nb=1)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=dwave(i)
+		enddo
+		var(iv(0))%val=1d-1
 
 		!! dsc
 		!call gen_var(sg=2,nb=1)
@@ -134,11 +143,11 @@ contains
 		!enddo
 		!var(iv(0))%val=0.0E-01
 
-		!do l=2,size(t)
-			!call gen_var(sg=3,nb=l)
-			!var(iv(0))%bd=-1d0
-			!var(iv(0))%val=0.0E-01
-		!enddo
+		do l=2,size(t)
+			call gen_var(sg=3,nb=l)
+			var(iv(0))%bd=-1d0
+			var(iv(0))%val=0.0E-01
+		enddo
 
 		do l=1,size(t)
 			call gen_var(sg=-3,nb=l)
@@ -1785,8 +1794,9 @@ program main
 	mc%hot=1
 	mc%step=Ns
 	mc%delay=2
-	mc%ne(1)=Ns/2-16
-	!mc%ne(1)=Ns/2-22
+	!mc%ne(1)=Ns/2-16
+	!mc%ne(1)=Ns/2-26
+	mc%ne(1)=Ns/2-14
 	!mc%ne(1)=Ns/2-8
 	mc%ne(2)=Ns-mc%ne(1)
 	!var(1:)%val(1)=[-3.2296E-01,2.3218E-01,7.3575E-02,3.4608E-02]
@@ -1807,11 +1817,12 @@ program main
 	!var(1:)%val(1)=[-1.4051E+00,2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
 	!var(1:)%val(1)=[2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
 	!var(1:)%val(1)=[2.4353E+00,-1.9875E-01] !stripe -4.3380E-01
-	!var(1:vn)%val(1)=[0.20d0] ! ddw E=-4.2473E-01
+	!var(1:vn)%val(1)=[0.25d0] ! ddw E=-4.2473E-01
 	!var(1:)%val(1)=[-8.4270d-1,1.9227d-1] ! dsc+mu E=-4.3288E-01
 	!var(1:vn)%val(1)=[-7.7984d-01,1.9979d-01,-9.9065d-02] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-6.6923d-01,2.7140d-01,-3.7934d-02] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-5.7168d-01,2.8200d-01,-3.6606d-02] ! dsc+mu+t' E= -4.3329E-01
+	var(1:vn)%val(1)=[-5.9924d-01,2.7644d-01,-4.6976d-02] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-6.3517d-01,2.5976d-01,2.4600d-01,-4.1792d-02] ! dsc+sdw+mu+t' E= -4.3329E-01
 	!var(1:)%val(1)=[-7.7984d-01,1.9979d-01] ! ddw+mu E=
 	!var(1:)%val(1)=[0d0,0.18d0] ! ddw+mu E=
@@ -1882,12 +1893,12 @@ program main
 	mc%sg=3
 	mc%ne=mc%ne+1
 	mc%hot=1024*8*8
-	mc%samp=1024*8*8*16*4 !dsc 16x16
+	!mc%samp=1024*8*8*16*4 !dsc 16x16
 	!mc%samp=1024*8*8*16*4*2 !sdw 16x16
 	!mc%samp=1024*8*8*32*8*4 !stripe
 	!mc%samp=1024*8*8*32 !dsc
 	!mc%samp=1024*8*8*32*8 !ddw
-	!mc%samp=1024*8*8*32*4 !dsc 20x20
+	mc%samp=1024*8*8*32*4 !dsc 20x20
 	!mc%samp=1024*8*8*32*16 !ddw 20x20
 	mc%step=nint(sqrt(real(Ns)))
 	call mc%init(.true.)
