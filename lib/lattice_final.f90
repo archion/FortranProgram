@@ -31,7 +31,7 @@ module M_lattice_final
 	type t_latt
 		logical :: is_all=.false.
 		real(8) :: T1(3),T2(3),a1(3),a2(3),a3(3),c1(3),c2(3),c3(3)
-		integer :: Ns,Nc,layer=1
+		integer :: Ns,Nc,Ni,sb,layer=1
 		complex(8) :: bdc(3)=(/1d0,1d0,0d0/)
 		type(t_nb), allocatable :: nb(:)
 		real(8), allocatable :: rsb(:,:)
@@ -43,6 +43,7 @@ module M_lattice_final
 		integer :: nk,nq
 		real(8) :: a1(3),a2(3)
 		real(8) :: c1(3),c2(3)
+		real(8) :: k0(3)
 		real(8), allocatable :: Ta(:,:)
 		real(8), allocatable :: Tc(:,:)
 		real(8), allocatable :: q(:,:)
@@ -50,7 +51,7 @@ module M_lattice_final
 	end type
 	type(t_latt), public :: latt
 	type(t_brizon), public, target :: brizon
-	public t_latt,t_brizon,theta
+	public t_latt,t_brizon,theta,check_lattice,is_in
 contains
 	subroutine myswap(self,a)
 		class(t_mysort) :: self
@@ -156,15 +157,15 @@ contains
 	subroutine gen_latt(self,nb)
 		class(t_latt) :: self
 		integer :: nb
-		integer :: i,j,l,l1,l2,n1,n2,m1,m2,n,m,p,k,sb,Ns_
+		integer :: i,j,l,l1,l2,n1,n2,m1,m2,n,m,p,k,Ns_
 		real(8) :: r(3),tf(2,2),T(4,3,3),dr(3),dr2,rnb(0:nb)
 		real(8), allocatable :: tmp(:,:),DT(:,:)
 		type(t_mysort) :: sort(100)
 		type(t_bd), allocatable ::  bd(:,:,:)
 		integer, allocatable ::  st(:,:,:)
 		integer, allocatable :: c(:)
-		sb=size(latt%rsb,1)
-		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,c1=>self%c1,c2=>self%c2,Ns=>self%Ns,Nc=>self%Nc,layer=>self%layer,bdc=>self%bdc)
+		associate(T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,a3=>self%a3,c1=>self%c1,c2=>self%c2,Ns=>self%Ns,Nc=>self%Nc,Ni=>self%Ni,sb=>self%sb,layer=>self%layer,bdc=>self%bdc)
+			sb=size(self%rsb,1)
 
 			allocate(self%nb(0:nb))
 
@@ -196,7 +197,7 @@ contains
 				do j=1,sb
 					do m1=-nb,nb
 						do m2=-nb,nb
-							dr=latt%rsb(j,:)-latt%rsb(i,:)+a1*m1+a2*m2
+							dr=self%rsb(j,:)-self%rsb(i,:)+a1*m1+a2*m2
 							k=k+1
 							sort(k)%val=sum(dr**2)
 							sort(k)%i=(/i,j/)
@@ -230,7 +231,7 @@ contains
 			Ns=sb
 
 
-			call gen_grid(a1,a2,self%rsb(1,:),T(:,:,2),DT)
+			call gen_grid(a1,a2,bd(0,1,1)%r,T(:,:,2),DT)
 			Nc=size(DT,1)
 
 			m=0
@@ -259,13 +260,13 @@ contains
 									bd(n,l,k)%r=bd(n,l,1)%r
 								endif
 								bd(n,l,k)%sbc(2)=bd(n,j,k)%sbc(2)+(i-1)*Ns
-								r=bd(n,l,k)%r+self%rsb(1,:)-self%rsb(bd(n,l,k)%sb(2),:)
+								r=bd(n,l,k)%r+bd(0,1,1)%r-bd(0,bd(n,l,k)%sb(2),1)%r
 								if(.not.is_in(r,T(:,:,1),dr)) then
 									r=r+dr
 								endif
 							else
 								bd(n,l,k)%r=bd(0,l,1)%r+bd(n,j,k)%dr/2d0
-								r=bd(0,l,1)%r+bd(n,j,k)%dr+self%rsb(1,:)-self%rsb(bd(n,l,k)%sb(2),:)
+								r=bd(0,l,1)%r+bd(n,j,k)%dr+bd(0,1,1)%r-bd(0,bd(n,l,k)%sb(2),1)%r
 								if(.not.is_in(r,T(:,:,2),dr)) then
 									r=r+dr
 								endif
@@ -292,10 +293,10 @@ contains
 					enddo
 				enddo
 			enddo
-			Ns=l
-			if(any(abs(bdc)<err)) then
+			Ni=l
+			if(any(abs(bdc(:2))<err)) then
 				do n=0,nb
-					do i=1,Ns
+					do i=1,Ni
 						m2=0
 						do k=1,bd(n,i,0)%sb(1)
 							if(bd(n,i,k)%sbc(2)>0) then 
@@ -309,7 +310,7 @@ contains
 					enddo
 				enddo
 				m1=0
-				do i=1,Ns
+				do i=1,Ni
 					if(bd(0,i,1)%sbc(2)>0) then 
 						m1=m1+1
 						do n=0,nb
@@ -319,24 +320,26 @@ contains
 						enddo
 					endif
 				enddo
+				Ni=m1
 			endif
-			Ns=m1
 
 			if(self%is_all) then
-				call gen_grid(c1,c2,(/0d0,0d0,0d0/),T(:,:,3),DT)
+				call gen_grid(c1,c2,bd(0,1,1)%r,T(:,:,3),DT)
 				Nc=size(DT,1)
+				Ns=Ni*Nc
 			else
 				Nc=1
 				if(allocated(DT)) deallocate(DT)
 				allocate(DT(1,3))
 				DT=0d0
+				Ns=Ni*nint(abs((T1(1)*T2(2)-T1(2)*T2(1))/(c1(1)*c2(2)-c1(2)*c2(1))))
 			endif
 
 			tf=reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/))
 
 			do i=1,Nc
-				do j=1,Ns
-					l=j+(i-1)*Ns
+				do j=1,Ni
+					l=j+(i-1)*Ni
 					do n=0,nb
 						bd(n,l,0)%sb=bd(n,j,0)%sb
 						do k=1,bd(n,j,0)%sb(1)
@@ -355,7 +358,7 @@ contains
 								else
 									bd(n,l,k)%r=bd(n,l,1)%r
 								endif
-								bd(n,l,k)%i(2)=bd(n,j,k)%i(2)+(i-1)*Ns
+								bd(n,l,k)%i(2)=bd(n,j,k)%i(2)+(i-1)*Ni
 							else
 								bd(n,l,k)%r=bd(0,l,1)%r+bd(n,j,k)%dr/2d0
 								r=bd(0,l,1)%r+bd(n,j,k)%dr
@@ -363,17 +366,21 @@ contains
 									r=r+dr
 									dr(:2)=matmul(tf,dr(:2))
 									do p=1,2
-										if(nint(dr(p))>0) then
-											bd(n,l,k)%bdc=bd(n,l,k)%bdc*bdc(p)**nint(dr(p))
-										elseif(nint(dr(1))<0) then
-											bd(n,l,k)%bdc=bd(n,l,k)%bdc*conjg(bdc(p))**(-nint(dr(p)))
+										if(nint(dr(p))<0) then
+											bd(n,l,k)%bdc=bd(n,l,k)%bdc*bdc(p)**(-nint(dr(p)))
+										elseif(nint(dr(p))>0) then
+											bd(n,l,k)%bdc=bd(n,l,k)%bdc*conjg(bdc(p))**nint(dr(p))
 										endif
 									enddo
+								endif
+								r=r+bd(0,1,1)%r-bd(0,bd(n,l,k)%sbc(2),1)%r
+								if(.not.is_in(r,T(:,:,3),dr)) then
+									r=r+dr
 								endif
 								if(.not.is_in(r,T(:,:,2),dr)) then
 									do p=1,Nc
 										if(sum(abs(dr+DT(p,:)))<err) then
-											bd(n,l,k)%i(2)=bd(n,l,k)%i(2)+(p-1)*Ns
+											bd(n,l,k)%i(2)=bd(n,l,k)%i(2)+(p-1)*Ni
 											exit
 										endif
 									enddo
@@ -386,10 +393,10 @@ contains
 
 
 			do n=0,nb
-				allocate(self%nb(n)%bd(Nc*sum(bd(n,1:Ns,0)%sb(1))))
-				allocate(self%nb(n)%st(Ns*Nc))
+				allocate(self%nb(n)%bd(Nc*sum(bd(n,1:Ni,0)%sb(1))))
+				allocate(self%nb(n)%st(Ni*Nc))
 				k=0
-				do i=1,Ns*Nc
+				do i=1,Ni*Nc
 					do j=1,bd(n,i,0)%sb(1)
 						k=k+1
 						self%nb(n)%bd(k)=bd(n,i,j)
@@ -400,7 +407,7 @@ contains
 						endif
 					enddo
 				enddo
-				do i=1,Ns*Nc
+				do i=1,Ni*Nc
 					k=sum(bd(n,i,0)%sb)
 					allocate(self%nb(n)%st(i)%bd(k),self%nb(n)%st(i)%j(k),self%nb(n)%st(i)%dir(k))
 					self%nb(n)%st(i)%j=st(i,1:k,1)
@@ -409,10 +416,7 @@ contains
 					self%nb(n)%st(i)%dir(bd(n,i,0)%sb(1)+1:k)=-1
 				enddo
 			enddo
-			if(.not.self%is_all) then
-				Nc=nint(abs((T1(1)*T2(2)-T1(2)*T2(1))/(c1(1)*c2(2)-c1(2)*c2(1))))
-			endif
-			Ns=Ns*Nc
+			Nc=Ns/Ni
 		end associate
 	end subroutine
 	subroutine get_brizon(b1,b2,bT)
@@ -472,10 +476,10 @@ contains
 	subroutine gen_brizon(self,brizon)
 		class(t_latt) :: self
 		type(t_brizon) :: brizon
-		real(8) :: p1(3),p2(3),k0(3),dr(3)
+		real(8) :: p1(3),p2(3),dr(3)
 		real(8), allocatable :: tmp(:,:)
 		integer :: n,i,j
-		associate(ba1=>brizon%a1,ba2=>brizon%a2,bc1=>brizon%c1,bc2=>brizon%c2,c1=>self%c1,c2=>self%c2,T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,bdc=>self%bdc)
+		associate(ba1=>brizon%a1,ba2=>brizon%a2,bc1=>brizon%c1,bc2=>brizon%c2,c1=>self%c1,c2=>self%c2,T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,bdc=>self%bdc,k0=>brizon%k0)
 			p1=(/-T2(2),T2(1),0d0/)
 			p2=(/T1(2),-T1(1),0d0/)
 			p1=2d0*pi*p1/sum(T1*p1)
@@ -486,13 +490,6 @@ contains
 			ba1=2d0*pi*ba1/sum(ba1*a1)
 			ba2=2d0*pi*ba2/sum(ba2*a2)
 			call get_brizon(ba1,ba2,brizon%Ta)
-
-			!if(.not.is_in([2.30383461263251d0,-1.08827961854053d0,0d0],brizon%Ta,dr)) then
-				!write(*,*)brizon%a1(:2)
-				!write(*,*)brizon%a2(:2)
-				!write(*,*)dr(:2)
-			!endif
-			!stop
 
 			bc1=(/-c2(2),c2(1),0d0/)
 			bc2=(/c1(2),-c1(1),0d0/)
@@ -523,8 +520,14 @@ contains
 			call gen_grid(p1,p2,k0,brizon%Tc,tmp)
 			brizon%nk=size(tmp,1)
 
-			call gen_grid(bc1,bc2,(/0d0,0d0,0d0/),brizon%Ta,brizon%q)
-			brizon%nq=size(brizon%q,1)
+			if(any(abs(bdc(:2))<err)) then
+				allocate(brizon%q(1,3))
+				brizon%q=0d0
+				brizon%nq=1
+			else
+				call gen_grid(bc1,bc2,(/0d0,0d0,0d0/),brizon%Ta,brizon%q)
+				brizon%nq=size(brizon%q,1)
+			endif
 			allocate(brizon%k(brizon%nk*brizon%nq,3))
 
 			do i=1,brizon%nq
@@ -550,4 +553,82 @@ contains
 			theta=2d0*pi-theta
 		endif
 	end function
+	subroutine check_lattice(ut)
+		integer :: ut,k,l,m,n
+
+		write(ut,"(*(es13.2))")0d0,0d0,0d0,brizon%a1
+		write(ut,"(*(es13.2))")0d0,0d0,0d0,brizon%a2
+		write(ut,"(x)")
+
+		do k=1,size(brizon%Ta,1)+1
+			write(ut,"(*(es13.2))")brizon%Ta(mod(k-1,size(brizon%Ta,1))+1,:)
+		enddo
+		write(ut,"(x)")
+
+		write(ut,"(*(es13.2))")0d0,0d0,0d0,brizon%c1
+		write(ut,"(*(es13.2))")0d0,0d0,0d0,brizon%c2
+		write(ut,"(x)")
+
+		do k=1,size(brizon%Tc,1)+1
+			write(ut,"(*(es13.2))")brizon%Tc(mod(k-1,size(brizon%Tc,1))+1,:)
+		enddo
+		write(ut,"(x)")
+
+
+		do k=1,size(brizon%k,1)
+			write(ut,"(es13.2$)")brizon%k(k,:)
+			write(ut,"(i7)")k
+			if(mod(k,brizon%nk)==0) then
+				write(ut,"(x)")
+			endif
+		enddo
+		write(ut,"(x)")
+
+		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%a1
+		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%a2
+		write(ut,"(x)")
+
+		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%c1
+		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%c2
+		write(ut,"(x)")
+
+		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%T1
+		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%T2
+		write(ut,"(x)")
+
+		do k=1,size(latt%nb(0)%bd)
+			write(ut,"(es13.2$)")latt%nb(0)%bd(k)%r-latt%nb(0)%bd(k)%dr/2d0,latt%nb(0)%bd(k)%dr
+			write(ut,"(i7$)")latt%nb(0)%bd(k)%sbc(1)
+			write(ut,"(x)")
+			if(latt%is_all) then
+				if(mod(k,latt%Ns/latt%Nc)==0) then
+					write(ut,"(x)")
+				endif
+			elseif(k==size(latt%nb(0)%bd)) then
+				write(ut,"(x)")
+			endif
+		enddo
+		write(ut,"(x)")
+
+		do l=1,ubound(latt%nb,1)
+			do k=1,size(latt%nb(l)%bd)
+				write(ut,"(es13.2$)")latt%nb(l)%bd(k)%r-latt%nb(l)%bd(k)%dr/2d0,latt%nb(l)%bd(k)%dr,abs(latt%nb(l)%bd(k)%bdc-1d0)
+				write(ut,"(i7$)")k
+				write(ut,"(x)")
+			enddo
+			write(ut,"(x)")
+		enddo
+		!do l=1,ubound(latt%nb,1)
+		!do k=1,size(latt%nb(l)%st)
+		!do i=1,size(latt%nb(l)%st(k)%bd)
+		!if(abs(latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%bdc)>err) then
+		!write(ut,"(es13.2$)")latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%r-latt%nb(l)%st(k)%dir(i)*latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%dr/2d0,latt%nb(l)%st(k)%dir(i)*latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%dr
+		!write(ut,"(i7$)")k
+		!write(ut,"(x)")
+		!endif
+		!enddo
+		!enddo
+		!write(ut,"(x)")
+		!enddo
+	end subroutine
 end module

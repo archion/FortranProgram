@@ -2,9 +2,9 @@ module pmt
 	use M_const
 	use mkl_service
 	implicit none
-	real(8), parameter :: t(3)=(/1d0,-0.35d0,0.0d0/),&
+	real(8), parameter :: t(3)=(/1d0,0d0,0d0/),&
 		!DJ=0.25d0,V=0.0625d0-DJ/4d0
-		V=0.15d0,DJ=0.3d0
+		V=0.12d0,DJ=0.35d0
 		!V=-0.25d0/4d0,DJ=0.25d0
 		!V=0d0,DJ=0.25d0
 	integer, parameter :: icp=1,isc=2,iddw=3,iubo=4
@@ -93,8 +93,8 @@ contains
 		logical :: is_cross(2)
 		is_cross=.false.
 		bt=1d0/Tk
-		!var([iubo])%val(1)=1d-1
-		var([isc,iubo])%val(1)=1d-1
+		var([iubo])%val(1)=1d-1
+		!var([isc,iubo])%val(1)=1d-1
 		!var([isc,iddw,iubo])%val(1)=1d-1
 		do 
 			c=0
@@ -109,7 +109,7 @@ contains
 					!call heev(Uk,Ek,"V")
 					fk=1d0/(1d0+exp(bt*Ek))
 					x(icp)=x(icp)+1d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))-Uk(2,:)*dconjg(Uk(2,:)),fk)
-					x(isc)=x(isc)-dot_product(Uk(1,:)*dconjg(Uk(2,:)),fk)*(cos(brizon%k(i,1))-cos(brizon%k(i,2)))/2d0
+					!x(isc)=x(isc)-dot_product(Uk(1,:)*dconjg(Uk(2,:)),fk)*(cos(brizon%k(i,1))-cos(brizon%k(i,2)))/2d0
 					x(iubo)=x(iubo)+dot_product(Uk(1,:)*dconjg(Uk(1,:)),fk)*(cos(brizon%k(i,1))+cos(brizon%k(i,2)))/2d0
 
 					!x(icp)=x(icp)+2d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))+Uk(2,:)*dconjg(Uk(2,:))-Uk(3,:)*dconjg(Uk(3,:))-Uk(4,:)*dconjg(Uk(4,:)),fk)
@@ -132,13 +132,13 @@ contains
 				endif
 				var(icp)%val(1)=var(icp)%val(1)-al*sign(1d0,x(icp)-nf)
 			enddo
-			!if(sum(abs((var([iubo])%val(1)-x([iubo]))))<1d-6) then
-			if(sum(abs((var([isc,iubo])%val(1)-x([isc,iubo]))))<1d-6) then
+			if(sum(abs((var([iubo])%val(1)-x([iubo]))))<1d-6) then
+			!if(sum(abs((var([isc,iubo])%val(1)-x([isc,iubo]))))<1d-6) then
 			!if(sum(abs((var([isc,iddw,iubo])%val(1)-x([isc,iddw,iubo]))))<1d-6) then
 				exit
 			endif
-			!var([iubo])%val(1)=x([iubo])
-			var([isc,iubo])%val(1)=x([isc,iubo])
+			var([iubo])%val(1)=x([iubo])
+			!var([isc,iubo])%val(1)=x([isc,iubo])
 			!var([isc,iddw,iubo])%val(1)=x([isc,iddw,iubo])
 		enddo
 	end subroutine
@@ -203,7 +203,7 @@ program main
 	call mkl_set_dynamic(0)
 	call omp_set_schedule(omp_sched_static,0)
 
-	call mkl_set_num_threads(16)
+	call mkl_set_num_threads(32)
 	call omp_set_num_threads(mkl_get_max_threads())
 
 	!!nf=1d0-0.165d0
@@ -218,23 +218,33 @@ program main
 	var(isc)%val=0d0
 
 	Tk=0.0001d0
-	n(1:4)=[0.23d0,0.24d0,0.245d0,0.25d0]
-	do i=1,4
+	!n(1:11)=[0.24d0,0.245d0,0.25d0,0.255d0,0.26d0,0.265d0,0.27d0,0.275d0,0.28d0,0.285d0,0.29d0]
+	n(1:11)=[0.11d0,0.115d0,0.12d0,0.125d0,0.130d0,0.135d0,0.14d0,0.145d0,0.15d0,0.155d0,0.16d0]
+	n(1:6)=[0.133d0,0.134d0,0.136d0,0.137d0,0.138d0,0.139d0]
+	do i=1,6
 		nf=1d0-n(i)
-		!read(30,"(5es12.4)")Tk,nf,var([icp,isc,iubo])%val(1)
-		!write(*,"(5es12.4)")Tk,nf,var([icp,isc,iubo])%val(1)
-		call selfconsist()
-		write(*,"(6es12.4)")Tk,nf,var([icp,isc,iubo])%val(1),var(iddw)%val(1)
-		!read(*,*)
-		!if(i==54) then
-			do j=0,1024/4
-			!do j=0,0
-				call rpainstable(Tk,[pi,pi-pi*j/1024d0,0d0],den)
-				write(*,"(5es12.4)")1d0-nf,[pi,pi-pi*j/1024d0],den
-				write(50,"(5es12.4)")1d0-nf,[pi,pi-pi*j/1024d0],den
+		do j=1,50
+			Tk=max(0.05d0-0.05d0/50d0*j,1d-4)
+			!read(30,"(5es12.4)")Tk,nf,var([icp,isc,iubo])%val(1)
+			!write(*,"(5es12.4)")Tk,nf,var([icp,isc,iubo])%val(1)
+			call selfconsist()
+			write(*,"(6es12.4)")Tk,nf,var([icp,isc,iubo])%val(1),var(iddw)%val(1)
+			!read(*,*)
+			!if(i==54) then
+			do l=0,1024/4
+				!do j=0,0
+				call rpainstable(Tk,[pi,pi-pi*l/1024d0,0d0],den)
+				write(*,"(5es12.4)")1d0-nf,Tk,[pi,pi-pi*l/1024d0],den
+				!write(50,"(5es12.4)")1d0-nf,[pi,pi-pi*l/1024d0],den
+				if(den<0d0) then
+					write(50,"(*(es12.4))")1d0-nf,Tk,[pi,pi-pi*l/1024d0],den
+					exit
+				endif
 			enddo
-		!endif
-		write(50,"(x)")
+			if(l/=1024/4+1) then
+				exit
+			endif
+		enddo
 	enddo
 	stop
 end program

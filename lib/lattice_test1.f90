@@ -72,8 +72,9 @@ contains
 	end subroutine
 	function is_in(r,T,dr)
 		logical :: is_in
-		real(8) :: r(3),tr(2),T(:,:),T1(3),T2(3),tf(2,2),rerr(3)
+		real(8) :: r(3),T(:,:)
 		real(8), optional :: dr(:)
+		real(8) :: tr(2),T1(3),T2(3),tf(2,2),rerr(3)
 		integer :: i
 		if(present(dr)) then
 			dr=0d0
@@ -87,7 +88,11 @@ contains
 			T1=T(mod(i-2+size(T,1),size(T,1))+1,:)-T(i,:)
 			T2=T(mod(i,size(T,1))+1,:)-T(i,:)
 			tf=reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/))
-			tr=matmul(tf,r(:2)-T(i,:2)+rerr(:2))
+			if(present(dr)) then
+				tr=matmul(tf,r(:2)+dr-T(i,:2)+rerr(:2))
+			else
+				tr=matmul(tf,r(:2)-T(i,:2)+rerr(:2))
+			endif
 			if(any(tr<0d0)) then
 				is_in=.false.
 				if(present(dr)) then
@@ -115,6 +120,51 @@ contains
 			endif
 		enddo
 	end function
+	!function is_in(r,T,dr)
+		!logical :: is_in
+		!real(8) :: r(3),tr(2),T(:,:),T1(3),T2(3),tf(2,2),rerr(3)
+		!real(8), optional :: dr(:)
+		!integer :: i
+		!if(present(dr)) then
+			!dr=0d0
+		!endif
+		!is_in=.true.
+		!rerr=0d0
+		!do i=1,size(T,1)/2
+			!rerr=rerr+(T(i+1,:)-T(i,:))*err*i/1.34d0
+		!enddo
+		!do i=1,size(T,1),2
+			!T1=T(mod(i-2+size(T,1),size(T,1))+1,:)-T(i,:)
+			!T2=T(mod(i,size(T,1))+1,:)-T(i,:)
+			!tf=reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/))
+			!tr=matmul(tf,r(:2)-T(i,:2)+rerr(:2))
+			!if(any(tr<0d0)) then
+				!is_in=.false.
+				!if(present(dr)) then
+					!if(tr(1)<0d0) then
+						!do 
+							!dr=dr-(T2-T(mod(i+size(T,1)/2-1,size(T,1))+1,:2)+T(i,:2))
+							!tr=matmul(tf,r(:2)+dr-T(i,:2)+rerr(:2))
+							!if(tr(1)>=0d0) then
+								!exit
+							!endif
+						!enddo
+					!endif
+					!if(tr(2)<0d0) then
+						!do 
+							!dr=dr-(T1-T(mod(i+size(T,1)/2-1,size(T,1))+1,:2)+T(i,:2))
+							!tr=matmul(tf,r(:2)+dr-T(i,:2)+rerr(:2))
+							!if(tr(2)>=0d0) then
+								!exit
+							!endif
+						!enddo
+					!endif
+				!else
+					!exit
+				!endif
+			!endif
+		!enddo
+	!end function
 	subroutine gen_grid(a1,a2,r0,T,grid)
 		real(8), allocatable :: grid(:,:)
 		real(8) :: r0(:),a1(:),a2(:),T(:,:)

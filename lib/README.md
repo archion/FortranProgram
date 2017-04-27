@@ -71,11 +71,12 @@ latt:
 	T1: 边界矢量
 	T2: 边界矢量
 	bdc: 边界条件
-	layer: 层数
+	layer: 层数（还没实现）
 	sub: 子格的空间坐标
 输出
 	Ns: 总格点数
 	Nc: super cell个数
+	Ni: super cell内的格点数
 	nb: 近邻指标
 		bd: 键指标
 			sb: 两个格点的子格指标
@@ -102,6 +103,7 @@ brizon:
 	c1: super cell的倒格矢
 	c2: super cell的倒格矢
 	Tc: super cell对应的第一布里渊区端点坐标
+	k0: 由边界条件导致的k点的移动
 	k: 全部的k点坐标
 	q: 非独立的k点对应的平移动量 
 

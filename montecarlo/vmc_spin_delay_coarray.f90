@@ -10,7 +10,7 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
-	integer, parameter :: ica1=9
+	integer, parameter :: ica1=3
 	integer :: ica2
 	integer :: Ns,vn
 	real(8) :: q(3,ica1)=reshape([&
@@ -37,15 +37,15 @@ module global
 		!!pi*2d0/8d0,pi,0d0,&
 		!!pi*1d0/8d0,pi,0d0,&
 		!!0d0,pi,0d0&
-		pi*6d0/10d0,pi*6d0/10d0,0d0,&
-		pi*7d0/10d0,pi*7d0/10d0,0d0,&
-		pi*8d0/10d0,pi*8d0/10d0,0d0,&
+		!pi*5d0/10d0,pi*5d0/10d0,0d0,&
+		!pi*7d0/10d0,pi*7d0/10d0,0d0,&
+		!pi*8d0/10d0,pi*8d0/10d0,0d0,&
 		pi*9d0/10d0,pi*9d0/10d0,0d0,&
 		pi,pi,0d0,&
-		pi,pi*9d0/10d0,0d0,&
-		pi,pi*8d0/10d0,0d0,&
-		pi,pi*7d0/10d0,0d0,&
-		pi,pi*6d0/10d0,0d0&
+		pi,pi*9d0/10d0,0d0&
+		!pi,pi*8d0/10d0,0d0,&
+		!pi,pi*7d0/10d0,0d0,&
+		!pi,0d0,0d0&
 		],[3,ica1])
 	!real(8) :: q(3,ica1)=reshape([&
 		!pi*5d0/8d0,pi*5d0/8d0,0d0,&
@@ -75,7 +75,7 @@ contains
 		latt%c2=latt%a2
 		latt%T1=[1d0,0d0,0d0]*20
 		latt%T2=[0d0,1d0,0d0]*20
-		latt%bdc=[1d0,1d0,0d0]
+		latt%bdc=[-1d0,1d0,0d0]
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=[0d0,0d0,0d0]
 		latt%n1=1
@@ -1796,7 +1796,8 @@ program main
 	mc%delay=2
 	!mc%ne(1)=Ns/2-16
 	!mc%ne(1)=Ns/2-26
-	mc%ne(1)=Ns/2-14
+	!mc%ne(1)=Ns/2-14
+	mc%ne(1)=Ns/2
 	!mc%ne(1)=Ns/2-8
 	mc%ne(2)=Ns-mc%ne(1)
 	!var(1:)%val(1)=[-3.2296E-01,2.3218E-01,7.3575E-02,3.4608E-02]
@@ -1822,7 +1823,8 @@ program main
 	!var(1:vn)%val(1)=[-7.7984d-01,1.9979d-01,-9.9065d-02] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-6.6923d-01,2.7140d-01,-3.7934d-02] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-5.7168d-01,2.8200d-01,-3.6606d-02] ! dsc+mu+t' E= -4.3329E-01
-	var(1:vn)%val(1)=[-5.9924d-01,2.7644d-01,-4.6976d-02] ! dsc+mu+t' E= -4.3329E-01
+	!var(1:vn)%val(1)=[-5.9924d-01,2.7644d-01,-4.6976d-02] ! dsc+mu+t' E= -4.3329E-01
+	var(1:vn)%val(1)=[0d0,4d-1,3d-1] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-6.3517d-01,2.5976d-01,2.4600d-01,-4.1792d-02] ! dsc+sdw+mu+t' E= -4.3329E-01
 	!var(1:)%val(1)=[-7.7984d-01,1.9979d-01] ! ddw+mu E=
 	!var(1:)%val(1)=[0d0,0.18d0] ! ddw+mu E=

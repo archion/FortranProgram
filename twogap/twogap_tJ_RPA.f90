@@ -7,11 +7,13 @@ module pmt
 		V=0.5d0/4d0,DJ=0.5d0
 		!V=-0.25d0/4d0,DJ=0.25d0
 		!V=0d0,DJ=0.25d0
-	integer, parameter :: icp=1,isc=2,iddw=3,iubo=4
+	integer :: icp=-1,isc=-1,iddw=-1,iubo=-1
+	!integer :: icp=1,isc=2,iddw=3,iubo=4
 end module
+include "../test/hamilton_final.f90"
 module selfcons
 	use pmt
-	use M_hamilton_super
+	use M_hamilton_final
 	use M_utility
 	implicit none
 	include 'nlopt.f'
@@ -19,48 +21,101 @@ contains
 	subroutine initial()
 		integer :: l2,l3,l,i
 		real(8), allocatable :: bd0(:),bd1(:)
-		allocate(var(1:4))
+		allocate(var(-10:10))
 		call init_random_seed()
 
 		! lattice 
 		latt%a1=(/1d0,0d0,0d0/)
 		latt%a2=(/0d0,1d0,0d0/)
-		!latt%c1=(/1d0,0d0,0d0/)
-		!latt%c2=(/0d0,1d0,0d0/)
-		latt%c1=(/-1d0,1d0,0d0/)
-		latt%c2=(/1d0,1d0,0d0/)
-		latt%T1=(/1d0,0d0,0d0/)*256
-		latt%T2=(/0d0,1d0,0d0/)*256
+		latt%c1=(/1d0,0d0,0d0/)
+		latt%c2=(/0d0,1d0,0d0/)
+		!latt%c1=(/-1d0,1d0,0d0/)
+		!latt%c2=(/1d0,1d0,0d0/)
+		latt%c1=(/4d0,0d0,0d0/)
+		latt%c2=(/0d0,2d0,0d0/)
+		latt%T1=(/1d0,0d0,0d0/)*32
+		latt%T2=(/0d0,1d0,0d0/)*32
 		latt%bdc(1)=1d0
 		latt%bdc(2)=1d0
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=(/0d0,0d0,0d0/)
 		latt%layer=1
-		call latt%gen_latt(3)
+		call latt%gen_latt(size(t))
 		call latt%gen_brizon(brizon)
-		!call check_lattice(101)
+		call check_lattice(101)
 		write(*,*)"Total site number is: ",latt%Ns
 
-		allocate(var(icp)%val(1))
-		var(isc)%V=DJ-V
-		allocate(var(isc)%val(1))
-		var(iddw)%V=0.5d0*DJ+V
-		allocate(var(iddw)%val(1))
-		var(iubo)%V=0.5d0*DJ+V
-		allocate(var(iubo)%val(1))
-		mat_diag => diag2
+		! cp
+		call gen_var(sg=1,nb=0)
+		var(iv(0))%bd=-1d0
+		var(iv(0))%val=0d0
+		icp=iv(0)
+
+		! d-wave sc
+		call gen_var(sg=2,nb=1,V=-DJ+V)
+		do i=1,size(var(iv(0))%bd)
+			if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(1))>1d-6) then
+				var(iv(0))%bd(i)=1d0
+			else
+				var(iv(0))%bd(i)=-1d0
+			endif
+		enddo
+		var(iv(0))%val=0d0
+		isc=iv(0)
+
+		!! ddw
+		!call gen_var(sg=3,nb=1,V=-0.5d0*DJ-V)
+		!do i=1,size(var(iv(0))%bd)
+			!if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(mod(nint(sum(latt%nb(0)%bd(latt%nb(var(iv(0))%nb)%bd(i)%i(1))%r)),2)+1))>1d-6) then
+				!var(iv(0))%bd(i)=img
+			!else
+				!var(iv(0))%bd(i)=-img
+			!endif
+		!enddo
+		!var(iv(0))%val=0d0
+		!iddw=iv(0)
+
+		!! sdw
+		!call gen_var(sg=4,nb=0,V=DJ,Vnb=1)
+		!do i=1,size(var(iv(0))%bd)
+			!if(latt%nb(var(iv(0))%nb)%bd(i)%sb(1)==1) then
+				!var(iv(0))%bd(i)=1
+			!else
+				!var(iv(0))%bd(i)=-1
+			!endif
+			!var(iv(0))%bd(i)=ab(i)
+		!enddo
+		!var(iv(0))%val=1d-1
+
+		! bond order
+		call gen_var(sg=3,nb=1,V=-0.5d0*DJ-V)
+		var(iv(0))%bd=1d0
+		var(iv(0))%val=0d0
+		iubo=iv(0)
+
+		! hp
+		do l=1,size(t)
+			call gen_var(sg=-3,nb=l)
+			var(iv(0))%bd=-1d0
+			var(iv(0))%val=t(l)
+		enddo
+
+		call var_initial()
 	end subroutine
-	function ab(i)
-		integer :: i
-		real(8) :: ab
-		ab=(-1d0)**(mod(nint(sum(latt%nb(0)%bd(i)%r(:2))),2))
-	end function
+	subroutine update()
+		integer :: l
+		do l=lbound(var,1),0
+			if(var(l)%sg==-3.and.(.not.var(l)%is_V)) then
+				var(l)%bd(:)=-abs(1d0-nf)
+			endif
+		enddo
+	end subroutine
 	subroutine Hamiltons(H,k)
 		complex(8) :: H(:,:)
 		real(8) :: eks,eka,k(:),dp
 		dp=abs(1d0-nf)
 		eks=-4d0*dp*t(2)*cos(k(1))*cos(k(2))-2d0*dp*t(3)*(cos(2d0*k(1))+cos(2d0*k(2)))-var(icp)%val(1)
-		eka=-2d0*(dp*t(1)+var(iubo)%val(1)*var(iubo)%V)*(cos(k(1))+cos(k(2)))
+		eka=-2d0*(dp*t(1)-var(iubo)%val(1)*var(iubo)%V)*(cos(k(1))+cos(k(2)))
 		H=0d0
 		if(size(H,1)==2) then
 			H(1,1)=eks+eka
@@ -78,10 +133,10 @@ contains
 			H(3,4)=H(1,2)
 			H(4,3)=-H(3,4)
 
-			H(1,3)=var(isc)%val(1)*var(isc)%V*(cos(k(1))-cos(k(2)))*2d0
-			H(2,4)=-H(1,3)
-			H(3,1)=H(1,3)
-			H(4,2)=H(2,4)
+			!H(1,3)=var(isc)%val(1)*var(isc)%V*(cos(k(1))-cos(k(2)))*2d0
+			!H(2,4)=-H(1,3)
+			!H(3,1)=H(1,3)
+			!H(4,2)=H(2,4)
 		endif
 	end subroutine
 	subroutine selfconsist()
@@ -91,6 +146,7 @@ contains
 		!real(8) :: x(size(var)),Ek(2),al,fk(2),bt
 		integer :: i,j,c
 		logical :: is_cross(2)
+		call update()
 		is_cross=.false.
 		bt=1d0/Tk
 		!var([iubo])%val(1)=1d-1
@@ -120,7 +176,7 @@ contains
 				enddo
 				!$OMP END PARALLEL DO
 				c=c+1
-				x=x/size(brizon%ok,1)
+				x=x/size(brizon%k,1)
 				!x=x/(2d0*size(brizon%k,1))
 				!write(*,*)x(icp)
 				if(abs(nf-x(icp))<1d-6) then
@@ -209,44 +265,66 @@ contains
 				enddo
 			enddo
 		enddo
-		Xq=Xq/size(brizon%ok,1)
+		Xq=Xq/size(brizon%k,1)
 		write(ut,"(*(es17.9))")q(:2),-Xq,-Xq/(1d0+0.34d0*DJ*(cos(q(1))+cos(q(2)))*Xq)
 	end subroutine
 	subroutine rpa_spin(ut,q,gm,omg,l)
 		integer :: ut,l
 		real(8) :: gm,omg(:),q(:)
-		complex(8) :: Uk(4,4),Ukq(4,4),Xq(l,2,2),iomg(l),tmp(2,2)
-		real(8) :: ek(4),ekq(4),fk(4),fkq(4),bt,Vrpa(2,2)
-		integer :: i,j,m,n,nk,ll,nq
+		complex(8) :: Uk(latt%Ni*spin,latt%Ni*spin),Ukq(size(Uk,1),size(Uk,2)),Xq(l,brizon%nq,brizon%nq),iomg(l),tmp(size(Xq,2),size(Xq,3)),UXq
+		real(8) :: ek(size(Uk,1)),ekq(size(Uk,1)),fk(size(Uk,1)),fkq(size(Uk,1)),bt,Vrpa(size(Xq,2),size(Xq,3)),dr(3)
+		integer :: i,j,m,n,nk,l1,l2,isb,ik,map(brizon%nq)
+		write(*,*)q
+		call update()
 		bt=1d0/Tk
-		nq=size(Uk,1)/2
 		iomg=(omg(1)+[0:l-1]*(omg(2)-omg(1))/l)+img*gm
 		Xq=0d0
 		Vrpa=0d0
-		do i=0,nq-1
-			!Vrpa(i+1,i+1)=0.34d0*DJ*(cos(q(1)+pi*i)+cos(q(2)+pi*i))
-			Vrpa(i+1,i+1)=0.45d0*DJ*(cos(q(1)+pi*i)+cos(q(2)+pi*i))
-			!Vrpa(i+1,i+1)=-0.4d0*(1d0-0.2d0*(cos(q(1)+pi*i)+cos(q(2)+pi*i)))
+		do i=1,brizon%nq
+			do j=0,latt%sb-1
+				Vrpa(i+j*brizon%nq,i+j*brizon%nq)=0.34d0*DJ*(cos(q(1)+brizon%q(i,1))+cos(q(2)+brizon%q(i,2)))
+				!Vrpa(i+1,i+1)=-0.4d0*(1d0-0.2d0*(cos(q(1)+pi*i)+cos(q(2)+pi*i)))
+			enddo
+			do j=1,brizon%nq
+				if(.not.is_in(brizon%q(i,:)+brizon%q(j,:),brizon%Ta,dr)) then
+					dr=dr+brizon%q(i,:)+brizon%q(j,:)
+				else
+					dr=brizon%q(i,:)+brizon%q(j,:)
+				endif
+				if(sum(abs(dr))<1d-6) then
+					map(i)=j
+					exit
+				endif
+			enddo
+			if(j==brizon%nq+1) stop "map err"
 		enddo
-		!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(Uk,Ek,Ukq,Ekq,fk,fkq)
-		do nk=1,size(brizon%k,1)
-			call Hamiltons(Uk,-brizon%k(nk,:))
-			call Hamiltons(Ukq,brizon%k(nk,:)+q)
+		associate(nq=>brizon%nq,sb=>latt%sb,Ni=>latt%Ni)
+		!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(Uk,Ek,Ukq,Ekq,fk,fkq,UXq)
+		do nk=1,brizon%nk
+			!call Hamiltons(Uk,-brizon%k(nk,:))
+			!call Hamiltons(Ukq,brizon%k(nk,:)+q)
+			call Hamilton(var,Uk,-brizon%k(nk,:))
+			call Hamilton(var,Ukq,brizon%k(nk,:)+q)
 			call heev(Uk,Ek,"V")
 			call heev(Ukq,Ekq,"V")
+			Uk=matmul(Uqi,Uk)
+			Ukq=matmul(Uqi,Ukq)
 			fk=1d0/(1d0+exp(bt*Ek))
 			fkq=1d0/(1d0+exp(bt*Ekq))
 
-			do n=1,size(Uk,1)
-				do m=1,size(Uk,2)
-					do i=1,nq
-						do j=1,nq
-							do ll=0,nq-1
-								Xq(:,i,j)=Xq(:,i,j)+(fk(m)+fkq(n)-1d0)/(iomg-Ek(m)-Ekq(n))*(&
-									+Ukq(1+mod(i+ll-1,nq),n)*conjg(Ukq(1+mod(j+ll-1,nq),n))*Uk(3+mod(nq-ll,nq),m)*conjg(Uk(3+mod(nq-ll,nq),m))&
-									-Ukq(3+mod(i+ll-1,nq),n)*conjg(Ukq(1+mod(j+ll-1,nq),n))*Uk(1+mod(nq-ll,nq),m)*conjg(Uk(3+mod(nq-ll,nq),m))&
-									+Ukq(1+mod(i+ll-1,nq),n)*conjg(Ukq(1+mod(j+ll,nq),n))*Uk(3+mod(nq-ll,nq),m)*conjg(Uk(3+mod(nq-ll-1,nq),m))&
-									-Ukq(3+mod(i+ll-1,nq),n)*conjg(Ukq(1+mod(j+ll,nq),n))*Uk(1+mod(nq-ll,nq),m)*conjg(Uk(3+mod(nq-ll-1,nq),m)))
+			do isb=1,sb
+				do n=1,size(Uk,1)
+					do m=1,size(Uk,2)
+						do i=1,nq
+							do j=1,nq
+								UXq=0d0
+								do l1=0,nq-1
+									do l2=0,nq-1
+				UXq=UXq+Ukq(sb*(mod(i+l1-1,nq))+isb,n)*conjg(Ukq(sb*(mod(j+l2-1,nq))+isb,n))*Uk(Ni+sb*(map(l1+1)-1)+isb,m)*conjg(Uk(Ni+sb*(map(l2+1)-1)+isb,m))&
+					-Ukq(Ni+sb*(mod(i+l1-1,nq))+isb,n)*conjg(Ukq(sb*(mod(j+l2-1,nq))+isb,n))*Uk(sb*(map(l1+1)-1)+isb,m)*conjg(Uk(Ni+sb*(map(l2+1)-1)+isb,m))
+									enddo
+								enddo
+								Xq(:,i,j)=Xq(:,i,j)+(fk(m)+fkq(n)-1d0)/(iomg-Ek(m)-Ekq(n))*UXq
 							enddo
 						enddo
 					enddo
@@ -254,10 +332,11 @@ contains
 			enddo
 		enddo
 		!$OMP END PARALLEL DO
-		Xq=Xq/size(brizon%ok,1)
+		end associate
+		Xq=Xq/(brizon%nk*brizon%nq)
 		write(ut,"('#q=',3es12.4)")q/pi
 		do i=1,l
-			tmp=diag(1d0,nq)+matmul(Vrpa,Xq(i,:,:))
+			tmp=diag(1d0,size(Vrpa,1))+matmul(Vrpa,Xq(i,:,:))
 			call mat_inv(tmp)
 			write(ut,"(*(es17.9))")real(iomg(i)),-Xq(i,1,1),-sum(Xq(i,1,:)*tmp(:,1))
 		enddo
@@ -297,7 +376,7 @@ contains
 				enddo
 			enddo
 		enddo
-		Xq=Xq/size(brizon%ok,1)
+		Xq=Xq/size(brizon%k,1)
 		!den=(1d0+DJ*(cos(q(1))+cos(q(2)))*real(Xq))
 	end subroutine
 end module
@@ -311,6 +390,7 @@ program main
 	real(8), allocatable :: peak(:)
 	complex(8) :: H(4,4)
 	open(unit=10,file=fn('../data/phase.dat'))
+	open(unit=20,file=fn('../data/band.dat'))
 	open(unit=30,file=fn('../data/order.dat'))
 	open(unit=50,file=fn('../data/incomm.dat'))
 	open(unit=110,file=fn('../data/bb.dat'))
@@ -325,7 +405,7 @@ program main
 	call mkl_set_dynamic(0)
 	call omp_set_schedule(omp_sched_static,0)
 
-	call mkl_set_num_threads(20)
+	call mkl_set_num_threads(32)
 	call omp_set_num_threads(mkl_get_max_threads())
 
 	!!nf=1d0-0.165d0
@@ -336,21 +416,28 @@ program main
 	!call heev(H,E,"V")
 	!write(*,*)E
 	!stop
-	var(iddw)%val=0d0
-	var(isc)%val=0d0
 
 	Tk=0.0001d0
 	n(1:4)=[0.23d0,0.24d0,0.245d0,0.25d0]
 
 	nf=1d0-0.12d0
 	!call selfconsist()
-	!var([icp,isc,iubo])%val(1)=[-1.5799d-01,1.2158d-01,1.8820d-01]
+	var([icp,isc,iubo])%val(1)=[-1.5799d-01,1.2158d-01,1.8820d-01]
 	!var([icp,iddw,iubo])%val(1)=[-1.5799d-01,1.2158d-01,1.8820d-01]
-	var([icp,iddw,iubo])%val(1)=[-1.5799d-01,0d0,1.8820d-01]
+	!var([icp,iddw,iubo])%val(1)=[-1.5799d-01,0d0,1.8820d-01]
 	!var([icp,iddw,iubo])%val(1)=[-1.8795d-01,1.2178d-01,1.9021d-01]
 	!var([icp,isc,iubo])%val(1)=[-1.083d0,0.168d0,0d0]*0.12d0
 	write(*,"(*(es12.4))")Tk,nf,var([icp,isc,iubo])%val(1),var(iddw)%val(1)
-	j=nint(sqrt(real(size(brizon%ok,1))))
+	!write(*,*)icp,iddw,iubo,isc
+	!write(*,"(*(es12.4))")Tk,nf,var([icp,iddw,iubo])%val(1)
+
+	!call update()
+	!call band(20,[0d0,0d0,0d0],brizon%Ta(1,:),512)
+	!call band(20,brizon%Ta(1,:),0.5d0*(brizon%Ta(1,:)+brizon%Ta(2,:)),512)
+	!call band(20,0.5d0*(brizon%Ta(1,:)+brizon%Ta(2,:)),[0d0,0d0,0d0],512)
+	!stop
+
+	j=nint(sqrt(real(size(brizon%k,1))))
 	!do i=0,j/5
 		!!do j=0,0
 		!call rpainstable_spin(Tk,[pi-2d0*pi*i/j,pi-2d0*pi*i/j,0d0],den)
@@ -358,11 +445,11 @@ program main
 		!write(50,"(*(es12.4))")1d0-nf,[pi,pi-2d0*pi*i/j],den
 	!enddo
 	!stop
-	!do i=1,size(brizon%ok,1)
+	!do i=1,size(brizon%k,1)
 	!do i=128,256,8
 		!do j=128,256,8
-			!!if(brizon%ok(i,1)>0.2d0*2d0*pi.and.brizon%ok(i,2)>0.2d0*2d0*pi) then
-				!!call rpa_EDC(60,brizon%ok(i,:),0.01d0,0.05d0)
+			!!if(brizon%k(i,1)>0.2d0*2d0*pi.and.brizon%k(i,2)>0.2d0*2d0*pi) then
+				!!call rpa_EDC(60,brizon%k(i,:),0.01d0,0.05d0)
 			!!endif
 			!call rpa_EDC(60,[2d0*pi/512d0*i,2d0*pi/512d0*j],0.01d0,0.3d0)
 		!enddo
@@ -370,12 +457,14 @@ program main
 	!stop
 	do i=j/4,3*j/4
 		if(i<=j/2) then
-			call rpa_spin(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.002d0,[0d0,0.5d0],1000)
+			!call rpa_spin(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.002d0,[0d0,0.5d0],1000)
+			call rpa_spin(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.02d0,[0d0,0.5d0],500)
 		else
-			call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.002d0,[0d0,0.5d0],1000)
+			!call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.002d0,[0d0,0.5d0],1000)
+			call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.02d0,[0d0,0.5d0],500)
 		endif
 	enddo
-	!call rpa_spin(70,[pi,pi,0d0],0.02d0,[-10d0,10d0],5000)
+	!call rpa_spin(70,[pi,pi,0d0],0.02d0,[0d0,0.5d0],500)
 	!call rpa_spin(70,[pi,pi,0d0],0.001d0,[0d0,0.5d0],1000)
 	stop
 
