@@ -46,13 +46,13 @@ contains
 		write(*,*)"Total site number is: ",latt%Ns
 
 		! cp
-		call gen_var(sg=1,nb=0)
+		call gen_var(tp=1,nb=0)
 		var(iv(0))%bd=-1d0
 		var(iv(0))%val=0d0
 		icp=iv(0)
 
 		! d-wave sc
-		call gen_var(sg=2,nb=1,V=-DJ+V)
+		call gen_var(tp=2,nb=1,V=-DJ+V)
 		do i=1,size(var(iv(0))%bd)
 			if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(1))>1d-6) then
 				var(iv(0))%bd(i)=1d0
@@ -64,7 +64,7 @@ contains
 		isc=iv(0)
 
 		!! ddw
-		!call gen_var(sg=3,nb=1,V=-0.5d0*DJ-V)
+		!call gen_var(tp=3,nb=1,V=-0.5d0*DJ-V)
 		!do i=1,size(var(iv(0))%bd)
 			!if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(mod(nint(sum(latt%nb(0)%bd(latt%nb(var(iv(0))%nb)%bd(i)%i(1))%r)),2)+1))>1d-6) then
 				!var(iv(0))%bd(i)=img
@@ -76,7 +76,7 @@ contains
 		!iddw=iv(0)
 
 		!! sdw
-		!call gen_var(sg=4,nb=0,V=DJ,Vnb=1)
+		!call gen_var(tp=4,nb=0,V=DJ,Vnb=1)
 		!do i=1,size(var(iv(0))%bd)
 			!if(latt%nb(var(iv(0))%nb)%bd(i)%sb(1)==1) then
 				!var(iv(0))%bd(i)=1
@@ -88,25 +88,25 @@ contains
 		!var(iv(0))%val=1d-1
 
 		! bond order
-		call gen_var(sg=3,nb=1,V=-0.5d0*DJ-V)
+		call gen_var(tp=3,nb=1,V=-0.5d0*DJ-V)
 		var(iv(0))%bd=1d0
 		var(iv(0))%val=0d0
 		iubo=iv(0)
 
 		! hp
 		do l=1,size(t)
-			call gen_var(sg=-3,nb=l)
+			call gen_var(tp=-3,nb=l)
 			var(iv(0))%bd=-1d0
 			var(iv(0))%val=t(l)
 		enddo
 
-		call var_initial()
+		call var_init()
 	end subroutine
 	subroutine update()
 		integer :: l
 		do l=lbound(var,1),0
-			if(var(l)%sg==-3.and.(.not.var(l)%is_V)) then
-				var(l)%bd(:)=-abs(1d0-nf)
+			if(var(l)%tp==-3.and.(.not.var(l)%is_V)) then
+				var(l)%bd=-abs(1d0-nf)
 			endif
 		enddo
 	end subroutine
@@ -273,7 +273,7 @@ contains
 		real(8) :: gm,omg(:),q(:)
 		complex(8) :: Uk(latt%Ni*spin,latt%Ni*spin),Ukq(size(Uk,1),size(Uk,2)),Xq(l,brizon%nq,brizon%nq),iomg(l),tmp(size(Xq,2),size(Xq,3)),UXq
 		real(8) :: ek(size(Uk,1)),ekq(size(Uk,1)),fk(size(Uk,1)),fkq(size(Uk,1)),bt,Vrpa(size(Xq,2),size(Xq,3)),dr(3)
-		integer :: i,j,m,n,nk,l1,l2,isb,ik,map(brizon%nq)
+		integer :: i,j,m,n,nk,l1,l2,isb,jsb,ik,map(brizon%nq)
 		write(*,*)q
 		call update()
 		bt=1d0/Tk
@@ -313,22 +313,24 @@ contains
 			fkq=1d0/(1d0+exp(bt*Ekq))
 
 			do isb=1,sb
-				do n=1,size(Uk,1)
-					do m=1,size(Uk,2)
-						do i=1,nq
-							do j=1,nq
-								UXq=0d0
-								do l1=0,nq-1
-									do l2=0,nq-1
-				UXq=UXq+Ukq(sb*(mod(i+l1-1,nq))+isb,n)*conjg(Ukq(sb*(mod(j+l2-1,nq))+isb,n))*Uk(Ni+sb*(map(l1+1)-1)+isb,m)*conjg(Uk(Ni+sb*(map(l2+1)-1)+isb,m))&
-					-Ukq(Ni+sb*(mod(i+l1-1,nq))+isb,n)*conjg(Ukq(sb*(mod(j+l2-1,nq))+isb,n))*Uk(sb*(map(l1+1)-1)+isb,m)*conjg(Uk(Ni+sb*(map(l2+1)-1)+isb,m))
+				!do jsb=1,sb
+					do n=1,size(Uk,1)
+						do m=1,size(Uk,2)
+							do i=1,nq
+								do j=1,nq
+									UXq=0d0
+									do l1=0,nq-1
+										do l2=0,nq-1
+											UXq=UXq+Ukq(sb*(mod(i+l1-1,nq))+isb,n)*conjg(Ukq(sb*(mod(j+l2-1,nq))+isb,n))*Uk(Ni+sb*(map(l1+1)-1)+isb,m)*conjg(Uk(Ni+sb*(map(l2+1)-1)+isb,m))&
+												-Ukq(Ni+sb*(mod(i+l1-1,nq))+isb,n)*conjg(Ukq(sb*(mod(j+l2-1,nq))+isb,n))*Uk(sb*(map(l1+1)-1)+isb,m)*conjg(Uk(Ni+sb*(map(l2+1)-1)+isb,m))
+										enddo
 									enddo
+									Xq(:,i,j)=Xq(:,i,j)+(fk(m)+fkq(n)-1d0)/(iomg-Ek(m)-Ekq(n))*UXq
 								enddo
-								Xq(:,i,j)=Xq(:,i,j)+(fk(m)+fkq(n)-1d0)/(iomg-Ek(m)-Ekq(n))*UXq
 							enddo
 						enddo
 					enddo
-				enddo
+				!enddo
 			enddo
 		enddo
 		!$OMP END PARALLEL DO

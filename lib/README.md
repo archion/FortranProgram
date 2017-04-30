@@ -63,7 +63,7 @@ check_lattice(ut): 输出晶格到文件ut
 ```
 latt:
 输入
-	is_all: 是否生成整个晶格（否则只生成super cell）
+	is_all: 是否生成整个晶格（否则只生成super cell，默认.false.）
 	a1: 基矢
 	a2: 基矢
 	c1: super cell基矢
@@ -71,9 +71,10 @@ latt:
 	T1: 边界矢量
 	T2: 边界矢量
 	bdc: 边界条件
-	layer: 层数（还没实现）
+	layer: 层数（默认1，多层还没实现）
 	sub: 子格的空间坐标
 输出
+	sb: 子格数
 	Ns: 总格点数
 	Nc: super cell个数
 	Ni: super cell内的格点数
@@ -149,8 +150,12 @@ band(ut,ki,kf,n)
 ```
 输入
 	spin: 自旋数，默认为2
-	is_sc: 是否有超导，默认为.true.
+	is_nambu: 是否写到Nambu表象，默认为.true.
+	nf: 粒子数
+	Tk: 温度
 输出
+	Uqi: 从supercell的格点指标到q的Fourier变换
+	Uik: 从独立的k点到实空间的Fourier变换
 	var(:): 不同类型的变分参数，其中var(:0)为不变分，var(1:)做变分
 		val(:)：变分参数的值
 		v2i(:)：对应变分参数的格点或键指标
@@ -161,15 +166,15 @@ band(ut,ki,kf,n)
 		V：该类型变分参数所带的相互作用
 		Vn：相互作用是第几近邻
 		nb：该类型变分参数是第几近邻
-		sg：变分参数的类型
+		tp：变分参数的类型
 	方法
 		Hamilton：生成平均场Hamiltonian
 		dHamilton：生成平均场Hamiltonian对变分参数的导数
 		get：按val向量设置变分参数的值
 		put：生成保护变分参数值的向量val
 
-gen_var(sg,nb,V,val,Vn):
-var_shrink()
+gen_var(tp,nb,V,val,Vn):
+var_init()
 Green(gm,k,omg)
 LDOS(ut,gm,i,omg,m)
 EDC(ut,gm,k,omg,m)

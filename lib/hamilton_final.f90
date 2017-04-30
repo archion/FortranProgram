@@ -1,4 +1,3 @@
-include "lattice_final.f90"
 module M_Hamilton_final
 	use M_lattice_final
 	use M_const
@@ -19,7 +18,7 @@ module M_Hamilton_final
 		logical :: is_V
 		real(8) :: V
 		integer :: Vnb
-		integer :: sg   
+		integer :: tp   
 						! 1:  chemical potainial
 						! 2:  singlet pair
 						! 3:  spin symmetry charge
@@ -40,7 +39,7 @@ module M_Hamilton_final
 	type(t_var), allocatable :: var(:)
 	complex(8), allocatable :: Uqi(:,:),Uik(:,:)
 	integer :: spin=2
-	logical :: is_sc=.true.
+	logical :: is_nambu=.true.
 	integer :: iv(-1:1)=(/1,0,0/)
 	real(8) :: Tk,nf
 	type(t_brizon), pointer :: pbrizon
@@ -91,17 +90,17 @@ contains
 			call heev(H,E,"V")
 		end select
 	end subroutine
-	subroutine gen_var(sg,nb,val,V,Vnb)
-		integer, intent(in) :: sg,nb
+	subroutine gen_var(tp,nb,val,V,Vnb)
+		integer, intent(in) :: tp,nb
 		real(8), intent(in), optional :: val(:)
 		real(8), intent(in), optional :: V
 		integer, intent(in), optional :: Vnb
 		type(t_mysort), allocatable :: sort(:)
 		integer, allocatable :: c(:)
 		integer :: i,j
-		iv(sign(1,sg))=iv(sign(1,sg))+sign(1,sg)
-		iv(0)=iv(sign(1,sg))
-		var(iv(0))%sg=sg
+		iv(sign(1,tp))=iv(sign(1,tp))+sign(1,tp)
+		iv(0)=iv(sign(1,tp))
+		var(iv(0))%tp=tp
 		var(iv(0))%nb=nb
 		if(present(V)) then
 			var(iv(0))%V=V
@@ -118,7 +117,7 @@ contains
 		if(present(val)) then
 			allocate(sort(size(val)))
 			sort(:)%val=val
-			sort(:)%idx=(/(i,i=1,size(sort))/)
+			sort(:)%idx=[1:size(sort)]
 			call qsort(sort)
 			call collect(sort,c)
 
@@ -166,7 +165,7 @@ contains
 			enddo
 		enddo
 	end function
-	subroutine var_initial()
+	subroutine var_init()
 		integer :: lb,i,j,m,n
 		type(t_var) :: tmp(iv(-1):iv(1))
 		tmp(iv(-1):iv(1))=var(iv(-1):iv(1))
@@ -210,142 +209,98 @@ contains
 		complex(8), external, optional :: fn
 		integer, optional, intent(in) :: info
 		complex(8) :: bdc,expk,bd
-		integer :: i,j,l,n,nb,ii,Ns,nbd
-		real(8) :: isc,dr(3)
+		integer :: i,j,l,n,nb,ii,Ns
+		real(8) :: isp(spin),dr(3)
 		! TO-DO: bd is incorrect when nambu space is not used
 		if(.not.present(info)) then
 			H=0d0
 		endif
 		expk=1d0
-		if(is_sc) then
-			isc=-1d0
-		else
-			isc=1d0
-		endif
 		if(present(k)) then
 			Ns=latt%Ni
 		else
 			Ns=latt%Ns
 		endif
 		do l=1,size(self)
-			if(present(k)) then
-				nbd=size(latt%nb(self(l)%Vnb)%bd)/latt%Nc
+			if(mod(abs(self(l)%tp),10)==4) then
+				isp=[0.5d0,-0.5d0]
+				if(self(l)%nb/=0) error stop "error: not considered"
+			elseif(mod(abs(self(l)%tp),10)==5) then
+				isp=[1d0,-1d0]
 			else
-				nbd=size(latt%nb(self(l)%Vnb)%bd)
+				isp=1d0
 			endif
-			do n=1,nbd
+			do n=1,size(latt%nb(self(l)%Vnb)%bd)/merge(latt%Nc,1,present(k).and.latt%is_all)
+				dr=latt%nb(self(l)%Vnb)%bd(n)%dr
+				bdc=latt%nb(self(l)%Vnb)%bd(n)%bdc
+				if(self(l)%is_V.or.present(k).or.self(l)%nb/=self(l)%Vnb) bdc=abs(bdc)
 				if(present(k)) then
 					i=latt%nb(self(l)%Vnb)%bd(n)%sbc(1)
 					j=latt%nb(self(l)%Vnb)%bd(n)%sbc(2)
+					expk=exp(img*sum(k*dr))
 				else
 					i=latt%nb(self(l)%Vnb)%bd(n)%i(1)
 					j=latt%nb(self(l)%Vnb)%bd(n)%i(2)
-				endif
-				dr=latt%nb(self(l)%Vnb)%bd(n)%dr
-				if(self(l)%bd2v(n)<0) cycle
-				if(self(l)%is_V) then
-					bdc=1d0
-				else
-					bdc=latt%nb(self(l)%Vnb)%bd(n)%bdc
-					if(present(k)) then
-						bdc=abs(bdc)
-					endif
 				endif
 				if(.not.self(l)%is_V.and.self(l)%nb==0) then
 					bd=0.5d0
 				else
 					bd=1d0
 				endif
-				if(present(k)) then
-					expk=exp(img*sum(k*dr))
-				endif
-				if(present(fn)) then
-					bd=bd*fn(dr)
-				endif
-				select case(mod(abs(self(l)%sg),10))
+				bd=bd*self(l)%val(self(l)%bd2v(n))*conjg(self(l)%bd(n))*self(l)%V
+				if(present(fn)) bd=bd*fn(dr)
+				select case(mod(abs(self(l)%tp),10))
 				case(2)
 					! pair channel
-					if(.not.is_sc) then
-						write(*,*)"is_sc is not setted as true"
-						stop
-					endif
-					if(present(fn)) then
-						cycle
-					endif
-					if(self(l)%nb==self(l)%Vnb) then
-						bd=bd*self(l)%val(self(l)%bd2v(n))*self(l)%bd(n)*self(l)%V
-						H(i,j+Ns)=H(i,j+Ns)+conjg(bd)*bdc*expk
-						H(i+Ns,j)=H(i+Ns,j)+conjg(bd)*bdc*expk
-						H(j+Ns,i)=H(j+Ns,i)+bd*conjg(bdc*expk)
-						H(j,i+Ns)=H(j,i+Ns)+bd*conjg(bdc*expk)
-					else
-						write(*,*)"error: not considered"
-					endif
+					if(.not.is_nambu) error stop "is_nambu is not setted as true"
+					if(present(fn)) cycle
+					if(self(l)%nb/=self(l)%Vnb) error stop "error: not considered"
+
+					H(i,j+Ns)=H(i,j+Ns)+bd*bdc*expk
+					H(i+Ns,j)=H(i+Ns,j)+bd*bdc*expk
+					H(j+Ns,i)=H(j+Ns,i)+conjg(bd*bdc*expk)
+					H(j,i+Ns)=H(j,i+Ns)+conjg(bd*bdc*expk)
 				case(3,1,4,5)
 					! charge and spin z channel
-					if(mod(abs(self(l)%sg),10)==4) then
-						isc=-0.5d0*isc
-						if(self(l)%nb/=0) then
-							write(*,*)"error: not considered"
-						endif
-					elseif(mod(abs(self(l)%sg),10)==5) then
-						isc=-isc
-					endif
 					if(self(l)%nb==self(l)%Vnb) then
-						bd=bd*self(l)%val(self(l)%bd2v(n))*self(l)%bd(n)*self(l)%V
-						H(i,j)=H(i,j)+abs(isc)*conjg(bd)*bdc*expk
-						H(j,i)=H(j,i)+abs(isc)*bd*conjg(bdc*expk)
+						H(i,j)=H(i,j)+isp(1)*bd*bdc*expk
+						H(j,i)=H(j,i)+isp(1)*conjg(bd*bdc*expk)
 						if(spin==2) then
-							if(is_sc) then
-								H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+isc*bd*bdc*expk
-								H(j+Ns,i+Ns)=H(j+Ns,i+Ns)+isc*conjg(bd*bdc*expk)
+							if(is_nambu) then
+								H(i+Ns,j+Ns)=H(i+Ns,j+Ns)-isp(2)*conjg(bd)*bdc*expk
+								H(j+Ns,i+Ns)=H(j+Ns,i+Ns)-isp(2)*bd*conjg(bdc*expk)
 							else
-								H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+isc*conjg(bd)*bdc*expk
-								H(j+Ns,i+Ns)=H(j+Ns,i+Ns)+isc*bd*conjg(bdc*expk)
+								H(i+Ns,j+Ns)=H(i+Ns,j+Ns)+isp(2)*bd*bdc*expk
+								H(j+Ns,i+Ns)=H(j+Ns,i+Ns)+isp(2)*conjg(bd*bdc*expk)
 							endif
 						endif
 					else
-						if(present(fn)) then
-							cycle
-						endif
-						bdc=1d0
+						if(present(fn)) cycle
 						do ii=1,2
 							bd=self(l)%val(self(l)%bd2v(i))*self(l)%bd(i)*self(l)%V
-							H(j,j)=H(j,j)+abs(isc)*conjg(bd)*bdc
+							H(j,j)=H(j,j)+isp(1)*bd*bdc
 							if(spin==2) then
-								if(is_sc) then
-									H(j+Ns,j+Ns)=H(j+Ns,j+Ns)+isc*bd*bdc
+								if(is_nambu) then
+									H(j+Ns,j+Ns)=H(j+Ns,j+Ns)-isp(2)*conjg(bd)*bdc
 								else
-									H(j+Ns,j+Ns)=H(j+Ns,j+Ns)+isc*conjg(bd)*bdc
+									H(j+Ns,j+Ns)=H(j+Ns,j+Ns)+isp(2)*bd*bdc
 								endif
 							endif
 							call swap(i,j)
 						enddo
 					endif
-					if(mod(abs(self(l)%sg),10)==4) then
-						isc=-2d0*isc
-					elseif(mod(abs(self(l)%sg),10)==5) then
-						isc=-isc
-					endif
 				case(7)
 					! spin xy channel
-					if(is_sc==.true.) then
-						write(*,*)"is_sc is true while spin xy channel is used"
-					endif
+					if(is_nambu==.true.) error stop "is_nambu is true while spin xy channel is used"
+					if(self(l)%nb/=0) error stop "error: not considered"
+
 					if(self(l)%nb==self(l)%Vnb) then
-						if(self(l)%nb/=0) then
-							write(*,*)"error: not considered"
-						endif
-						bd=bd*self(l)%val(self(l)%bd2v(n))*self(l)%bd(n)*self(l)%V
 						H(i,i+Ns)=H(i,i+Ns)+0.5d0*bd*bdc*expk
 						H(i+Ns,i)=H(i+Ns,i)+0.5d0*conjg(bd*bdc*expk)
 						H(j,j+Ns)=H(j,j+Ns)+0.5d0*bd*bdc*expk
 						H(j+Ns,j)=H(j+Ns,j)+0.5d0*conjg(bd*bdc*expk)
 					else
-						if(present(fn)) then
-							cycle
-						endif
-						bdc=1d0
+						if(present(fn)) cycle
 						do ii=1,2
 							bd=self(l)%val(self(l)%bd2v(i))*self(l)%bd(i)*self(l)%V
 							H(j,j+Ns)=H(j,j+Ns)+0.5d0*bd*bdc
@@ -363,31 +318,42 @@ contains
 		real(8), optional, intent(in) :: k(:)
 		complex(8), intent(inout) :: D(:,:,:)
 		complex(8) :: bdc,expk,bd,tmp
-		integer :: i,j,l,lv,m1,m2,m2p,n,ii,Ns
-		real(8) :: isc,dr(3)
+		integer :: i,j,l,lv,m1,m2,m2p,n,ii,Ns,nbd
+		real(8) :: isp(2),dr(3)
 		D=0d0
-		Ns=latt%Ns
+		if(present(k)) then
+			Ns=latt%Ni
+		else
+			Ns=latt%Ns
+		endif
 		do l=1,size(self)
-			!$omp parallel do reduction(+:d) private(i,j,dr,bdc,expk,m2,tmp,bd,lv,isc) schedule(runtime) if (.not.omp_in_parallel())
-			do n=1,size(latt%nb(self(l)%Vnb)%bd)
-				expk=1d0
-				if(is_sc) then
-					isc=-1d0
-				else
-					isc=1d0
-				endif
-				i=latt%nb(self(l)%Vnb)%bd(n)%i(1)
-				j=latt%nb(self(l)%Vnb)%bd(n)%i(2)
+			if(mod(abs(self(l)%tp),10)==4) then
+				isp=[0.5d0,-0.5d0]
+			elseif(mod(abs(self(l)%tp),10)==5) then
+				isp=[1d0,-1d0]
+			else
+				isp=1d0
+			endif
+			!$omp parallel do reduction(+:D) private(i,j,dr,bdc,expk,m2,tmp,bd,lv)
+			do n=1,size(latt%nb(self(l)%Vnb)%bd)/merge(latt%Nc,1,present(k).and.latt%is_all)
 				dr=latt%nb(self(l)%Vnb)%bd(n)%dr
-				if(self(l)%bd2v(n)<0) cycle
-				if(self(l)%is_V) then
-					bdc=1d0
-				else
-					bdc=latt%nb(self(l)%Vnb)%bd(n)%bdc
-				endif
+				bdc=latt%nb(self(l)%Vnb)%bd(n)%bdc
+				if(self(l)%is_V.or.present(k).or.self(l)%nb/=self(l)%Vnb) bdc=abs(bdc)
 				if(present(k)) then
-					expk=exp(-img*sum(k*dr))
+					i=latt%nb(self(l)%Vnb)%bd(n)%sbc(1)
+					j=latt%nb(self(l)%Vnb)%bd(n)%sbc(2)
+					expk=exp(img*sum(k*dr))
+				else
+					i=latt%nb(self(l)%Vnb)%bd(n)%i(1)
+					j=latt%nb(self(l)%Vnb)%bd(n)%i(2)
+					expk=1d0
 				endif
+				if(.not.self(l)%is_V.and.self(l)%nb==0) then
+					bd=0.5d0
+				else
+					bd=1d0
+				endif
+				bd=bd*conjg(self(l)%bd(n))*self(l)%V
 				do m2p=1,size(D,2)
 					do m1=1,size(D,1)
 						if(size(D,2)==1) then
@@ -396,41 +362,27 @@ contains
 							m2=m2p
 						endif
 						tmp=0d0
-						select case(mod(abs(self(l)%sg),10))
+						select case(mod(abs(self(l)%tp),10))
 						case(2)
 							! pair channel
-							if(self(l)%nb==self(l)%Vnb) then
-								bd=self(l)%bd(n)*self(l)%V
-								tmp=tmp+cH(m1,i)*H(j+Ns,m2)*conjg(bd)*bdc*expk
-								tmp=tmp+cH(m1,i+Ns)*H(j,m2)*conjg(bd)*conjg(bdc)*expk
-								tmp=tmp+cH(m1,j+Ns)*H(i,m2)*bd*conjg(bdc*expk)
-								tmp=tmp+cH(m1,j)*H(i+Ns,m2)*bd*conjg(conjg(bdc)*expk)
-								lv=sum(self(:l)%n)-self(l)%n+self(l)%bd2v(n)
-								D(m1,m2p,lv)=D(m1,m2p,lv)+tmp
-							else
-								write(*,*)"error: not considered"
-							endif
+							tmp=tmp+cH(m1,i)*H(j+Ns,m2)*bd*bdc*expk
+							tmp=tmp+cH(m1,i+Ns)*H(j,m2)*bd*bdc*expk
+							tmp=tmp+cH(m1,j+Ns)*H(i,m2)*conjg(bd*bdc*expk)
+							tmp=tmp+cH(m1,j)*H(i+Ns,m2)*conjg(bd*bdc*expk)
+							lv=sum(self(:l)%n)-self(l)%n+self(l)%bd2v(n)
+							D(m1,m2p,lv)=D(m1,m2p,lv)+tmp
 						case(3,1,4,5)
 							! charge and spin z channel
-							if(mod(abs(self(l)%sg),10)==4) then
-								isc=-isc*0.5d0
-							elseif(mod(abs(self(l)%sg),10)==5) then
-								isc=-isc
-							endif
 							if(self(l)%nb==self(l)%Vnb) then
-								bd=self(l)%bd(n)*self(l)%V
-								if(.not.self(l)%is_V.and.self(l)%nb==0) then
-									bd=bd*0.5d0
-								endif
-								tmp=tmp+cH(m1,i)*H(j,m2)*abs(isc)*conjg(bd)*bdc*expk
-								tmp=tmp+cH(m1,j)*H(i,m2)*abs(isc)*bd*conjg(bdc*expk)
+								tmp=tmp+cH(m1,i)*H(j,m2)*isp(1)*bd*bdc*expk
+								tmp=tmp+cH(m1,j)*H(i,m2)*isp(1)*conjg(bd*bdc*expk)
 								if(spin==2) then
-									if(is_sc) then
-										tmp=tmp+cH(m1,i+Ns)*H(j+Ns,m2)*isc*bd*bdc*expk
-										tmp=tmp+cH(m1,j+Ns)*H(i+Ns,m2)*isc*conjg(bd*bdc*expk)
+									if(is_nambu) then
+										tmp=tmp-cH(m1,i+Ns)*H(j+Ns,m2)*isp(2)*conjg(bd)*bdc*expk
+										tmp=tmp-cH(m1,j+Ns)*H(i+Ns,m2)*isp(2)*bd*conjg(bdc*expk)
 									else
-										tmp=tmp+cH(m1,i+Ns)*H(j+Ns,m2)*isc*conjg(bd)*bdc*expk
-										tmp=tmp+cH(m1,j+Ns)*H(i+Ns,m2)*isc*bd*conjg(bdc*expk)
+										tmp=tmp+cH(m1,i+Ns)*H(j+Ns,m2)*isp(2)*bd*bdc*expk
+										tmp=tmp+cH(m1,j+Ns)*H(i+Ns,m2)*isp(2)*conjg(bd*bdc*expk)
 									endif
 								endif
 								lv=sum(self(:l)%n)-self(l)%n+self(l)%bd2v(n)
@@ -438,14 +390,13 @@ contains
 							else
 								do ii=1,2
 									tmp=0d0
-									bdc=1d0
 									bd=self(l)%bd(j)*self(l)%V
-									tmp=tmp+cH(m1,i)*H(i,m2)*abs(isc)*conjg(bd)*bdc
+									tmp=tmp+cH(m1,i)*H(i,m2)*isp(1)*conjg(bd)*bdc
 									if(spin==2) then
-										if(is_sc) then
-											tmp=tmp+cH(m1,i+Ns)*H(i+Ns,m2)*isc*bd*bdc
+										if(is_nambu) then
+											tmp=tmp-cH(m1,i+Ns)*H(i+Ns,m2)*isp(2)*bd*bdc
 										else
-											tmp=tmp+cH(m1,i+Ns)*H(i+Ns,m2)*isc*conjg(bd)*bdc
+											tmp=tmp+cH(m1,i+Ns)*H(i+Ns,m2)*isp(2)*conjg(bd)*bdc
 										endif
 									endif
 									lv=sum(self(:l)%n)-self(l)%n+self(l)%bd2v(i)
@@ -453,18 +404,9 @@ contains
 									call swap(i,j)
 								enddo
 							endif
-							if(mod(abs(self(l)%sg),10)==4) then
-								isc=-isc*2d0
-							elseif(mod(abs(self(l)%sg),10)==5) then
-								isc=-isc
-							endif
 						case(7)
 							! spin xy channel
 							if(self(l)%nb==self(l)%Vnb) then
-								bd=self(l)%bd(n)*self(l)%V
-								if(.not.self(l)%is_V.and.self(l)%nb==0) then
-									bd=bd*0.5d0
-								endif
 								tmp=tmp+cH(m1,i)*H(i+Ns,m2)*0.5d0*bd*bdc*expk
 								tmp=tmp+cH(m1,i+Ns)*H(i,m2)*0.5d0*conjg(bd*bdc*expk)
 								tmp=tmp+cH(m1,j)*H(j+Ns,m2)*0.5d0*bd*bdc*expk
@@ -474,7 +416,6 @@ contains
 							else
 								do ii=1,2
 									tmp=0d0
-									bdc=1d0
 									bd=self(l)%bd(j)*self(l)%V
 									tmp=tmp+cH(m1,i)*H(i+Ns,m2)*0.5d0*bd*bdc
 									tmp=tmp+cH(m1,i+Ns)*H(i,m2)*0.5d0*conjg(bd*bdc)
@@ -552,7 +493,7 @@ contains
 		fE1=fE/latt%Ns
 
 		!Nambu space
-		if(is_sc) then
+		if(is_nambu) then
 			do l=lbound(var,1),ubound(var,1)
 				if(var(l)%nb==0) then
 					do n=1,size(latt%nb(var(l)%Vnb)%bd)
@@ -560,9 +501,9 @@ contains
 						j=latt%nb(var(l)%Vnb)%bd(n)%i(2)
 						do ii=1,2
 							tmp=var(l)%bd(j)*var(l)%V
-							if(mod(abs(var(l)%sg),10)==4) then
+							if(mod(abs(var(l)%tp),10)==4) then
 								tmp=-tmp*0.5d0
-							elseif(mod(abs(var(l)%sg),10)==5) then
+							elseif(mod(abs(var(l)%tp),10)==5) then
 								tmp=-tmp
 							endif
 							fE=fE+tmp*var(l)%val(var(l)%bd2v(j))
@@ -582,7 +523,7 @@ contains
 		x=0d0
 		mt=0d0
 		do l=lbound(var,1),ubound(var,1)
-			if(var(l)%sg==1) then
+			if(var(l)%tp==1) then
 				lv=sum(var(:l)%n)-var(l)%n+1
 				fE=fE-nf*var(l)%val(1)*real(sum(var(1)%bd))
 				av(lv)=av(lv)-nf*real(sum(var(l)%bd))
@@ -661,7 +602,7 @@ contains
 		real(8) :: default_free_energy
 		default_free_energy=0d0
 		do l=lbound(var,1),ubound(var,1)
-			if(var(l)%sg==1) then
+			if(var(l)%tp==1) then
 				cycle
 			endif
 			do n=1,size(latt%nb(var(l)%Vnb)%bd)
@@ -915,8 +856,8 @@ contains
 			write(ut,"((es17.9)$)")k
 			do l=1,size(E)
 				G=0d0
-				do i=1,latt%Ns/latt%Nc
-					do j=1,latt%Ns/latt%Nc
+				do i=1,latt%Ni
+					do j=1,latt%Ni
 						if(latt%nb(0)%bd(i)%sb(1)==latt%nb(0)%bd(j)%sb(1)) then
 							G=G+real(H(i,l)*conjg(H(j,l)))
 						endif
