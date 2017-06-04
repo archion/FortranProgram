@@ -154,8 +154,8 @@ band(ut,ki,kf,n)
 	nf: 粒子数
 	Tk: 温度
 输出
-	Uqi: 从supercell的格点指标到q的Fourier变换
-	Uik: 从独立的k点到实空间的Fourier变换
+	Uqi: 从supercell的格点指标到q的Fourier变换（Uqi*c(k,i)=c(k+q)），顺序是：子格，q，自旋
+	Uik: 从独立的k点到实空间的Fourier变换（Uik*c(k,i)=c(i)）
 	var(:): 不同类型的变分参数，其中var(:0)为不变分，var(1:)做变分
 		val(:)：变分参数的值
 		v2i(:)：对应变分参数的格点或键指标

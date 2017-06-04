@@ -11,15 +11,47 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
-	integer, parameter :: ica1=5
+	integer, parameter :: ica1=11
+	logical :: is_project=.true.
 	integer :: ica2
 	integer :: Ns,vn
 	real(8) :: q(3,ica1)=reshape([&
-		pi*6d0/8d0,pi*6d0/8d0,0d0,&
-		pi*7d0/8d0,pi*7d0/8d0,0d0,&
-		pi,pi,0d0,&
-		pi,pi*7d0/8d0,0d0,&
-		pi,pi*6d0/8d0,0d0&
+		pi*1d0/8d0,pi*1d0/8d0,0d0,&
+		pi*2d0/8d0,pi*2d0/8d0,0d0,&
+		pi*3d0/8d0,pi*3d0/8d0,0d0,&
+		pi*4d0/8d0,pi*4d0/8d0,0d0,&
+		pi*5d0/8d0,pi*5d0/8d0,0d0,&
+		!pi*6d0/8d0,pi*6d0/8d0,0d0,&
+		!pi*7d0/8d0,pi*7d0/8d0,0d0,&
+		!pi,pi,0d0,&
+		!pi*7d0/8d0,pi,0d0,&
+		!pi*6d0/8d0,pi,0d0&
+		pi*5d0/8d0,pi,0d0,&
+		pi*4d0/8d0,pi,0d0,&
+		pi*3d0/8d0,pi,0d0,&
+		pi*2d0/8d0,pi,0d0,&
+		pi*1d0/8d0,pi,0d0,&
+		0d0,pi,0d0&
+		!pi*1d0/10d0,pi*1d0/10d0,0d0,&
+		!pi*2d0/10d0,pi*2d0/10d0,0d0,&
+		!pi*3d0/10d0,pi*3d0/10d0,0d0,&
+		!pi*4d0/10d0,pi*4d0/10d0,0d0,&
+		!pi*5d0/10d0,pi*5d0/10d0,0d0,&
+		!pi*6d0/10d0,pi*6d0/10d0,0d0&
+		!pi*7d0/10d0,pi*7d0/10d0,0d0&
+		!pi*8d0/10d0,pi*8d0/10d0,0d0,&
+		!pi*9d0/10d0,pi*9d0/10d0,0d0,&
+		!pi,pi,0d0,&
+		!pi*9d0/10d0,pi,0d0,&
+		!pi*8d0/10d0,pi,0d0&
+		!pi*7d0/10d0,pi,0d0&
+		!pi*6d0/10d0,pi,0d0&
+		!pi*5d0/10d0,pi,0d0,&
+		!pi*4d0/10d0,pi,0d0,&
+		!pi*3d0/10d0,pi,0d0,&
+		!pi*2d0/10d0,pi,0d0,&
+		!pi*1d0/10d0,pi,0d0,&
+		!0d0,pi,0d0&
 		],[3,ica1])
 contains
 	subroutine initial()
@@ -34,10 +66,10 @@ contains
 		latt%a2=[0d0,1d0,0d0]
 		!latt%c1=latt%a1
 		!latt%c2=latt%a2
-		latt%c1=[1d0,1d0,0d0]
-		latt%c2=[-1d0,1d0,0d0]
-		!latt%c1=[8d0,0d0,0d0]
-		!latt%c2=[0d0,2d0,0d0]
+		!latt%c1=[1d0,1d0,0d0]
+		!latt%c2=[-1d0,1d0,0d0]
+		latt%c1=[8d0,0d0,0d0]
+		latt%c2=[0d0,2d0,0d0]
 		latt%T1=[1d0,0d0,0d0]*16d0
 		latt%T2=[0d0,1d0,0d0]*16d0
 		latt%bdc=[1d0,1d0,0d0]
@@ -54,10 +86,10 @@ contains
 		! cp
 		call gen_var(tp=1,nb=0)
 		var(iv(0))%bd=-1d0
-		var(iv(0))%val=0d0
+		var(iv(0))%val=-0.973564357730634d0
 
 		! d-wave sc
-		call gen_var(tp=2,nb=1)
+		call gen_var(tp=-2,nb=1)
 		do i=1,size(var(iv(0))%bd)
 			if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(1))>1d-6) then
 				var(iv(0))%bd(i)=1d0
@@ -65,18 +97,18 @@ contains
 				var(iv(0))%bd(i)=-1d0
 			endif
 		enddo
-		var(iv(0))%val=4d-1
+		var(iv(0))%val=1d-4
 
-		!! dsc
-		!call gen_var(tp=2,nb=1)
+		!! PDW
+		!call gen_var(tp=-2,nb=1)
 		!do i=1,size(var(iv(0))%bd)
 			!if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(1))>1d-6) then
 				!var(iv(0))%bd(i)=1d0
 			!else
 				!var(iv(0))%bd(i)=-1d0
 			!endif
-			!!var(iv(0))%bd(i)=var(iv(0))%bd(i)*cos(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
-			!var(iv(0))%bd(i)=var(iv(0))%bd(i)*0.5d0*((-1)**(nint(latt%nb(var(iv(0))%nb)%bd(i)%r(1)+0.5d0+16d0-0.1d0)/4)+(-1)**(nint(latt%nb(var(iv(0))%nb)%bd(i)%r(1)+0.5d0+16d0+0.1d0)/4))
+			!var(iv(0))%bd(i)=var(iv(0))%bd(i)*cos(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+			!!var(iv(0))%bd(i)=var(iv(0))%bd(i)*0.5d0*((-1)**(nint(latt%nb(var(iv(0))%nb)%bd(i)%r(1)+0.5d0+16d0-0.1d0)/4)+(-1)**(nint(latt%nb(var(iv(0))%nb)%bd(i)%r(1)+0.5d0+16d0+0.1d0)/4))
 			!!var(iv(0))%bd(i)=var(iv(0))%bd(i)*(-1)**(nint(latt%nb(var(iv(0))%nb)%bd(i)%r(1)/8d0))
 		!enddo
 		!var(iv(0))%val=1d-1
@@ -90,20 +122,9 @@ contains
 				!var(iv(0))%bd(i)=-img
 			!endif
 		!enddo
-		!!var(iv(0))%val=2.755d-1
-		!!var(iv(0))%val=2.955d-1
-		!var(iv(0))%val=3.249d-1
-
-		! sdw
-		call gen_var(tp=4,nb=0)
-		do i=1,size(var(iv(0))%bd)
-			if(mod(nint(sum(latt%nb(0)%bd(latt%nb(var(iv(0))%nb)%bd(i)%i(1))%r)),2)==0) then
-				var(iv(0))%bd(i)=1d0
-			else
-				var(iv(0))%bd(i)=-1d0
-			endif
-		enddo
-		var(iv(0))%val=4.671d-1
+		!var(iv(0))%val=2.755d-1
+		!!!var(iv(0))%val=2.955d-1
+		!!var(iv(0))%val=3.249d-1
 
 		!! sdw
 		!call gen_var(tp=4,nb=0)
@@ -113,16 +134,27 @@ contains
 			!else
 				!var(iv(0))%bd(i)=-1d0
 			!endif
-			!var(iv(0))%bd(i)=var(iv(0))%bd(i)*sin(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
 		!enddo
-		!var(iv(0))%val=2.5053E+00
+		!var(iv(0))%val=0d0
 
-		!! on site cdw
-		!call gen_var(tp=3,nb=0)
-		!do i=1,size(var(iv(0))%bd)
-			!var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
-		!enddo
-		!var(iv(0))%val=0.0E-01
+		! sdw
+		call gen_var(tp=4,nb=0)
+		do i=1,size(var(iv(0))%bd)
+			if(mod(nint(sum(latt%nb(0)%bd(latt%nb(var(iv(0))%nb)%bd(i)%i(1))%r)),2)==0) then
+				var(iv(0))%bd(i)=1d0
+			else
+				var(iv(0))%bd(i)=-1d0
+			endif
+			var(iv(0))%bd(i)=var(iv(0))%bd(i)*sin(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+		enddo
+		var(iv(0))%val=2.4353d0
+
+		! on site cdw
+		call gen_var(tp=3,nb=0)
+		do i=1,size(var(iv(0))%bd)
+			var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+		enddo
+		var(iv(0))%val=-0.19875d0
 
 		! bond order
 		do l=2,size(t)
@@ -146,9 +178,11 @@ contains
 			!var(iv(0))%bd=-1d0
 			!var(iv(0))%val=1d0
 		!enddo
+
 		!call gen_var(tp=9,nb=0)
 		!var(iv(0))%bd=-1d0
-		!var(iv(0))%val=1d0
+		!var(iv(0))%val=1000d0
+		!is_project=.false.
 
 		!! s-s jast
 		!do i=1,1
@@ -785,15 +819,24 @@ contains
 		complex(8) :: pb2(2),pbs(2)
 		integer :: i,l,sg,ct=0
 		integer :: k(0:4),m(0:4)
-		!label
-		if(.not.get_row(cfg,dcfg,k,sg,shape(0))) then
-		!if(.not.get_row(cfg,dcfg,k,sg)) then
-			write(*,"(*(i5))")[1:Ns]
-			write(*,"(*(i5))")cfg(1:Ns)
-			write(*,"(*(i5))")cfg(Ns+1:)
-			write(*,"(*(i5))")dcfg
-			write(*,"(*(i5))")k(1:k(0))
-			stop "err get_Spb"
+		if(is_project) then
+			if(.not.get_row(cfg,dcfg,k,sg,shape(0))) then
+				write(*,"(*(i5))")[1:Ns]
+				write(*,"(*(i5))")cfg(1:Ns)
+				write(*,"(*(i5))")cfg(Ns+1:)
+				write(*,"(*(i5))")dcfg
+				write(*,"(*(i5))")k(1:k(0))
+				error stop "err get_Spb"
+			endif
+		else
+			if(.not.get_row(cfg,dcfg,k,sg)) then
+				write(*,"(*(i5))")[1:Ns]
+				write(*,"(*(i5))")cfg(1:Ns)
+				write(*,"(*(i5))")cfg(Ns+1:)
+				write(*,"(*(i5))")dcfg
+				write(*,"(*(i5))")k(1:k(0))
+				error stop "err get_Spb"
+			endif
 		endif
 		pbs=0d0
 		!$omp parallel do private(pb2,sg,m) reduction(+:pbs)
@@ -821,9 +864,11 @@ contains
 			if(get_row(Ecfg,[-nn(0,:),nn(i,:)],m,sg)) then
 				call get_pb(shape(0),m(1:m(0)),pb,WA=WA,iA=iA,AW=AW,WAW=WAW)
 				Ok(i)=conjg(pb*sg)
-				!label
-				Ek(i)=conjg(get_energy(cfg,WA,ja,m=m(1:m(0)),iA=iA,AW=AW,WAW=WAW)*sg)
-				!Ek(i)=conjg(get_energy_include(cfg,WA,ja,m=m(1:m(0)),iA=iA,AW=AW,WAW=WAW)*sg)
+				if(is_project) then
+					Ek(i)=conjg(get_energy(cfg,WA,ja,m=m(1:m(0)),iA=iA,AW=AW,WAW=WAW)*sg)
+				else
+					Ek(i)=conjg(get_energy_include(cfg,WA,ja,m=m(1:m(0)),iA=iA,AW=AW,WAW=WAW)*sg)
+				endif
 			endif
 		enddo
 		!$omp end parallel do
@@ -1021,11 +1066,11 @@ contains
 			self%Ecfg(mysort(Ns+1:Ns+self%ne(2))%idx)=[self%ne(1)+1:sum(self%ne)]
 			if(self%sg/=3) then
 				if(abs(mysort(self%ne(1))%val-mysort(self%ne(1)+1)%val)<1d-7.or.abs(mysort(Ns+self%ne(2))%val-mysort(Ns+self%ne(2)+1)%val)<1d-7) then
-					if(this_image()==1) write(*,*)"warning, close-shell condition is not satisfied, maybe set ne(1) to:",self%ne(1)-count((mysort(self%ne(1))%val-mysort(:self%ne(1))%val)<1d-7),"or",self%ne(1)+count((-mysort(self%ne(1))%val+mysort(self%ne(1):Ns)%val)<1d-7)
+					if(this_image()==1) write(*,*)"warning, close-shell condition is not satisfied, maybe set to:",Ns/2-(self%ne(1)-count((mysort(self%ne(1))%val-mysort(:self%ne(1))%val)<1d-7)),"or",Ns/2-(self%ne(1)+count((-mysort(self%ne(1))%val+mysort(self%ne(1):Ns)%val)<1d-7))
 				endif
 				do l=lbound(var,1),ubound(var,1)
 					if(abs(var(l)%tp)==1) then
-						var(l)%val(1)=var(l)%val(1)-var(l)%bd(1)*(E(mysort(self%ne(1))%idx)+E(mysort(self%ne(1)+1)%idx))/2d0
+						if(this_image()==1) write(*,*)"mu is: ",var(l)%val(1)-var(l)%bd(1)*(E(mysort(self%ne(1))%idx)+E(mysort(self%ne(1)+1)%idx))/2d0
 						exit
 					endif
 				enddo
@@ -1216,11 +1261,11 @@ contains
 			if(this_image(self,2)==1) then
 				write(20,"(*(es12.4))")var(1:)%val(1)
 				do k=1,Ns
-					write(40,"(*(es12.4))")latt%nb(0)%bd(k)%r,self%phy_n(:,k)
+					write(30,"(*(es12.4))")latt%nb(0)%bd(k)%r,self%phy_n(:,k)
 				enddo
-				write(40,"(x/)")
+				write(30,"(x/)")
 				do k=1,size(latt%nb(1)%bd)
-					write(40,"(*(es12.4))")latt%nb(1)%bd(k)%r+(1d0-sign(1d0,latt%nb(1)%bd(k)%r))*8d0,latt%nb(1)%bd(k)%dr,sign(1d0,self%phy_sc(k))*sqrt(abs(self%phy_sc(k)))
+					write(30,"(*(es12.4))")latt%nb(1)%bd(k)%r,latt%nb(1)%bd(k)%dr,sign(1d0,self%phy_sc(k))*sqrt(abs(self%phy_sc(k)))
 				enddo
 			endif
 			!endcritical
@@ -1284,9 +1329,7 @@ contains
 		do
 			n=n+1
 			if(sum(abs(matmul(A(:,iEcfg),iA)-diag(1d0,size(A,1))))>1d-6) then
-				!label
 				call change(cfgl,icfg,dcfg,k,rnd)
-				!call change_include(cfgl,icfg,dcfg,k,rnd)
 				cfgl(abs(dcfg(2:dcfg(0):2)))=cfgl(abs(dcfg(2:dcfg(0):2)))+cfgl(dcfg(1:dcfg(0):2))
 				cfgl(dcfg(1:dcfg(0):2))=cfgl(abs(dcfg(2:dcfg(0):2)))-cfgl(dcfg(1:dcfg(0):2))
 				cfgl(abs(dcfg(2:dcfg(0):2)))=cfgl(abs(dcfg(2:dcfg(0):2)))-cfgl(dcfg(1:dcfg(0):2))
@@ -1312,9 +1355,11 @@ contains
 		is_full=.false.
 	lm:	do
 			n=n+1
-			!label
-			call change(cfgl,icfg,dcfg,k,rnd)
-			!call change_include(cfgl,icfg,dcfg,k,rnd)
+			if(is_project) then
+				call change(cfgl,icfg,dcfg,k,rnd)
+			else
+				call change_include(cfgl,icfg,dcfg,k,rnd)
+			endif
 
 			if(self%sg==3) then
 			!if(.false.) then
@@ -1428,17 +1473,23 @@ contains
 					select case(self%sg)
 					case(1)
 						!label
-						phyl(iE)=get_energy(cfgl,WA,ja)*1d0/Ns
-						!phyl(iE)=get_energy_include(cfgl,WA,ja)*1d0/Ns
+						if(is_project) then
+							phyl(iE)=get_energy(cfgl,WA,ja)*1d0/Ns
+						else
+							phyl(iE)=get_energy_include(cfgl,WA,ja)*1d0/Ns
+						endif
 						!phyl%dsc=real(get_dsc(cfgl,WA,ja))
 						phyl(iSq_pm)=get_spin_pm(cfgl,WA,self%q,ja)
-						!phyl%Sq_zz=get_spin_zz(cfgl,q)
+						!phyl(iSq_zz)=get_spin_zz(cfgl,q)
 						!call get_phy_n(cfgl,phyl_n)
 						!call get_phy_sc(cfgl,WA,ja,phyl_sc)
 					case(2)
 						!label
-						phyl(iE)=get_energy(cfgl,WA,ja)*1d0/Ns
-						!phyl(iE)=get_energy_include(cfgl,WA,ja)*1d0/Ns
+						if(is_project) then
+							phyl(iE)=get_energy(cfgl,WA,ja)*1d0/Ns
+						else
+							phyl(iE)=get_energy_include(cfgl,WA,ja)*1d0/Ns
+						endif
 						call get_O(icfg,iEcfg,WA,iA,dwf,Ol(:size(dwf,3)))
 					case(3)
 						call get_overlap(cfgl,Ecfgl,nn,WA,iA,AW,WAW,Ok,Ek,ja)
@@ -1584,7 +1635,8 @@ contains
 			enddo
 			write(*,*)sum(pnn)
 			do l=1,size(pnn)
-				write(ut+1,"(*(es17.9))")brizon%k(mod(abs(self%nn(l,1))-1,size(brizon%k,1))+1,:2),brizon%k(mod(abs(self%nn(l,2))-1,size(brizon%k,1))+1,:2),self%Emf(abs(self%nn(l,:))),pnn(l)
+				write(ut+1,"(es17.9$)")brizon%k(mod(abs(self%nn(l,1))-1,brizon%nk)+1,:2),brizon%k(mod(abs(self%nn(l,2))-1,brizon%nk)+1,:2),self%Emf(abs(self%nn(l,:))),pnn(l)
+				write(ut+1,"(2i4)")abs(self%nn(l,:))
 			enddo
 		endif
 		write(ut+1,"(x)")
@@ -1671,9 +1723,10 @@ program main
 		open(101,file="../data/lattice.dat")
 		open(111,file="../data/tmp.dat")
 		open(20,file="../data/var.dat")
+		open(30,file="../data/phyri.dat")
 		open(40,file="../data/phyvar.dat")
-		open(50,file="../data/matrix_sdw_8.dat",access="stream")
-		open(70,file="../data/spect_sdw_8.dat")
+		open(50,file="../data/matrix.dat",access="stream")
+		open(70,file="../data/spect.dat")
 		open(71,file="../data/spect_kmap.dat")
 		write(*,*)"coarray info: ",ica1,ica2,"out of",num_images()
 
@@ -1704,7 +1757,7 @@ program main
 
 	call initial()
 	if(this_image()==1) then
-		write(50)size(brizon%k,1),brizon%k
+		write(50)size(brizon%k,1),brizon%k,brizon%nk
 	endif
 	otime=0d0
 
@@ -1738,11 +1791,11 @@ program main
 	mc%hot=1
 	mc%step=Ns
 	mc%delay=2
-	!mc%ne(1)=Ns/2-16
+	mc%ne(1)=Ns/2-16
 	!mc%ne(1)=Ns/2-26
 	!mc%ne(1)=Ns/2-14
 	!mc%ne(1)=Ns/2
-	mc%ne(1)=Ns/2-8
+	!mc%ne(1)=Ns/2-14
 	mc%ne(2)=Ns-mc%ne(1)
 	!var(1:)%val(1)=[-3.2296E-01,2.3218E-01,7.3575E-02,3.4608E-02]
 	!var(1:)%val(1)=[-8.1623E-01, 2.5240E-01,-1.2011E-01, 4.2456E-01, 2.0609E-01, 4.0513E-02]
@@ -1757,20 +1810,24 @@ program main
 	!var(1:)%val(1)=[1.60d-01]!-18,ddw,compare
 	!var(1:)%val(1)=[0.E+00,2.8386E-01,3.0E-01]
 	!var(1:)%val(1)=[2.8386E-01]
+	!var(1:vn)%val(1)=[-1.2057E+00,7.2175E-02,1.4056E+00,-8.7562E-02,-1.4239E-01] !stripe: +PDW -4.3064E-01
 	!var(1:)%val(1)=[-1.2417E+00,1.2966E-04,1.7393E+00,-1.4593E-01,-1.8440E-01] !stripe: +dsc -4.2980E-01
 	!var(1:)%val(1)=[-1.4051E+00,1E-1,2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
-	!var(1:)%val(1)=[-1.4051E+00,2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
+	var(1:vn)%val(1)=[-1.4051E+00,2.4353E+00/5E0,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
 	!var(1:)%val(1)=[2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
 	!var(1:)%val(1)=[2.4353E+00,-1.9875E-01] !stripe -4.3380E-01
 	!var(1:vn)%val(1)=[0.25d0] ! ddw E=-4.2473E-01
 	!var(1:)%val(1)=[-8.4270d-1,1.9227d-1] ! dsc+mu E=-4.3288E-01
+	!var(1:vn)%val(1)=[-7.8405d-01,2.1112d-01,-1.0251d-01] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-7.7984d-01,1.9979d-01,-9.9065d-02] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-6.6923d-01,2.7140d-01,-3.7934d-02] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-5.7168d-01,2.8200d-01,-3.6606d-02] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-5.9924d-01,2.7644d-01,-4.6976d-02] ! dsc+mu+t' E= -4.3329E-01
+	!var(1:vn)%val(1)=[-6.0700d-02,3.3525d-01,1.5023d-01] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[0d0,3.24919d-1,3d-1] ! dsc+mu+t' E= -4.3329E-01
+	!var(1:vn)%val(1)=[-6.2487E-01,2.5764E-01,2.0392E-01,-3.6208E-02] ! dsc+mu+t'+SDW E=-3.2721E-01
 	!var(1:vn)%val(1)=[0d0,1d-1,3d-1] ! dsc+mu+t' E= -4.3329E-01
-	var(1:vn)%val(1)=[-6.3517d-01,2.5976d-01,2.4600d-01,-4.1792d-02] ! dsc+sdw+mu+t' E= -4.3329E-01
+	!var(1:vn)%val(1)=[-6.3517d-01,2.5976d-01,2.4600d-01,-4.1792d-02] ! dsc+sdw+mu+t' E= -4.3329E-01
 	!var(1:)%val(1)=[-7.7984d-01,1.9979d-01] ! ddw+mu E=
 	!var(1:)%val(1)=[0d0,0.18d0] ! ddw+mu E=
 	!var(1:2)%val(1)=[-1.1299E+00,1.6504E-01]!-18,ddw,compare
@@ -1808,7 +1865,8 @@ program main
 	mc%num=this_image(mc,1)
 
 	mc%sg=1
-	mc%samp=1024*8*16*8
+	!mc%samp=1024*8*16*8
+	mc%samp=1024*8*8*8*8
 	mc%hot=1024*8*8
 	mc%step=nint(sqrt(real(Ns)))
 	!mc%samp=1024*8*16*32
@@ -1821,6 +1879,7 @@ program main
 
 	call mc%init(.true.)
 	call mc%do_vmc()
+	stop
 
 	if(this_image()==1) then
 		do l=2,ica1
@@ -1829,6 +1888,7 @@ program main
 		mc[1,1]%phy(iE)=mc[1,1]%phy(iE)*1d0/ica1
 		!mc[1,1]%phy(iE)=-0.434235839825398d0
 		!mc[1,1]%phy(iE)=-4.2473d-1
+		mc[1,1]%phy(iE)=-3.2728d-01
 		sync images(*)
 	else
 		sync images(1)
@@ -1839,13 +1899,13 @@ program main
 	mc%sg=3
 	mc%ne=mc%ne+1
 	mc%hot=1024*8*8
-	mc%samp=1024*8*8*8*8 !dsc 16x16
+	!mc%samp=1024*8*8*8*8 !dsc 16x16
 	!mc%samp=1024*8*8*16*4*2 !sdw 16x16
 	!mc%samp=1024*8*8*32*8*4 !stripe
 	!mc%samp=1024*8*8*32 !dsc
 	!mc%samp=1024*8*8*32*8 !ddw
 	!mc%samp=1024*8*8*32*4 !dsc 20x20
-	!mc%samp=1024*8*8*32*16 !ddw 20x20
+	mc%samp=1024*8*8*32*16 !ddw 20x20
 	mc%step=nint(sqrt(real(Ns)))
 	call mc%init(.true.)
 	call mc%do_vmc()
@@ -1883,6 +1943,7 @@ program main
 		deallocate(brizon%k)
 		allocate(brizon%k(i,3))
 		read(50)brizon%k
+		read(50)brizon%nk
 		do l=1,ica1
 			read(50)i,j,Ns
 			if(allocated(mc%psi0)) deallocate(mc%psi0,mc%Ok2,mc%Ek2,mc%Emf,mc%nn)

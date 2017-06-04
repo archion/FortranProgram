@@ -33,8 +33,8 @@ contains
 		!latt%c2=(/1d0,1d0,0d0/)
 		latt%c1=(/4d0,0d0,0d0/)
 		latt%c2=(/0d0,2d0,0d0/)
-		latt%T1=(/1d0,0d0,0d0/)*32
-		latt%T2=(/0d0,1d0,0d0/)*32
+		latt%T1=(/1d0,0d0,0d0/)*72
+		latt%T2=(/0d0,1d0,0d0/)*72
 		latt%bdc(1)=1d0
 		latt%bdc(2)=1d0
 		allocate(latt%rsb(1,3))
@@ -271,38 +271,48 @@ contains
 	subroutine rpa_spin(ut,q,gm,omg,l)
 		integer :: ut,l
 		real(8) :: gm,omg(:),q(:)
-		complex(8) :: Uk(latt%Ni*spin,latt%Ni*spin),Ukq(size(Uk,1),size(Uk,2)),Xq(l,brizon%nq,brizon%nq),iomg(l),tmp(size(Xq,2),size(Xq,3)),UXq
+		complex(8) :: Uk(latt%Ni*spin,latt%Ni*spin),Ukq(size(Uk,1),size(Uk,2)),Xq(l,brizon%nq*latt%sb,brizon%nq*latt%sb),iomg(l),tmp(size(Xq,2),size(Xq,3)),UXq
 		real(8) :: ek(size(Uk,1)),ekq(size(Uk,1)),fk(size(Uk,1)),fkq(size(Uk,1)),bt,Vrpa(size(Xq,2),size(Xq,3)),dr(3)
-		integer :: i,j,m,n,nk,l1,l2,isb,jsb,ik,map(brizon%nq)
-		write(*,*)q
+		integer :: i,j,m,n,nk,l1,l2,isb,jsb,ik,map1(brizon%nq),map2(brizon%nq,brizon%nq)
+		type(t_var) :: Vvar(1)
 		call update()
+		write(*,*)q
 		bt=1d0/Tk
 		iomg=(omg(1)+[0:l-1]*(omg(2)-omg(1))/l)+img*gm
 		Xq=0d0
 		Vrpa=0d0
+		spin=1
+		call set_var(Vvar(1),tp=3,nb=1)
+		Vvar(1)%bd=0.5d0
+		Vvar(1)%val=0.34d0*DJ
+		call Hamilton(Vvar,tmp,q)
+		Vrpa=real(matmul(matmul(Uqi(1:latt%Ni,1:latt%Ni),tmp),conjg(transpose(Uqi(1:latt%Ni,1:latt%Ni)))))
+		spin=2
+
+		map1=0; map2=0
 		do i=1,brizon%nq
-			do j=0,latt%sb-1
-				Vrpa(i+j*brizon%nq,i+j*brizon%nq)=0.34d0*DJ*(cos(q(1)+brizon%q(i,1))+cos(q(2)+brizon%q(i,2)))
-				!Vrpa(i+1,i+1)=-0.4d0*(1d0-0.2d0*(cos(q(1)+pi*i)+cos(q(2)+pi*i)))
-			enddo
 			do j=1,brizon%nq
 				if(.not.is_in(brizon%q(i,:)+brizon%q(j,:),brizon%Ta,dr)) then
 					dr=dr+brizon%q(i,:)+brizon%q(j,:)
 				else
 					dr=brizon%q(i,:)+brizon%q(j,:)
 				endif
+				do m=1,brizon%nq
+					if(sum(abs(dr-brizon%q(m,:)))<1d-6) then
+						map2(i,j)=m
+						exit
+					endif
+				enddo
 				if(sum(abs(dr))<1d-6) then
-					map(i)=j
-					exit
+					if(map1(i)/=0) stop "map1 error"
+					map1(i)=j
 				endif
 			enddo
-			if(j==brizon%nq+1) stop "map err"
 		enddo
+		if(any(map1==0).or.any(map2==0)) stop "map error"
 		associate(nq=>brizon%nq,sb=>latt%sb,Ni=>latt%Ni)
 		!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(Uk,Ek,Ukq,Ekq,fk,fkq,UXq)
 		do nk=1,brizon%nk
-			!call Hamiltons(Uk,-brizon%k(nk,:))
-			!call Hamiltons(Ukq,brizon%k(nk,:)+q)
 			call Hamilton(var,Uk,-brizon%k(nk,:))
 			call Hamilton(var,Ukq,brizon%k(nk,:)+q)
 			call heev(Uk,Ek,"V")
@@ -313,35 +323,90 @@ contains
 			fkq=1d0/(1d0+exp(bt*Ekq))
 
 			do isb=1,sb
-				!do jsb=1,sb
+				do jsb=1,sb
 					do n=1,size(Uk,1)
 						do m=1,size(Uk,2)
 							do i=1,nq
 								do j=1,nq
 									UXq=0d0
-									do l1=0,nq-1
-										do l2=0,nq-1
-											UXq=UXq+Ukq(sb*(mod(i+l1-1,nq))+isb,n)*conjg(Ukq(sb*(mod(j+l2-1,nq))+isb,n))*Uk(Ni+sb*(map(l1+1)-1)+isb,m)*conjg(Uk(Ni+sb*(map(l2+1)-1)+isb,m))&
-												-Ukq(Ni+sb*(mod(i+l1-1,nq))+isb,n)*conjg(Ukq(sb*(mod(j+l2-1,nq))+isb,n))*Uk(sb*(map(l1+1)-1)+isb,m)*conjg(Uk(Ni+sb*(map(l2+1)-1)+isb,m))
+									do l1=1,nq
+										do l2=1,nq
+											UXq=UXq+Ukq(sb*(map2(i,l1)-1)+isb,n)*conjg(Ukq(sb*(map2(j,l2)-1)+jsb,n))*Uk(Ni+sb*(map1(l1)-1)+isb,m)*conjg(Uk(Ni+sb*(map1(l2)-1)+jsb,m))&
+												-Ukq(Ni+sb*(map1(map2(i,l1))-1)+isb,n)*conjg(Ukq(sb*(map2(j,l2)-1)+jsb,n))*Uk(sb*(l1-1)+isb,m)*conjg(Uk(Ni+sb*(map1(l2)-1)+jsb,m))
 										enddo
 									enddo
-									Xq(:,i,j)=Xq(:,i,j)+(fk(m)+fkq(n)-1d0)/(iomg-Ek(m)-Ekq(n))*UXq
+									Xq(:,sb*(i-1)+isb,sb*(j-1)+jsb)=Xq(:,sb*(i-1)+isb,sb*(j-1)+jsb)+(fk(m)+fkq(n)-1d0)/(iomg-Ek(m)-Ekq(n))*UXq
 								enddo
 							enddo
 						enddo
 					enddo
-				!enddo
+				enddo
 			enddo
 		enddo
 		!$OMP END PARALLEL DO
-		end associate
 		Xq=Xq/(brizon%nk*brizon%nq)
 		write(ut,"('#q=',3es12.4)")q/pi
 		do i=1,l
 			tmp=diag(1d0,size(Vrpa,1))+matmul(Vrpa,Xq(i,:,:))
 			call mat_inv(tmp)
-			write(ut,"(*(es17.9))")real(iomg(i)),-Xq(i,1,1),-sum(Xq(i,1,:)*tmp(:,1))
+			write(ut,"(*(es17.9))")real(iomg(i)),-sum(Xq(i,1:sb,1:sb)),-sum(matmul(Xq(i,1:sb,:),tmp(:,1:sb)))
 		enddo
+		write(ut,"(x)")
+		end associate
+	end subroutine
+	subroutine rpa_spin_i(ut,q,gm,omg,l)
+		integer :: ut,l
+		real(8) :: gm,omg(:),q(:)
+		complex(8) :: Uk(latt%Ni*spin,latt%Ni*spin),Ukq(size(Uk,1),size(Uk,2)),Xq(l,latt%Ni,latt%Ni),iomg(l),tmp(size(Xq,2),size(Xq,3)),UXq
+		real(8) :: ek(size(Uk,1)),ekq(size(Uk,1)),fk(size(Uk,1)),fkq(size(Uk,1)),bt,Vrpa(size(Xq,2),size(Xq,3)),dr(3)
+		integer :: i,j,m,n,nk,l1,l2,isb,jsb,ik
+		type(t_var) :: Vvar(1)
+		call update()
+		write(*,*)q
+		bt=1d0/Tk
+		iomg=(omg(1)+[0:l-1]*(omg(2)-omg(1))/l)+img*gm
+		Vrpa=0d0
+		Xq=0d0
+		spin=1
+		call set_var(Vvar(1),tp=3,nb=1)
+		Vvar(1)%bd=0.5d0
+		Vvar(1)%val=0.34d0*DJ
+		call Hamilton(Vvar,tmp,q)
+		Vrpa=real(tmp)*brizon%nq
+		spin=2
+
+		associate(nq=>brizon%nq,sb=>latt%sb,Ni=>latt%Ni)
+		!$OMP PARALLEL DO REDUCTION(+:Xq) PRIVATE(Uk,Ek,Ukq,Ekq,fk,fkq)
+		do nk=1,brizon%nk
+			call Hamilton(var,Uk,-brizon%k(nk,:))
+			call Hamilton(var,Ukq,brizon%k(nk,:)+q)
+			call heev(Uk,Ek,"V")
+			call heev(Ukq,Ekq,"V")
+			fk=1d0/(1d0+exp(bt*Ek))
+			fkq=1d0/(1d0+exp(bt*Ekq))
+
+			do n=1,size(Uk,1)
+				do m=1,size(Uk,2)
+					do i=1,Ni
+						do j=1,Ni
+							Xq(:,i,j)=Xq(:,i,j)+(fk(m)+fkq(n)-1d0)/(iomg-Ek(m)-Ekq(n))*(&
+								Ukq(i,n)*conjg(Ukq(j,n))*Uk(Ni+i,m)*conjg(Uk(Ni+j,m))&
+								-Ukq(Ni+i,n)*conjg(Ukq(j,n))*Uk(i,m)*conjg(Uk(Ni+j,m))&
+								)
+						enddo
+					enddo
+				enddo
+			enddo
+		enddo
+		!$OMP END PARALLEL DO
+		Xq=Xq/(brizon%nk*brizon%nq)
+		write(ut,"('#q=',3es12.4)")q/pi
+		do i=1,l
+			tmp=diag(1d0,size(Vrpa,1))+matmul(Vrpa,Xq(i,:,:))
+			call mat_inv(tmp)
+			write(ut,"(*(es17.9))")real(iomg(i)),-sum(Xq(i,:,:)),-sum(matmul(Xq(i,:,:),tmp(:,:)))
+		enddo
+		end associate
 		write(ut,"(x)")
 	end subroutine
 	subroutine rpainstable_spin(Tk,q,den)
@@ -458,12 +523,12 @@ program main
 	!enddo
 	!stop
 	do i=j/4,3*j/4
-		if(i<=j/2) then
+		if(i<j/2) then
 			!call rpa_spin(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.002d0,[0d0,0.5d0],1000)
-			call rpa_spin(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.02d0,[0d0,0.5d0],500)
+			call rpa_spin_i(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.02d0,[0d0,0.5d0],500)
 		else
 			!call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.002d0,[0d0,0.5d0],1000)
-			call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.02d0,[0d0,0.5d0],500)
+			call rpa_spin_i(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.02d0,[0d0,0.5d0],500)
 		endif
 	enddo
 	!call rpa_spin(70,[pi,pi,0d0],0.02d0,[0d0,0.5d0],500)

@@ -90,7 +90,8 @@ contains
 			call heev(H,E,"V")
 		end select
 	end subroutine
-	subroutine gen_var(tp,nb,val,V,Vnb)
+	subroutine set_var(var1,tp,nb,val,V,Vnb)
+		type(t_var), intent(inout) :: var1
 		integer, intent(in) :: tp,nb
 		real(8), intent(in), optional :: val(:)
 		real(8), intent(in), optional :: V
@@ -98,10 +99,56 @@ contains
 		type(t_mysort), allocatable :: sort(:)
 		integer, allocatable :: c(:)
 		integer :: i,j
+		var1%tp=tp
+		var1%nb=nb
+		if(present(V)) then
+			var1%V=V
+			var1%is_V=.true.
+		else
+			var1%V=1d0
+			var1%is_V=.false.
+		endif
+		if(present(Vnb)) then
+			var1%Vnb=Vnb
+		else
+			var1%Vnb=nb
+		endif
+		if(present(val)) then
+			allocate(sort(size(val)))
+			sort(:)%val=val
+			sort(:)%idx=[1:size(sort)]
+			call qsort(sort)
+			call collect(sort,c)
+
+			allocate(var1%bd2v(size(val)))
+			allocate(var1%bd(size(val)))
+			allocate(var1%val(size(c)-1))
+			var1%n=size(c)-1
+			do i=1,size(c)-1
+				do j=c(i),c(i+1)-1
+					var1%bd2v(sort(j)%idx)=i
+				enddo
+			enddo
+		else
+			allocate(var1%bd2v(size(latt%nb(nb)%bd)))
+			allocate(var1%bd(size(var1%bd2v)))
+			allocate(var1%val(1))
+			var1%bd2v=1
+			var1%n=1
+		endif
+	end subroutine
+	subroutine gen_var(tp,nb,val,V,Vnb)
+		integer, intent(in) :: tp,nb
+		real(8), intent(in), optional :: val(:)
+		real(8), intent(in), optional :: V
+		integer, intent(in), optional :: Vnb
 		iv(sign(1,tp))=iv(sign(1,tp))+sign(1,tp)
 		iv(0)=iv(sign(1,tp))
-		var(iv(0))%tp=tp
-		var(iv(0))%nb=nb
+		if(present(val)) then
+			call set_var(var(iv(0)),tp=tp,nb=nb,val=val)
+		else
+			call set_var(var(iv(0)),tp=tp,nb=nb)
+		endif
 		if(present(V)) then
 			var(iv(0))%V=V
 			var(iv(0))%is_V=.true.
@@ -113,29 +160,6 @@ contains
 			var(iv(0))%Vnb=Vnb
 		else
 			var(iv(0))%Vnb=nb
-		endif
-		if(present(val)) then
-			allocate(sort(size(val)))
-			sort(:)%val=val
-			sort(:)%idx=[1:size(sort)]
-			call qsort(sort)
-			call collect(sort,c)
-
-			allocate(var(iv(0))%bd2v(size(val)))
-			allocate(var(iv(0))%bd(size(val)))
-			allocate(var(iv(0))%val(size(c)-1))
-			var(iv(0))%n=size(c)-1
-			do i=1,size(c)-1
-				do j=c(i),c(i+1)-1
-					var(iv(0))%bd2v(sort(j)%idx)=i
-				enddo
-			enddo
-		else
-			allocate(var(iv(0))%bd2v(size(latt%nb(nb)%bd)))
-			allocate(var(iv(0))%bd(size(var(iv(0))%bd2v)))
-			allocate(var(iv(0))%val(1))
-			var(iv(0))%bd2v=1
-			var(iv(0))%n=1
 		endif
 	end subroutine
 	subroutine get(self,val)

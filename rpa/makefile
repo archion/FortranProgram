@@ -1,2 +1,4 @@
-out = rpa_mc.out
+out = stripe_RPA.out
+AFLAG = -qopenmp
+DEBUG = 
 include ../makefile
