@@ -21,6 +21,12 @@ module M_utility
 	interface to_char
 		module procedure to_char_single,to_char_array
 	end interface
+	interface qsort
+		module procedure rqsort,sqsort
+	end interface
+	interface collect
+		module procedure rcollect,scollect
+	end interface
 	real(8) :: otime(0:6)=0d0
 contains
 	subroutine show_time()
@@ -259,7 +265,63 @@ contains
 			fn=f
 		endif
 	end function
-	recursive subroutine qsort(self)
+	recursive subroutine rqsort(self,ord)
+		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
+		real(8) :: self(:)
+		integer :: ord(:)
+		integer :: left,right,n
+		real(8) :: random
+		real(8) :: pivot
+		integer :: marker
+		n=size(ord)
+		if(n>1) then
+			!call random_number(random)
+			!pivot=self(int(random*real(n-1))+1)%val   !random pivor (not best performance, but avoids worst-case)
+			pivot=self(ord((n+1)/2))   !random pivor (not best performance, but avoids worst-case)
+			left=0
+			right=n+1
+			do while (left < right)
+				right=right-1
+				do while(self(ord(right))>pivot)
+					right=right-1
+				enddo
+				left=left+1
+				do while(self(ord(left))<pivot)
+					left= left+1
+				enddo
+				if(left<right) then
+					marker=ord(left)
+					ord(left)=ord(right)
+					ord(right)=marker
+				endif
+			end do
+			if(left==right) then
+				marker=left+1
+			else
+				marker=left
+			endif
+			call rqsort(self,ord(1:marker-1))
+			call rqsort(self,ord(marker:n))
+		endif
+	end subroutine
+	subroutine rcollect(self,a)
+		real(8) :: self(:)
+		integer :: i,j,tmp(10000)
+		integer, allocatable :: a(:)
+		tmp(1)=1
+		j=1
+		do i=2,size(self)
+			if((abs(self(i)-self(i-1))>1d-6)) then
+				j=j+1
+				tmp(j)=i
+			endif
+		enddo
+		j=j+1
+		tmp(j)=i
+		allocate(a(j))
+		a=tmp(:j)
+	end subroutine
+	recursive subroutine sqsort(self)
 		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
 		class(t_sort) :: self(:)
 		integer :: left,right,n
@@ -291,18 +353,18 @@ contains
 			else
 				marker=left
 			endif
-			call qsort(self(1:marker-1))
-			call qsort(self(marker:n))
+			call sqsort(self(1:marker-1))
+			call sqsort(self(marker:n))
 		endif
 	end subroutine
-	subroutine collect(self,a)
+	subroutine scollect(self,a)
 		class(t_sort) :: self(:)
 		integer :: i,j,tmp(10000)
 		integer, allocatable :: a(:)
 		tmp(1)=1
 		j=1
 		do i=2,size(self)
-			if(((self(i)%val-self(i-1)%val)>1d-6)) then
+			if((abs(self(i)%val-self(i-1)%val)>1d-6)) then
 				j=j+1
 				tmp(j)=i
 			endif
@@ -322,8 +384,8 @@ contains
 		self%val=tmp%val
 		deallocate(tmp)
 	end subroutine
-	function abs2(a)
-		complex(8) :: a
+	elemental function abs2(a)
+		complex(8), intent(in) :: a
 		real(8) :: abs2
 		abs2=real(a*conjg(a))
 	end function

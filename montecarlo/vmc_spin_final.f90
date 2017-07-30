@@ -11,27 +11,46 @@ module global
 	integer, parameter :: opt=2 ! 1: Tr(AdA)
 								! 2: O=cicj
 	integer, parameter :: iE=1,ier=2,idsc=3,iaf=4,iddw=5,iSq_pm=6,iSq_zz=7,iCq=8
-	integer, parameter :: ica1=11
+	integer, parameter :: ica1=1
 	logical :: is_project=.true.
 	integer :: ica2
 	integer :: Ns,vn
 	real(8) :: q(3,ica1)=reshape([&
-		pi*1d0/8d0,pi*1d0/8d0,0d0,&
-		pi*2d0/8d0,pi*2d0/8d0,0d0,&
-		pi*3d0/8d0,pi*3d0/8d0,0d0,&
-		pi*4d0/8d0,pi*4d0/8d0,0d0,&
-		pi*5d0/8d0,pi*5d0/8d0,0d0,&
-		!pi*6d0/8d0,pi*6d0/8d0,0d0,&
-		!pi*7d0/8d0,pi*7d0/8d0,0d0,&
-		!pi,pi,0d0,&
-		!pi*7d0/8d0,pi,0d0,&
+		!pi*1d0/8d0,pi*1d0/8d0,0d0,&
+		!pi*2d0/8d0,pi*2d0/8d0,0d0,&
+		!pi*3d0/8d0,pi*3d0/8d0,0d0,&
+		!pi*4d0/8d0,pi*4d0/8d0,0d0&
+		!pi*5d0/8d0,pi*5d0/8d0,0d0&
+		!pi*6d0/8d0,pi*6d0/8d0,0d0&
+		!pi*7d0/8d0,pi*7d0/8d0,0d0&
+		!pi,pi,0d0&
+		!pi*7d0/8d0,pi,0d0&
 		!pi*6d0/8d0,pi,0d0&
-		pi*5d0/8d0,pi,0d0,&
-		pi*4d0/8d0,pi,0d0,&
-		pi*3d0/8d0,pi,0d0,&
-		pi*2d0/8d0,pi,0d0,&
-		pi*1d0/8d0,pi,0d0,&
-		0d0,pi,0d0&
+		!pi*5d0/8d0,pi,0d0&
+		!pi*4d0/8d0,pi,0d0&
+		!pi*3d0/8d0,pi,0d0,&
+		!pi*2d0/8d0,pi,0d0,&
+		!pi*1d0/8d0,pi,0d0,&
+		!pi,pi*7d0/8d0,0d0&
+		!pi,pi*6d0/8d0,0d0&
+		!pi,pi*5d0/8d0,0d0&
+		!pi,pi*4d0/8d0,0d0&
+		!0d0,0d0,0d0&
+		!pi*1d0/8d0,0d0,0d0,&
+		pi*2d0/8d0,0d0,0d0&
+		!pi*3d0/8d0,0d0,0d0,&
+		!pi*4d0/8d0,0d0,0d0,&
+		!pi*5d0/8d0,0d0,0d0,&
+		!pi*6d0/8d0,0d0,0d0,&
+		!pi*7d0/8d0,0d0,0d0&
+		!pi,0d0,0d0&
+		!0d0,pi*1d0/8d0,0d0&
+		!0d0,pi*2d0/8d0,0d0&
+		!0d0,pi*3d0/8d0,0d0&
+		!0d0,pi*4d0/8d0,0d0&
+		!0d0,pi*5d0/8d0,0d0&
+		!0d0,pi*6d0/8d0,0d0&
+		!0d0,pi*7d0/8d0,0d0&
 		!pi*1d0/10d0,pi*1d0/10d0,0d0,&
 		!pi*2d0/10d0,pi*2d0/10d0,0d0,&
 		!pi*3d0/10d0,pi*3d0/10d0,0d0,&
@@ -39,10 +58,10 @@ module global
 		!pi*5d0/10d0,pi*5d0/10d0,0d0,&
 		!pi*6d0/10d0,pi*6d0/10d0,0d0&
 		!pi*7d0/10d0,pi*7d0/10d0,0d0&
-		!pi*8d0/10d0,pi*8d0/10d0,0d0,&
-		!pi*9d0/10d0,pi*9d0/10d0,0d0,&
+		!pi*8d0/10d0,pi*8d0/10d0,0d0&
+		!pi*9d0/10d0,pi*9d0/10d0,0d0&
 		!pi,pi,0d0,&
-		!pi*9d0/10d0,pi,0d0,&
+		!pi*9d0/10d0,pi,0d0&
 		!pi*8d0/10d0,pi,0d0&
 		!pi*7d0/10d0,pi,0d0&
 		!pi*6d0/10d0,pi,0d0&
@@ -64,15 +83,15 @@ contains
 		latt%is_all=.true.
 		latt%a1=[1d0,0d0,0d0]
 		latt%a2=[0d0,1d0,0d0]
-		!latt%c1=latt%a1
-		!latt%c2=latt%a2
+		latt%c1=latt%a1
+		latt%c2=latt%a2
 		!latt%c1=[1d0,1d0,0d0]
 		!latt%c2=[-1d0,1d0,0d0]
-		latt%c1=[8d0,0d0,0d0]
+		latt%c1=[4d0,1d0,0d0]
 		latt%c2=[0d0,2d0,0d0]
 		latt%T1=[1d0,0d0,0d0]*16d0
 		latt%T2=[0d0,1d0,0d0]*16d0
-		latt%bdc=[1d0,1d0,0d0]
+		latt%bdc=[-1d0,1d0,0d0]
 		!latt%bdc(1:2)=exp(img*2d0*pi*0.2d0)
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=[0d0,0d0,0d0]
@@ -83,21 +102,28 @@ contains
 			write(*,*)"Total site number is: ",latt%Ns
 		endif
 
-		! cp
-		call gen_var(tp=1,nb=0)
-		var(iv(0))%bd=-1d0
-		var(iv(0))%val=-0.973564357730634d0
+		!! cp
+		!call gen_var(tp=1,nb=0)
+		!var(iv(0))%bd=-1d0
+		!var(iv(0))%val=-0.973564357730634d0
 
-		! d-wave sc
-		call gen_var(tp=-2,nb=1)
-		do i=1,size(var(iv(0))%bd)
-			if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(1))>1d-6) then
-				var(iv(0))%bd(i)=1d0
-			else
-				var(iv(0))%bd(i)=-1d0
-			endif
-		enddo
-		var(iv(0))%val=1d-4
+		!! d-wave sc
+		!call gen_var(tp=-2,nb=1)
+		!do i=1,size(var(iv(0))%bd)
+			!if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(1))>1d-6) then
+				!var(iv(0))%bd(i)=1d0
+			!else
+				!var(iv(0))%bd(i)=-1d0
+			!endif
+			!!!PDW
+			!!var(iv(0))%bd(i)=var(iv(0))%bd(i)*cos(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+			!!!if(any(abs(latt%nb(var(iv(0))%nb)%bd(i)%r(1)-[4d0,8d0,12d0,16d0]+1d0)<1d-5)) then
+				!!!var(iv(0))%bd(i)=0d0
+			!!!elseif((latt%nb(var(iv(0))%nb)%bd(i)%r(1)>3.1d0.and.latt%nb(var(iv(0))%nb)%bd(i)%r(1)<6.8d0).or.(latt%nb(var(iv(0))%nb)%bd(i)%r(1)>11.1d0.and.latt%nb(var(iv(0))%nb)%bd(i)%r(1)<14.8d0)) then
+				!!!var(iv(0))%bd(i)=-var(iv(0))%bd(i)
+			!!!endif
+		!enddo
+		!var(iv(0))%val=1d-4
 
 		!! PDW
 		!call gen_var(tp=-2,nb=1)
@@ -1085,22 +1111,41 @@ contains
 			l=0
 			nn_(1:,:)=0
 			do i=1,brizon%nk
+				!kq=0
+				!if(.not.is_in(-brizon%k(i,:)+self%q,brizon%Tc,dr)) then
+				!endif
+				!do j=1,brizon%nk
+					!if(sum(abs(-brizon%k(i,:)+self%q+dr-brizon%k(j,:)))<1d-5) then
+						!if(kq/=0) then
+							!if(this_image(self,2)==1) write(*,*)"warn! kq"
+						!else
+							!kq=j
+						!endif
+					!endif
+				!enddo
+				
+				!Htmp(1:latt%Ni,1)=exp(-img*(dr(1)*latt%nb(0)%bd(1:latt%Ni)%r(1)+dr(2)*latt%nb(0)%bd(1:latt%Ni)%r(2)))
+				!if(kq==0) then
+					!if(this_image(self,2)==1) write(*,*)self%q(:2)/pi,"warn!! kq2"
+					!error stop
+				!endif
 				kq=0
-				if(.not.is_in(-brizon%k(i,:)+self%q,brizon%Tc,dr)) then
+				if(is_in(-brizon%k(i,:)+self%q,brizon%Ta,dr)) then
 				endif
-				do j=1,brizon%nk
+				do j=1,size(brizon%k,1)
 					if(sum(abs(-brizon%k(i,:)+self%q+dr-brizon%k(j,:)))<1d-5) then
 						if(kq/=0) then
 							if(this_image(self,2)==1) write(*,*)"warn! kq"
 						else
-							kq=j
+							kq=mod(j-1,brizon%nk)+1
+							dr=-brizon%k(j,:)+brizon%k(kq,:)
 						endif
 					endif
 				enddo
 				
 				Htmp(1:latt%Ni,1)=exp(-img*(dr(1)*latt%nb(0)%bd(1:latt%Ni)%r(1)+dr(2)*latt%nb(0)%bd(1:latt%Ni)%r(2)))
 				if(kq==0) then
-					if(this_image(self,2)==1) write(*,*)self%q(:2)/pi,"warn!! kq2"
+					if(this_image(self,2)==1) write(*,*)"warn!! kq2"
 					error stop
 				endif
 				do n2=1,size(E)
@@ -1133,6 +1178,7 @@ contains
 			self%nn(0,:)=self%nn(1,[2,1])
 			self%Ecfg(abs(self%nn(0,:)))=nn_(0,:)
 			self%psi0=psi0_(:l)
+			write(*,*)"************************",l
 		endif
 		H=matmul(Uik,H)
 		call Hamilton(var,cH)
@@ -1414,6 +1460,11 @@ contains
 				cfgl(dcfg(1:dcfg(0):2))=cfgl(abs(dcfg(2:dcfg(0):2)))-cfgl(dcfg(1:dcfg(0):2))
 				cfgl(abs(dcfg(2:dcfg(0):2)))=cfgl(abs(dcfg(2:dcfg(0):2)))-cfgl(dcfg(1:dcfg(0):2))
 				icfg(k(1:k(0):2))=k(2:k(0):2)
+				if(any(k(2:k(0):2)<=0)) then
+					write(*,*)"k error"
+					write(*,*)k
+					error stop
+				endif
 
 				if(self%sg==3) then
 					if(i>0.and.i/=ubound(nn,1)+1) then
@@ -1725,9 +1776,10 @@ program main
 		open(20,file="../data/var.dat")
 		open(30,file="../data/phyri.dat")
 		open(40,file="../data/phyvar.dat")
-		open(50,file="../data/matrix.dat",access="stream")
-		open(70,file="../data/spect.dat")
+		open(50,file="../data/matrix_p2.dat",access="stream")
+		open(70,file="../data/spect_p2.dat")
 		open(71,file="../data/spect_kmap.dat")
+		open(80,file="../data/band.dat")
 		write(*,*)"coarray info: ",ica1,ica2,"out of",num_images()
 
 
@@ -1801,7 +1853,9 @@ program main
 	!var(1:)%val(1)=[-8.1623E-01, 2.5240E-01,-1.2011E-01, 4.2456E-01, 2.0609E-01, 4.0513E-02]
 	!var(1:)%val(1)=[2.0628E-01,0.0000E-00,1.9582E-01,1.1811E-01,2.6489E-02]
 	!var(1:)%val(1)=[-8.6811E-01,2.0951E-01,-9.7832E-02] ! 1/8
+	!var(1:)%val(1)=[1.9d-01] ! 1/8
 	!var(1:)%val(1)=[-7.5957E-01,2.2205E-01,-8.2460E-02] ! 16x16 -14
+	!var(1:)%val(1)=[-8.0402E-01,2.1654E-01,-9.4038E-02] ! 16x16 -16
 	!var(1:)%val(1)=[-9.5867E-01,1.6445E-01,-1.0910E-01] ! 16x16 -22
 	!var(1:)%val(1)=[-7.8290E-01,2.0821E-01,-7.6381E-02]
 	!var(1:)%val(1)=[2.1445d-01]!0.125,ddw,compare
@@ -1813,10 +1867,11 @@ program main
 	!var(1:vn)%val(1)=[-1.2057E+00,7.2175E-02,1.4056E+00,-8.7562E-02,-1.4239E-01] !stripe: +PDW -4.3064E-01
 	!var(1:)%val(1)=[-1.2417E+00,1.2966E-04,1.7393E+00,-1.4593E-01,-1.8440E-01] !stripe: +dsc -4.2980E-01
 	!var(1:)%val(1)=[-1.4051E+00,1E-1,2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
-	var(1:vn)%val(1)=[-1.4051E+00,2.4353E+00/5E0,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
+	!var(1:vn)%val(1)=[-1.4051E+00,2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
+	var(1:vn)%val(1)=[2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
 	!var(1:)%val(1)=[2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
 	!var(1:)%val(1)=[2.4353E+00,-1.9875E-01] !stripe -4.3380E-01
-	!var(1:vn)%val(1)=[0.25d0] ! ddw E=-4.2473E-01
+	!var(1:vn)%val(1)=[0.50980d0] ! sdw E=-4.2473E-01
 	!var(1:)%val(1)=[-8.4270d-1,1.9227d-1] ! dsc+mu E=-4.3288E-01
 	!var(1:vn)%val(1)=[-7.8405d-01,2.1112d-01,-1.0251d-01] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-7.7984d-01,1.9979d-01,-9.9065d-02] ! dsc+mu+t' E= -4.3329E-01
@@ -1866,9 +1921,9 @@ program main
 
 	mc%sg=1
 	!mc%samp=1024*8*16*8
-	mc%samp=1024*8*8*8*8
+	mc%samp=1024*8*8*8*8*4
 	mc%hot=1024*8*8
-	mc%step=nint(sqrt(real(Ns)))
+	mc%step=nint(sqrt(real(Ns)))*2
 	!mc%samp=1024*8*16*32
 	!mc%hot=1024*8*8*32
 	!mc%step=Ns
@@ -1877,18 +1932,29 @@ program main
 	!var(3)%val=0d-1
 	!var(4)%val=0d-1
 
+	!call band(80,[0d0,0d0,0d0],brizon%Ta(1,:),32)
+	!call band(80,brizon%Ta(1,:),0.5d0*(brizon%Ta(1,:)+brizon%Ta(2,:)),32)
+	!call band(80,0.5d0*(brizon%Ta(1,:)+brizon%Ta(2,:)),[0d0,0d0,0d0],32)
+	!call band(80,[0d0,0d0,0d0],0.5d0*(brizon%Ta(3,:)+brizon%Ta(2,:)),32)
+	!stop
 	call mc%init(.true.)
-	call mc%do_vmc()
-	stop
+	!call mc%do_vmc()
+	!stop
 
 	if(this_image()==1) then
 		do l=2,ica1
 			mc[1,1]%phy(iE)=mc[1,1]%phy(iE)+mc[l,1]%phy(iE)
 		enddo
 		mc[1,1]%phy(iE)=mc[1,1]%phy(iE)*1d0/ica1
-		!mc[1,1]%phy(iE)=-0.434235839825398d0
+		mc[1,1]%phy(iE)=-0.434235839825398d0
+		!mc[1,1]%phy(iE)=-0.434125839825398d0 ! anti
+		!mc[1,1]%phy(iE)=-0.436815839825398d0 ! anti 1
 		!mc[1,1]%phy(iE)=-4.2473d-1
-		mc[1,1]%phy(iE)=-3.2728d-01
+		!mc[1,1]%phy(iE)=-3.2728d-01
+		!mc[1,1]%phy(iE)=-4.1262d-01
+		!mc[1,1]%phy(iE)=-4.1097E-01
+		!mc[1,1]%phy(iE)=-3.0307E-01 ! sdw low
+		!mc[1,1]%phy(iE)=-4.2508E-01 ! RVB 1/8
 		sync images(*)
 	else
 		sync images(1)
@@ -1902,11 +1968,13 @@ program main
 	!mc%samp=1024*8*8*8*8 !dsc 16x16
 	!mc%samp=1024*8*8*16*4*2 !sdw 16x16
 	!mc%samp=1024*8*8*32*8*4 !stripe
+	!mc%samp=1024*8*8*32*16 !stripe anti
+	mc%samp=1024*8*8*32*16 !stripe anti
 	!mc%samp=1024*8*8*32 !dsc
 	!mc%samp=1024*8*8*32*8 !ddw
 	!mc%samp=1024*8*8*32*4 !dsc 20x20
-	mc%samp=1024*8*8*32*16 !ddw 20x20
-	mc%step=nint(sqrt(real(Ns)))
+	!mc%samp=1024*8*8*32*16/2 !ddw 20x20
+	mc%step=nint(sqrt(real(Ns)))*2
 	call mc%init(.true.)
 	call mc%do_vmc()
 
@@ -1950,11 +2018,14 @@ program main
 			allocate(mc%psi0(j),mc%Ok2(j,j),mc%Ek2(j,j),mc%nn(j,2),mc%Emf(Ns*2))
 			read(50)mc%q,mc%phy(iE),mc%phy(iSq_pm),mc%Emf,mc%psi0,mc%Ok2,mc%Ek2,mc%nn
 			write(*,*)mc%q,mc%phy(iE),Ns,i,j
-			call mc%spect(70,0.02d0,[-10d0,10d0],5000)
+			!call mc%spect(70,0.02d0,[-10d0,10d0],5000)
+			call mc%spect(70,0.1d0,[-10d0,10d0],5000)
 			mc%Ek2=transpose(conjg(mc%Ek2))
-			call mc%spect(70,0.02d0,[-10d0,10d0],5000)
+			!call mc%spect(70,0.02d0,[-10d0,10d0],5000)
+			call mc%spect(70,0.1d0,[-10d0,10d0],5000)
 			mc%Ek2=0.5d0*(mc%Ek2+transpose(conjg(mc%Ek2)))
-			call mc%spect(70,0.02d0,[-10d0,10d0],5000)
+			!call mc%spect(70,0.02d0,[-10d0,10d0],5000)
+			call mc%spect(70,0.1d0,[-10d0,10d0],5000)
 			deallocate(mc%psi0,mc%Ok2,mc%Ek2,mc%Emf,mc%nn)
 		enddo
 	endif

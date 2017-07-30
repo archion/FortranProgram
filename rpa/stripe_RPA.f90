@@ -24,8 +24,8 @@ contains
 		latt%a2=(/0d0,1d0,0d0/)
 		latt%c1=(/8d0,0d0,0d0/)
 		latt%c2=(/0d0,2d0,0d0/)
-		latt%T1=(/1d0,0d0,0d0/)*32
-		latt%T2=(/0d0,1d0,0d0/)*32
+		latt%T1=(/1d0,0d0,0d0/)*96
+		latt%T2=(/0d0,1d0,0d0/)*96
 		latt%bdc(1)=1d0
 		latt%bdc(2)=1d0
 		allocate(latt%rsb(1,3))
@@ -276,10 +276,11 @@ program main
 	do i=j/4,3*j/4
 		if(i<j/2) then
 			!call rpa_spin(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.002d0,[0d0,0.5d0],1000)
-			!call rpa_spin_i(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.02d0,[0d0,1d0],500)
+			call rpa_spin_i(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.02d0,[0d0,1d0],500)
 		else
 			!call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.002d0,[0d0,0.5d0],1000)
-			call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.02d0,[0d0,1d0],500)
+			!call rpa_spin_i(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.02d0,[0d0,1d0],500)
+			call rpa_spin_i(70,[pi,pi-2d0*pi*(i-j/2)/j,0d0],0.02d0,[0d0,1d0],500)
 		endif
 	enddo
 

@@ -266,7 +266,7 @@ contains
   function getRandomReal(twister)
     type(randomNumberSequence), intent(inout) :: twister
     double precision             :: getRandomReal
-    ! Generate a random number on [0,1]
+    ! Generate a random number on [0,1)
     !   Equivalent to genrand_real1 in the C code
     !   The result is stored as double precision but has 32 bit resolution
     
@@ -274,9 +274,9 @@ contains
     
     localInt = getRandomInt(twister)
     if(localInt < 0) then
-      getRandomReal = dble(localInt + 2.0d0**32)/(2.0d0**32 - 1.0d0)
+      getRandomReal = dble(localInt + 2.0d0**32)/(2.0d0**32)
     else
-      getRandomReal = dble(localInt            )/(2.0d0**32 - 1.0d0)
+      getRandomReal = dble(localInt            )/(2.0d0**32)
     end if
   end function getRandomReal
   ! --------------------

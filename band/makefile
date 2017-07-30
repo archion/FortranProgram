@@ -1,2 +1,2 @@
-out = graphene.out
+out = honeycomb.out
 include ../makefile

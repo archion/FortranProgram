@@ -215,6 +215,7 @@ contains
 			endif
 			if(latt%is_all) then
 				allocate(Uik(Ns*spin,Ns*spin))
+				Uik=0d0
 				do i=1,Ns
 					do j=1,nk
 						do n=1,spin

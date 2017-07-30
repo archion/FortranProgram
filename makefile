@@ -1,9 +1,9 @@
 ARCH := $(shell getconf LONG_BIT)
 FCC = ifort
 ifeq ($(DEBUG),A)
-	CFLAG= $(AFLAG) -O0 -warn nounused  -check noarg_temp_created -check bounds -g -check all -fpe0 -traceback -debug extended  -fstack-protector  -assume protect_parens  -check -ftrapuv
+	CFLAG= $(AFLAG) -O0 -warn nounused  -check noarg_temp_created -check bounds -g -check all -fpe0 -traceback -debug extended  -fstack-protector  -assume protect_parens  -check -ftrapuv -init=snan,arrays
 else ifeq ($(DEBUG),B)
-	CFLAG= $(AFLAG) -warn nounused -traceback
+	CFLAG= $(AFLAG) -warn nounused -traceback -init=snan,arrays -fp-speculation=safe
 else
 	CFLAG= $(AFLAG) -warn nounused
 endif

@@ -76,7 +76,7 @@ contains
 			deallocate(tmp)
 		end select
 	end subroutine
-	function is_in(r,T,dr)
+	recursive function is_in(r,T,dr)
 		logical :: is_in
 		real(8) :: r(3),T(:,:)
 		real(8), optional :: dr(:)
@@ -125,6 +125,12 @@ contains
 				endif
 			endif
 		enddo
+		if(present(dr)) then
+			if(.not.is_in(r+dr,T)) then
+				write(*,*)"is_in error"
+				stop
+			endif
+		endif
 	end function
 	subroutine gen_grid(a1,a2,r0,T,grid)
 		real(8), allocatable :: grid(:,:)
