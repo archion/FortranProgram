@@ -17,7 +17,7 @@ module M_Hamilton_final_M
 		integer, allocatable :: left(:)
 		integer, allocatable :: right(:)
 		integer, allocatable :: sg(:,:)
-		integer, allocatable :: cg(:)
+		logical, allocatable :: cg(:)
 		integer :: sb(2)
 		real(8) :: V
 		real(8), allocatable :: val(:)
@@ -119,25 +119,9 @@ contains
 		else
 			self%var(idx)%cg=.false.
 		endif
-		allocate(self%var(idx)%sg(size(left),2))
+		allocate(self%var(idx)%sg(size(left)))
 		if(present(sg)) then
-			self%var(idx)%sg(:,1)=sg
-			self%var(idx)%sg(:,2)=0d0
-			do i=1,size(sg)
-				if(left(i)==right(i)) then
-					self%var(idx)%sg(i,2)=sg(i)*self%fer_bos
-				elseif(left(i)==-right(i)) then
-					self%var(idx)%sg(i,2)=sg(i)
-				else
-					do j=1,size(sg)
-						if(dir(j)==-dir(i)) then
-							if(left(i)==left(j).and.right(i)==right(j)) then
-								self%var(idx)%sg(i,2)=sg(j)
-							endif
-						endif
-					enddo
-				endif
-			enddo
+			self%var(idx)%sg(:)=sg
 		else
 			self%var(idx)%sg=1d0
 		endif
@@ -316,12 +300,12 @@ contains
 						hj=pn(abs(self%var(idx(l))%right(m)))+sum(self%i2H(i,:),self%mask(abs(self%var(idx(l))%right(m)),:))
 						tmp=conjg(bdc)*conjg(expk)
 					endif
-					if(self%var(idx(l))%sg(m,merge(2,1,sb(1)>sb(2)))==0)  stop "Hamilton sg error"
-					tmp=tmp*self%var(idx(l))%sg(m,merge(2,1,sb(1)>sb(2)))*bd
-					H(hi,hj)=H(hi,hj)+tmp
 					if(self%var(idx(l))%cg(m)) then
-						H(hj,hi)=H(hj,hi)+conjg(tmp)
+						tmp=tmp*self%var(idx(l))%sg(m)*conjg(bd)
+					else
+						tmp=tmp*self%var(idx(l))%sg(m)*bd
 					endif
+					H(hi,hj)=H(hi,hj)+tmp
 				enddo
 			enddo
 		enddo
