@@ -6,19 +6,16 @@ module M_Hamilton_final_M
 	use M_matrix
 	use omp_lib
 	implicit none
-	type, extends(t_sort), private :: t_mysort
-		integer :: idx
-	contains
-		procedure :: swap_sort => myswap1
+	type c
+		character(2) :: l
+		integer :: sb=0
+		integer :: tp=0
 	end type
 	type t_var
 		integer :: nb
-		integer, allocatable :: dir(:)
-		integer, allocatable :: left(:)
-		integer, allocatable :: right(:)
-		integer, allocatable :: sg(:,:)
+		type(c), allocatable :: c(:,:)
+		integer, allocatable :: sg(:)
 		logical, allocatable :: cg(:)
-		integer :: sb(2)
 		real(8) :: V
 		real(8), allocatable :: val(:)
 		complex(8), allocatable :: bd(:)
@@ -29,25 +26,29 @@ module M_Hamilton_final_M
 	type t_ham
 		type(t_var), allocatable :: var(:)
 		complex(8), allocatable :: Uqi(:,:),Uik(:,:)
-		integer, allocatable :: i2H(:,:)
 		logical, allocatable :: mask(:,:)
-		integer, allocatable :: pn(:)
+		integer, allocatable :: i2tp(:)
+		integer, allocatable :: tp2i(:)
+		integer, allocatable :: psb(:,:)
+		integer, allocatable :: ptp(:)
+		integer, allocatable :: H2i(:,:)
+		integer, allocatable :: H2s(:,:)
 		logical :: is_nambu=.false.
 		integer :: fer_bos=-1
 		integer :: rg(2)=[1,0]
 		integer :: Hi=0,Hs=0
 	contains
-		procedure :: gen_var
+		procedure :: add
 		procedure :: init
 		procedure :: put
 		procedure :: get
+		procedure :: i2H
 		procedure :: Hamilton
 		procedure :: dHamilton
 		procedure :: band
 	end type
 	real(8) :: Tk,nf
 	type(t_brizon), pointer :: pbrizon
-	private myswap1
 	!procedure(real(8)), pointer :: free_energy
 	procedure(mat_diag_interface), pointer :: mat_diag
 	!procedure(self_consist_interface), pointer :: self_consist
@@ -75,19 +76,18 @@ contains
 			call heev(H,E,"V")
 		end select
 	end subroutine
-	function gen_var(self,dir,left,right,cg,sg,sb,val,V,label) result(idx)
-		! the dir is always from smaller sb to larger sb
+	function add(self,nb,ca,n,cg,sg,val,V,label) result(idx)
 		class(t_ham) :: self
-		integer, intent(in) :: dir(:),left(:),right(:)
+		integer, intent(in) :: nb
+		type(c) :: ca(:)
+		integer :: n
 		logical, optional :: cg(:)
 		real(8), optional :: sg(:)
-		integer, optional :: sb(:)
 		real(8), intent(in), optional :: val(:)
 		real(8), intent(in), optional :: V
 		character(*), optional :: label
 		integer :: idx
-		type(t_mysort), allocatable :: sort(:)
-		integer, allocatable :: c(:)
+		integer, allocatable :: c(:),ord(:)
 		integer :: i,j
 		if(present(V)) then
 			self%rg(2)=self%rg(2)+1
@@ -98,39 +98,29 @@ contains
 			idx=self%rg(1)
 			self%var(idx)%V=transfer([Z'00000000',Z'7FF80000'],1d0)
 		endif
-		if(present(sb)) then
-			self%var(idx)%sb=sb
-		else
-			self%var(idx)%sb=0
-		endif
+		self%var(idx)%nb=nb
 		if(present(label)) then
 			self%var(idx)%label=label
 		endif
-		self%var(idx)%nb=abs(dir(1))
-		allocate(self%var(idx)%dir(size(left)))
-		self%var(idx)%dir=dir
-		allocate(self%var(idx)%left(size(left)))
-		self%var(idx)%left=left
-		allocate(self%var(idx)%right(size(left)))
-		self%var(idx)%right=right
-		allocate(self%var(idx)%cg(size(left)))
+		allocate(self%var(idx)%c(n,size(ca)/n))
+		self%var(idx)%c=reshape(ca,shape(self%var(idx)%c))
+		allocate(self%var(idx)%cg(size(ca)/n))
 		if(present(cg)) then
 			self%var(idx)%cg=cg
 		else
 			self%var(idx)%cg=.false.
 		endif
-		allocate(self%var(idx)%sg(size(left)))
+		allocate(self%var(idx)%sg(size(ca)/n))
 		if(present(sg)) then
 			self%var(idx)%sg(:)=sg
 		else
 			self%var(idx)%sg=1d0
 		endif
 		if(present(val)) then
-			allocate(sort(size(val)))
-			sort(:)%val=val
-			sort(:)%idx=[1:size(sort)]
-			call qsort(sort)
-			call collect(sort,c)
+			allocate(ord(size(val)))
+			ord=[1:size(ord)]
+			call qsort(val,ord)
+			call collect(val,c)
 
 			allocate(self%var(idx)%bd2v(size(val)))
 			allocate(self%var(idx)%bd(size(val)))
@@ -138,7 +128,7 @@ contains
 			self%var(idx)%n=size(c)-1
 			do i=1,size(c)-1
 				do j=c(i),c(i+1)-1
-					self%var(idx)%bd2v(sort(j)%idx)=i
+					self%var(idx)%bd2v(ord)=i
 				enddo
 			enddo
 		else
@@ -178,59 +168,97 @@ contains
 			enddo
 		enddo
 	end function
-	subroutine init(self,imask)
+	function i2H(self,i,tp,flag)
+		class(t_ham), intent(in) :: self
+		integer :: i,tp
+		logical :: flag
+		integer :: i2H
+		i2H=self%ptp(self%tp2i(tp)-1)*merge(latt%Nc,1,flag)+sum(self%psb(i,:),self%mask(self%tp2i(tp),:))
+	end function
+	subroutine init(self)
 		class(t_ham), intent(inout) :: self
-		integer :: imask(:)
 		integer :: lb,i,j,m,n
 		type(t_var) :: tmp(self%rg(1):self%rg(2))
+		integer :: i2tp(20),tp2i(20)
+		logical :: mask(20,8)
 		tmp(self%rg(1):self%rg(2))=self%var(self%rg(1):self%rg(2))
 		deallocate(self%var)
 		allocate(self%var(self%rg(1):self%rg(2)))
 		self%var(self%rg(1):self%rg(2))=tmp
-		allocate(self%i2H(merge(latt%Ns,latt%Ni,latt%is_all),latt%sb))
-		self%i2H(1,:)=0
-		self%i2H(1,latt%nb(0)%bd(1)%sb(1))=1
+		allocate(self%psb(merge(latt%Ns,latt%Ni,latt%is_all),latt%sb))
+		self%psb(1,:)=0
+		self%psb(1,latt%nb(0)%bd(1)%sb(1))=1
 		do i=2,merge(latt%Ns,latt%Ni,latt%is_all)
-			self%i2H(i,:)=self%i2H(i-1,:)
-			self%i2H(i,latt%nb(0)%bd(i)%sb(1))=self%i2H(i,latt%nb(0)%bd(i)%sb(1))+1
+			self%psb(i,:)=self%psb(i-1,:)
+			self%psb(i,latt%nb(0)%bd(i)%sb(1))=self%psb(i,latt%nb(0)%bd(i)%sb(1))+1
 		enddo
+		m=0
+		i2tp=0
+		tp2i=0
+		mask=.false.
 		do i=self%rg(1),self%rg(2)
-			if(any(self%var(i)%left(:)<0)) then
-				self%is_nambu=.true.
-				exit
+			if(size(self%var(i)%c,1)==2) then
+				do j=1,size(self%var(i)%c,2)
+					do n=1,m
+						if(merge(self%var(i)%c(1,j)%tp,-self%var(i)%c(1,j)%tp,self%var(i)%c(1,j)%l(1:1)=="+")==i2tp(n)) then
+							mask(n,self%var(i)%c(1,j)%sb)=.true.
+							exit
+						endif
+					enddo
+					if(n==m+1) then
+						m=m+1
+						mask(m,self%var(i)%c(1,j)%sb)=.true.
+						i2tp=merge(self%var(i)%c(1,j)%tp,-self%var(i)%c(1,j)%tp,self%var(i)%c(1,j)%l(1:1)=="+")
+					endif
+				enddo
+			else
+				return
 			endif
 		enddo
-		allocate(self%mask(maxval(imask),latt%sb))
-		self%mask=.false.
-		do i=1,latt%sb
-			self%mask(1:imask(i),i)=.true.
-		enddo
+		allocate(self%mask(m,latt%sb),self%i2tp(m),self%tp2i(minval(i2tp):maxval(i2tp)))
+		self%is_nambu=lbound(self%tp2i,1)<0
+		self%mask=mask(:m,:latt%sb)
+		self%i2tp=i2tp(:m)
+		self%tp2i(self%i2tp)=[1:size(self%i2tp)]
+		allocate(self%ptp(0:size(self%mask,1)))
+		self%ptp(0)=0
 		do i=1,size(self%mask,1)
-			self%Hi=self%Hi+sum(self%i2H(latt%Ni,:),self%mask(i,:))
-			if(latt%is_all) then
-				self%Hs=self%Hs+sum(self%i2H(latt%Ns,:),self%mask(i,:))
-			endif
+			self%ptp(i)=self%ptp(i-1)+sum(self%psb(latt%Ni,:),self%mask(i,:))
 		enddo
-		allocate(self%pn(size(self%mask,1)))
-		self%pn(1)=0
-		do i=2,size(self%mask,1)
-			self%pn(i)=self%pn(i-1)+sum(self%i2H(latt%Ni,:),self%mask(i-1,:))
+		self%Hi=self%ptp(size(self%mask,1))
+		self%Hs=self%Hi*latt%Nc
+		allocate(self%H2i(self%Hi,2))
+		if(latt%is_all) allocate(self%H2s(self%Hs,2))
+		do i=1,latt%Ns
+			if(.not.latt%is_all.and.i>latt%Ni) exit
+			do n=1,size(self%mask,1)
+				if(self%mask(n,latt%nb(0)%bd(i)%sb(1))) then
+					if(i<=latt%Ni) then
+						self%H2i(self%i2H(i,self%i2tp(n),.false.),1)=i
+						self%H2i(self%i2H(i,self%i2tp(n),.false.),2)=self%i2tp(n)
+					endif
+					if(latt%is_all) then
+						self%H2s(self%i2H(i,self%i2tp(n),.true.),1)=i
+						self%H2s(self%i2H(i,self%i2tp(n),.true.),2)=self%i2tp(n)
+					endif
+				endif
+			enddo
 		enddo
+		write(*,*)self%mask
+		write(*,*)self%ptp
 
 		mat_diag => default_mat_diag
 		!free_energy => default_free_energy
 		pbrizon => brizon
 		
-		associate(Ns=>latt%Ns,Nc=>latt%Nc,Ni=>latt%Ni,sb=>latt%sb,nq=>pbrizon%nq,nk=>pbrizon%nk,pn=>self%pn)
+		associate(Ns=>latt%Ns,Nc=>latt%Nc,Ni=>latt%Ni,sb=>latt%sb,nq=>pbrizon%nq,nk=>pbrizon%nk,ptp=>self%ptp)
 			if(all(abs(latt%bdc(:2))>1d-6)) then
 				allocate(self%Uqi(self%Hi,self%Hi))
 				self%Uqi=0d0
 				do i=1,nq
-					do j=1,Ni
-						do n=1,size(self%mask,1)
-							if(self%mask(n,latt%nb(0)%bd(j)%sb(1))) then
-								self%Uqi(pn(n)+count(self%mask(n,:))*(i-1)+sum(self%i2H(latt%nb(0)%bd(j)%sb(1),:),self%mask(n,:)),pn(n)+sum(self%i2H(j,:),self%mask(n,:)))=exp(-img*sum(pbrizon%q(i,:)*latt%nb(0)%bd(j)%r))
-							endif
+					do n=1,size(self%mask,1)
+						do j=1,self%Hi
+							self%Uqi(ptp(n-1)+count(self%mask(n,:))*(i-1)+count(self%mask(n,:latt%nb(0)%bd(self%H2i(j,1))%sb(1))),j)=exp(-img*sum(pbrizon%q(i,:)*latt%nb(0)%bd(self%H2i(j,1))%r))
 						enddo
 					enddo
 				enddo
@@ -239,12 +267,10 @@ contains
 			if(latt%is_all) then
 				allocate(self%Uik(self%Hs,self%Hs))
 				self%Uik=0d0
-				do i=1,Ns
+				do i=1,self%Hs
 					do j=1,nk
 						do n=1,size(self%mask,1)
-							if(self%mask(n,latt%nb(0)%bd(i)%sb(1))) then
-								self%Uik(pn(n)*Nc+sum(self%i2H(i,:),self%mask(n,:)),self%Hi*(j-1)+pn(n)+sum(self%i2H(latt%nb(0)%bd(i)%sbc(1),:),self%mask(n,:)))=exp(img*sum(latt%nb(0)%bd(i)%r*pbrizon%k(j,:)))
-							endif
+							self%Uik(i,ptp(n-1)*Nc+count(self%mask(n,:))*(j-1)+count(self%mask(n,:latt%nb(0)%bd(self%H2s(i,1))%sb(1))))=exp(img*sum(latt%nb(0)%bd(self%H2s(i,1))%r*pbrizon%k(j,:)))
 						enddo
 					enddo
 				enddo
@@ -260,26 +286,31 @@ contains
 		complex(8), external, optional :: fn
 		integer, optional, intent(in) :: info
 		complex(8) :: bdc,expk,bd,tmp
-		integer :: i,j,l,n,m,nb,hi,hj,sb(2),pn(size(self%pn))
+		integer :: i,j,l,n,m,nb,hi,hj,sb(2),il
 		real(8) :: dr(3)
 		real(8), allocatable :: sg(:)
-		logical :: flag
+		logical :: flag,flag1
 		if(.not.present(info)) then
 			H=0d0
 		endif
 		expk=1d0
 		flag=(present(k).and.latt%is_all)
-		pn=self%pn*merge(latt%Nc,1,(.not.present(k)).and.latt%is_all)
+		flag1=(.not.present(k)).and.latt%is_all
 		do l=1,size(idx)
-			nb=abs(self%var(idx(l))%nb)
+			il=idx(l)
+			if(size(self%var(il)%c,1)/=2) then
+				stop "only quadratic term is considered"
+			endif
+			nb=abs(self%var(il)%nb)
 			do n=1,size(latt%nb(nb)%bd)/merge(latt%Nc,1,flag)
-				bd=conjg(self%var(idx(l))%bd(n))
+				bd=conjg(self%var(il)%bd(n))
 				dr=latt%nb(nb)%bd(n)%dr
 				! the bdc for spin down in Nambu is conjg(bdc)
 				bdc=latt%nb(nb)%bd(n)%bdc
+				sb=latt%nb(nb)%bd(n)%sb
 
-				if(abs(bd)<1d-6.or.(sum(abs(merge(sb(2:1:-1),sb,sb(1)>sb(2))-self%var(idx(l))%sb))/=0.and.sum(self%var(idx(l))%sb)/=0)) cycle
-				if((.not.isnan(self%var(idx(l))%V)).or.present(k)) bdc=abs(bdc)
+				if(abs(bd)<1d-6) cycle
+				if((.not.isnan(self%var(il)%V)).or.present(k)) bdc=abs(bdc)
 				if(present(k)) then
 					i=latt%nb(nb)%bd(n)%sbc(1)
 					j=latt%nb(nb)%bd(n)%sbc(2)
@@ -288,22 +319,28 @@ contains
 					i=latt%nb(nb)%bd(n)%i(1)
 					j=latt%nb(nb)%bd(n)%i(2)
 				endif
-				bd=bd*self%var(idx(l))%val(self%var(idx(l))%bd2v(n))*merge(1d0,self%var(idx(l))%V,isnan(self%var(idx(l))%V))
-				if(present(fn)) bd=bd*fn(dr)
-				do m=1,size(self%var(idx(l))%left)
-					if(self%var(idx(l))%dir(m)>=0) then
-						hi=pn(abs(self%var(idx(l))%left(m)))+sum(self%i2H(i,:),self%mask(abs(self%var(idx(l))%left(m)),:))
-						hj=pn(abs(self%var(idx(l))%right(m)))+sum(self%i2H(j,:),self%mask(abs(self%var(idx(l))%right(m)),:))
+				bd=bd*self%var(il)%val(self%var(il)%bd2v(n))*merge(1d0,self%var(il)%V,isnan(self%var(il)%V))
+				do m=1,size(self%var(il)%c,2)
+					if(all(sb-self%var(il)%c(1:2,m)%sb==0)) then
+						hi=self%i2H(i,self%var(il)%c(1,m)%tp*merge(1,-1,self%var(il)%c(1,m)%l(1:1)=="+"),flag1)
+						hj=self%i2H(j,self%var(il)%c(2,m)%tp*merge(1,-1,self%var(il)%c(2,m)%l(1:1)=="-"),flag1)
 						tmp=bdc*expk
-					else
-						hi=pn(abs(self%var(idx(l))%left(m)))+sum(self%i2H(j,:),self%mask(abs(self%var(idx(l))%left(m)),:))
-						hj=pn(abs(self%var(idx(l))%right(m)))+sum(self%i2H(i,:),self%mask(abs(self%var(idx(l))%right(m)),:))
+						if(sb(1)==sb(2).and.self%var(il)%c(1,m)%l(2:2)=="j") then
+							hi=self%i2H(j,self%var(il)%c(1,m)%tp*merge(1,-1,self%var(il)%c(1,m)%l(1:1)=="+"),flag1)
+							hj=self%i2H(i,self%var(il)%c(2,m)%tp*merge(1,-1,self%var(il)%c(2,m)%l(1:1)=="-"),flag1)
+							tmp=conjg(bdc)*conjg(expk)
+						endif
+					elseif(all(sb(2:1:-1)-self%var(il)%c(1:2,m)%sb==0)) then
+						hi=self%i2H(j,self%var(il)%c(1,m)%tp*merge(1,-1,self%var(il)%c(1,m)%l(1:1)=="+"),flag1)
+						hj=self%i2H(i,self%var(il)%c(2,m)%tp*merge(1,-1,self%var(il)%c(2,m)%l(1:1)=="-"),flag1)
 						tmp=conjg(bdc)*conjg(expk)
-					endif
-					if(self%var(idx(l))%cg(m)) then
-						tmp=tmp*self%var(idx(l))%sg(m)*conjg(bd)
 					else
-						tmp=tmp*self%var(idx(l))%sg(m)*bd
+						cycle
+					endif
+					if(self%var(il)%cg(m)) then
+						tmp=tmp*self%var(il)%sg(m)*conjg(bd)
+					else
+						tmp=tmp*self%var(il)%sg(m)*bd
 					endif
 					H(hi,hj)=H(hi,hj)+tmp
 				enddo
@@ -901,18 +938,4 @@ contains
 			!endif
 		!enddo
 	!end function
-	subroutine myswap1(self,a)
-		class(t_mysort) :: self
-		class(t_sort) :: a
-		type(t_mysort), allocatable :: tmp
-		select type(a)
-		type is (t_mysort)
-			call self%t_sort%swap_sort(a)
-			allocate(tmp)
-			tmp%idx=a%idx
-			a%idx=self%idx
-			self%idx=tmp%idx
-			deallocate(tmp)
-		end select
-	end subroutine
 end module

@@ -80,57 +80,43 @@ contains
 		logical :: is_in
 		real(8) :: r(3),T(:,:)
 		real(8), optional :: dr(:)
-		real(8) :: tr(2),T1(3),T2(3),tf(2,2),rerr(3)
-		integer :: i
+		real(8) :: tr(2),EG(3),DT(3),tf(2,2),rerr(3),r_(3)
+		integer :: i,j,n
+		r_=r
 		if(present(dr)) then
 			dr=0d0
 		endif
 		is_in=.true.
 		rerr=0d0
-		do i=1,size(T,1)/2
+		n=size(T,1)
+		do i=1,n/2
 			rerr=rerr+(T(i+1,:)-T(i,:))*err*i/1.34d0
 		enddo
-		do i=1,size(T,1),2
-			T1=T(mod(i-2+size(T,1),size(T,1))+1,:)-T(i,:)
-			T2=T(mod(i,size(T,1))+1,:)-T(i,:)
-			tf=reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/))
+		do 
+			do i=1,size(T,1)
+				j=mod(i,size(T,1))+1
+				EG=T(j,:)-T(i,:)
+				DT=(T(mod(j-1+n/2,n)+1,:)-T(j,:))+EG
+				tf=reshape((/EG(2),-DT(2),-EG(1),DT(1)/)/(DT(1)*EG(2)-DT(2)*EG(1)),(/2,2/))
+				tr=matmul(tf,r_(:2)-(T(j,:)+T(i,:))/2d0+rerr(:2))
+				if(tr(1)<0d0) then
+					is_in=.false.
+					if(present(dr)) then
+						r_=r_-floor(tr(1))*DT
+					else
+						return
+					endif
+				endif
+			enddo
 			if(present(dr)) then
-				tr=matmul(tf,r(:2)+dr-T(i,:2)+rerr(:2))
-			else
-				tr=matmul(tf,r(:2)-T(i,:2)+rerr(:2))
-			endif
-			if(any(tr<0d0)) then
-				is_in=.false.
-				if(present(dr)) then
-					if(tr(1)<0d0) then
-						do 
-							dr=dr-(T2-T(mod(i+size(T,1)/2-1,size(T,1))+1,:2)+T(i,:2))
-							tr=matmul(tf,r(:2)+dr-T(i,:2)+rerr(:2))
-							if(tr(1)>=0d0) then
-								exit
-							endif
-						enddo
-					endif
-					if(tr(2)<0d0) then
-						do 
-							dr=dr-(T1-T(mod(i+size(T,1)/2-1,size(T,1))+1,:2)+T(i,:2))
-							tr=matmul(tf,r(:2)+dr-T(i,:2)+rerr(:2))
-							if(tr(2)>=0d0) then
-								exit
-							endif
-						enddo
-					endif
-				else
+				if(is_in(r_,T)) then
+					dr=r_-r
 					exit
 				endif
+			else
+				exit
 			endif
 		enddo
-		if(present(dr)) then
-			if(.not.is_in(r+dr,T)) then
-				write(*,*)"is_in error"
-				stop
-			endif
-		endif
 	end function
 	subroutine gen_grid(a1,a2,r0,T,grid)
 		real(8), allocatable :: grid(:,:)

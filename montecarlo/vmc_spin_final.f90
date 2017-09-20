@@ -37,7 +37,7 @@ module global
 		!pi,pi*4d0/8d0,0d0&
 		!0d0,0d0,0d0&
 		!pi*1d0/8d0,0d0,0d0,&
-		pi*2d0/8d0,0d0,0d0&
+		!pi*2d0/8d0,0d0,0d0&
 		!pi*3d0/8d0,0d0,0d0,&
 		!pi*4d0/8d0,0d0,0d0,&
 		!pi*5d0/8d0,0d0,0d0,&
@@ -59,7 +59,7 @@ module global
 		!pi*6d0/10d0,pi*6d0/10d0,0d0&
 		!pi*7d0/10d0,pi*7d0/10d0,0d0&
 		!pi*8d0/10d0,pi*8d0/10d0,0d0&
-		!pi*9d0/10d0,pi*9d0/10d0,0d0&
+		pi*9d0/10d0,pi*9d0/10d0,0d0&
 		!pi,pi,0d0,&
 		!pi*9d0/10d0,pi,0d0&
 		!pi*8d0/10d0,pi,0d0&
@@ -85,13 +85,13 @@ contains
 		latt%a2=[0d0,1d0,0d0]
 		latt%c1=latt%a1
 		latt%c2=latt%a2
-		!latt%c1=[1d0,1d0,0d0]
-		!latt%c2=[-1d0,1d0,0d0]
-		latt%c1=[4d0,1d0,0d0]
-		latt%c2=[0d0,2d0,0d0]
-		latt%T1=[1d0,0d0,0d0]*16d0
-		latt%T2=[0d0,1d0,0d0]*16d0
-		latt%bdc=[-1d0,1d0,0d0]
+		latt%c1=[1d0,1d0,0d0]
+		latt%c2=[-1d0,1d0,0d0]
+		!latt%c1=[4d0,1d0,0d0]
+		!latt%c2=[0d0,2d0,0d0]
+		latt%T1=[1d0,0d0,0d0]*20d0
+		latt%T2=[0d0,1d0,0d0]*20d0
+		latt%bdc=[1d0,1d0,0d0]
 		!latt%bdc(1:2)=exp(img*2d0*pi*0.2d0)
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=[0d0,0d0,0d0]
@@ -102,28 +102,28 @@ contains
 			write(*,*)"Total site number is: ",latt%Ns
 		endif
 
-		!! cp
-		!call gen_var(tp=1,nb=0)
-		!var(iv(0))%bd=-1d0
-		!var(iv(0))%val=-0.973564357730634d0
+		! cp
+		call gen_var(tp=1,nb=0)
+		var(iv(0))%bd=-1d0
+		var(iv(0))%val=-0.973564357730634d0
 
-		!! d-wave sc
-		!call gen_var(tp=-2,nb=1)
-		!do i=1,size(var(iv(0))%bd)
-			!if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(1))>1d-6) then
-				!var(iv(0))%bd(i)=1d0
-			!else
-				!var(iv(0))%bd(i)=-1d0
-			!endif
-			!!!PDW
-			!!var(iv(0))%bd(i)=var(iv(0))%bd(i)*cos(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
-			!!!if(any(abs(latt%nb(var(iv(0))%nb)%bd(i)%r(1)-[4d0,8d0,12d0,16d0]+1d0)<1d-5)) then
-				!!!var(iv(0))%bd(i)=0d0
-			!!!elseif((latt%nb(var(iv(0))%nb)%bd(i)%r(1)>3.1d0.and.latt%nb(var(iv(0))%nb)%bd(i)%r(1)<6.8d0).or.(latt%nb(var(iv(0))%nb)%bd(i)%r(1)>11.1d0.and.latt%nb(var(iv(0))%nb)%bd(i)%r(1)<14.8d0)) then
-				!!!var(iv(0))%bd(i)=-var(iv(0))%bd(i)
-			!!!endif
-		!enddo
-		!var(iv(0))%val=1d-4
+		! d-wave sc
+		call gen_var(tp=2,nb=1)
+		do i=1,size(var(iv(0))%bd)
+			if(abs(latt%nb(var(iv(0))%nb)%bd(i)%dr(1))>1d-6) then
+				var(iv(0))%bd(i)=1d0
+			else
+				var(iv(0))%bd(i)=-1d0
+			endif
+			!!PDW
+			!var(iv(0))%bd(i)=var(iv(0))%bd(i)*cos(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+			!!if(any(abs(latt%nb(var(iv(0))%nb)%bd(i)%r(1)-[4d0,8d0,12d0,16d0]+1d0)<1d-5)) then
+				!!var(iv(0))%bd(i)=0d0
+			!!elseif((latt%nb(var(iv(0))%nb)%bd(i)%r(1)>3.1d0.and.latt%nb(var(iv(0))%nb)%bd(i)%r(1)<6.8d0).or.(latt%nb(var(iv(0))%nb)%bd(i)%r(1)>11.1d0.and.latt%nb(var(iv(0))%nb)%bd(i)%r(1)<14.8d0)) then
+				!!var(iv(0))%bd(i)=-var(iv(0))%bd(i)
+			!!endif
+		enddo
+		var(iv(0))%val=1d-4
 
 		!! PDW
 		!call gen_var(tp=-2,nb=1)
@@ -152,17 +152,6 @@ contains
 		!!!var(iv(0))%val=2.955d-1
 		!!var(iv(0))%val=3.249d-1
 
-		!! sdw
-		!call gen_var(tp=4,nb=0)
-		!do i=1,size(var(iv(0))%bd)
-			!if(mod(nint(sum(latt%nb(0)%bd(latt%nb(var(iv(0))%nb)%bd(i)%i(1))%r)),2)==0) then
-				!var(iv(0))%bd(i)=1d0
-			!else
-				!var(iv(0))%bd(i)=-1d0
-			!endif
-		!enddo
-		!var(iv(0))%val=0d0
-
 		! sdw
 		call gen_var(tp=4,nb=0)
 		do i=1,size(var(iv(0))%bd)
@@ -171,16 +160,27 @@ contains
 			else
 				var(iv(0))%bd(i)=-1d0
 			endif
-			var(iv(0))%bd(i)=var(iv(0))%bd(i)*sin(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
 		enddo
-		var(iv(0))%val=2.4353d0
+		var(iv(0))%val=0d0
 
-		! on site cdw
-		call gen_var(tp=3,nb=0)
-		do i=1,size(var(iv(0))%bd)
-			var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
-		enddo
-		var(iv(0))%val=-0.19875d0
+		!! sdw
+		!call gen_var(tp=4,nb=0)
+		!do i=1,size(var(iv(0))%bd)
+			!if(mod(nint(sum(latt%nb(0)%bd(latt%nb(var(iv(0))%nb)%bd(i)%i(1))%r)),2)==0) then
+				!var(iv(0))%bd(i)=1d0
+			!else
+				!var(iv(0))%bd(i)=-1d0
+			!endif
+			!var(iv(0))%bd(i)=var(iv(0))%bd(i)*sin(sum(q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+		!enddo
+		!var(iv(0))%val=2.4353d0
+
+		!! on site cdw
+		!call gen_var(tp=3,nb=0)
+		!do i=1,size(var(iv(0))%bd)
+			!var(iv(0))%bd(i)=cos(sum(2d0*q*(latt%nb(var(iv(0))%nb)%bd(i)%r)))
+		!enddo
+		!var(iv(0))%val=-0.19875d0
 
 		! bond order
 		do l=2,size(t)
@@ -207,7 +207,7 @@ contains
 
 		!call gen_var(tp=9,nb=0)
 		!var(iv(0))%bd=-1d0
-		!var(iv(0))%val=1000d0
+		!var(iv(0))%val=1d0
 		!is_project=.false.
 
 		!! s-s jast
@@ -1420,6 +1420,12 @@ contains
 			endif
 			!call random_number(rd)
 			pb=pb*exp(2d0*jast(cfgl,dcfg(1:dcfg(0)),ja))
+			!do i=1,size(cfgl)/2
+				!if(cfgl(i)>0.and.cfgl(i+Ns)==0) then
+					!write(*,*)"double"
+				!endif
+			!enddo
+			!stop
 			rd=getrandomreal(rnd)
 			is_accept=.false.
 			if(rd<real(pb)) then
@@ -1776,8 +1782,8 @@ program main
 		open(20,file="../data/var.dat")
 		open(30,file="../data/phyri.dat")
 		open(40,file="../data/phyvar.dat")
-		open(50,file="../data/matrix_p2.dat",access="stream")
-		open(70,file="../data/spect_p2.dat")
+		open(50,file="../data/matrix.dat",access="stream")
+		open(70,file="../data/spect.dat")
 		open(71,file="../data/spect_kmap.dat")
 		open(80,file="../data/band.dat")
 		write(*,*)"coarray info: ",ica1,ica2,"out of",num_images()
@@ -1843,9 +1849,9 @@ program main
 	mc%hot=1
 	mc%step=Ns
 	mc%delay=2
-	mc%ne(1)=Ns/2-16
+	!mc%ne(1)=Ns/2-16
 	!mc%ne(1)=Ns/2-26
-	!mc%ne(1)=Ns/2-14
+	mc%ne(1)=Ns/2-14
 	!mc%ne(1)=Ns/2
 	!mc%ne(1)=Ns/2-14
 	mc%ne(2)=Ns-mc%ne(1)
@@ -1855,9 +1861,9 @@ program main
 	!var(1:)%val(1)=[-8.6811E-01,2.0951E-01,-9.7832E-02] ! 1/8
 	!var(1:)%val(1)=[1.9d-01] ! 1/8
 	!var(1:)%val(1)=[-7.5957E-01,2.2205E-01,-8.2460E-02] ! 16x16 -14
-	!var(1:)%val(1)=[-8.0402E-01,2.1654E-01,-9.4038E-02] ! 16x16 -16
+	!var(1:vn)%val(1)=[-8.0402E-01,2.1654E-01,-9.4038E-02] ! 16x16 -16
 	!var(1:)%val(1)=[-9.5867E-01,1.6445E-01,-1.0910E-01] ! 16x16 -22
-	!var(1:)%val(1)=[-7.8290E-01,2.0821E-01,-7.6381E-02]
+	!var(1:vn)%val(1)=[-7.8371E-01,2.0653E-01,-9.1154E-02]
 	!var(1:)%val(1)=[2.1445d-01]!0.125,ddw,compare
 	!var(1:)%val(1)=[2.1006d-01]!0.125,ddw,compare
 	!var(1:)%val(1)=[1.9268d-01]!0.125,ddw,compare
@@ -1868,7 +1874,7 @@ program main
 	!var(1:)%val(1)=[-1.2417E+00,1.2966E-04,1.7393E+00,-1.4593E-01,-1.8440E-01] !stripe: +dsc -4.2980E-01
 	!var(1:)%val(1)=[-1.4051E+00,1E-1,2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
 	!var(1:vn)%val(1)=[-1.4051E+00,2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
-	var(1:vn)%val(1)=[2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
+	!var(1:vn)%val(1)=[2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
 	!var(1:)%val(1)=[2.4353E+00,-1.9875E-01,-2.6827E-01] !stripe -4.3380E-01
 	!var(1:)%val(1)=[2.4353E+00,-1.9875E-01] !stripe -4.3380E-01
 	!var(1:vn)%val(1)=[0.50980d0] ! sdw E=-4.2473E-01
@@ -1881,6 +1887,7 @@ program main
 	!var(1:vn)%val(1)=[-6.0700d-02,3.3525d-01,1.5023d-01] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[0d0,3.24919d-1,3d-1] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-6.2487E-01,2.5764E-01,2.0392E-01,-3.6208E-02] ! dsc+mu+t'+SDW E=-3.2721E-01
+	var(1:vn)%val(1)=[-6.2487E-01,2.5764E-01,1.0392E-01,-3.6208E-02] ! dsc+mu+t'+SDW E=-3.2721E-01
 	!var(1:vn)%val(1)=[0d0,1d-1,3d-1] ! dsc+mu+t' E= -4.3329E-01
 	!var(1:vn)%val(1)=[-6.3517d-01,2.5976d-01,2.4600d-01,-4.1792d-02] ! dsc+sdw+mu+t' E= -4.3329E-01
 	!var(1:)%val(1)=[-7.7984d-01,1.9979d-01] ! ddw+mu E=
@@ -1912,7 +1919,7 @@ program main
 	!stop
 	!otime(0)=omp_get_wtime()
 	!mc%samp=1024
-	!call mc%do_var(100)
+	call mc%do_var(100)
 	!otime(1)=otime(1)+omp_get_wtime()-otime(0)
 	!call show_time()
 	!stop
@@ -1921,7 +1928,8 @@ program main
 
 	mc%sg=1
 	!mc%samp=1024*8*16*8
-	mc%samp=1024*8*8*8*8*4
+	!mc%samp=1024*8*8*8*8*4
+	mc%samp=1024*8*8*8*8
 	mc%hot=1024*8*8
 	mc%step=nint(sqrt(real(Ns)))*2
 	!mc%samp=1024*8*16*32
@@ -1938,15 +1946,14 @@ program main
 	!call band(80,[0d0,0d0,0d0],0.5d0*(brizon%Ta(3,:)+brizon%Ta(2,:)),32)
 	!stop
 	call mc%init(.true.)
-	!call mc%do_vmc()
-	!stop
+	call mc%do_vmc()
 
 	if(this_image()==1) then
 		do l=2,ica1
 			mc[1,1]%phy(iE)=mc[1,1]%phy(iE)+mc[l,1]%phy(iE)
 		enddo
 		mc[1,1]%phy(iE)=mc[1,1]%phy(iE)*1d0/ica1
-		mc[1,1]%phy(iE)=-0.434235839825398d0
+		!mc[1,1]%phy(iE)=-0.434235839825398d0
 		!mc[1,1]%phy(iE)=-0.434125839825398d0 ! anti
 		!mc[1,1]%phy(iE)=-0.436815839825398d0 ! anti 1
 		!mc[1,1]%phy(iE)=-4.2473d-1
@@ -1965,11 +1972,11 @@ program main
 	mc%sg=3
 	mc%ne=mc%ne+1
 	mc%hot=1024*8*8
-	!mc%samp=1024*8*8*8*8 !dsc 16x16
+	mc%samp=1024*8*8*8*8 !dsc 16x16
 	!mc%samp=1024*8*8*16*4*2 !sdw 16x16
 	!mc%samp=1024*8*8*32*8*4 !stripe
 	!mc%samp=1024*8*8*32*16 !stripe anti
-	mc%samp=1024*8*8*32*16 !stripe anti
+	!mc%samp=1024*8*8*32*16 !stripe anti
 	!mc%samp=1024*8*8*32 !dsc
 	!mc%samp=1024*8*8*32*8 !ddw
 	!mc%samp=1024*8*8*32*4 !dsc 20x20
@@ -2018,14 +2025,14 @@ program main
 			allocate(mc%psi0(j),mc%Ok2(j,j),mc%Ek2(j,j),mc%nn(j,2),mc%Emf(Ns*2))
 			read(50)mc%q,mc%phy(iE),mc%phy(iSq_pm),mc%Emf,mc%psi0,mc%Ok2,mc%Ek2,mc%nn
 			write(*,*)mc%q,mc%phy(iE),Ns,i,j
-			!call mc%spect(70,0.02d0,[-10d0,10d0],5000)
-			call mc%spect(70,0.1d0,[-10d0,10d0],5000)
+			call mc%spect(70,0.02d0,[-10d0,10d0],5000)
+			!call mc%spect(70,0.1d0,[-10d0,10d0],5000)
 			mc%Ek2=transpose(conjg(mc%Ek2))
-			!call mc%spect(70,0.02d0,[-10d0,10d0],5000)
-			call mc%spect(70,0.1d0,[-10d0,10d0],5000)
+			call mc%spect(70,0.02d0,[-10d0,10d0],5000)
+			!call mc%spect(70,0.1d0,[-10d0,10d0],5000)
 			mc%Ek2=0.5d0*(mc%Ek2+transpose(conjg(mc%Ek2)))
-			!call mc%spect(70,0.02d0,[-10d0,10d0],5000)
-			call mc%spect(70,0.1d0,[-10d0,10d0],5000)
+			call mc%spect(70,0.02d0,[-10d0,10d0],5000)
+			!call mc%spect(70,0.1d0,[-10d0,10d0],5000)
 			deallocate(mc%psi0,mc%Ok2,mc%Ek2,mc%Emf,mc%nn)
 		enddo
 	endif
