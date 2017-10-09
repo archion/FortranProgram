@@ -14,7 +14,7 @@ module M_Hamilton_final_M
 	type t_var
 		integer :: nb
 		type(c), allocatable :: c(:,:)
-		integer, allocatable :: sg(:)
+		real(8), allocatable :: sg(:)
 		logical, allocatable :: cg(:)
 		real(8) :: V
 		real(8), allocatable :: val(:)
@@ -208,7 +208,7 @@ contains
 					if(n==m+1) then
 						m=m+1
 						mask(m,self%var(i)%c(1,j)%sb)=.true.
-						i2tp=merge(self%var(i)%c(1,j)%tp,-self%var(i)%c(1,j)%tp,self%var(i)%c(1,j)%l(1:1)=="+")
+						i2tp(m)=merge(self%var(i)%c(1,j)%tp,-self%var(i)%c(1,j)%tp,self%var(i)%c(1,j)%l(1:1)=="+")
 					endif
 				enddo
 			else

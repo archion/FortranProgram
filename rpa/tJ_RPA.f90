@@ -31,8 +31,8 @@ contains
 		latt%c2=(/0d0,1d0,0d0/)
 		!latt%c1=(/-1d0,1d0,0d0/)
 		!latt%c2=(/1d0,1d0,0d0/)
-		latt%c1=(/4d0,0d0,0d0/)
-		latt%c2=(/0d0,2d0,0d0/)
+		!latt%c1=(/4d0,0d0,0d0/)
+		!latt%c2=(/0d0,2d0,0d0/)
 		latt%T1=(/1d0,0d0,0d0/)*72
 		latt%T2=(/0d0,1d0,0d0/)*72
 		latt%bdc(1)=1d0
@@ -140,19 +140,19 @@ contains
 		endif
 	end subroutine
 	subroutine selfconsist()
-		complex(8) :: Uk(4,4)
-		real(8) :: x(size(var)),Ek(4),al,fk(4),bt
-		!complex(8) :: Uk(2,2)
-		!real(8) :: x(size(var)),Ek(2),al,fk(2),bt
+		!complex(8) :: Uk(4,4)
+		!real(8) :: x(size(var)),Ek(4),al,fk(4),bt
+		complex(8) :: Uk(2,2)
+		real(8) :: x(size(var)),Ek(2),al,fk(2),bt
 		integer :: i,j,c
 		logical :: is_cross(2)
 		call update()
 		is_cross=.false.
 		bt=1d0/Tk
 		!var([iubo])%val(1)=1d-1
-		!var([isc,iubo])%val(1)=1d-1
+		var([isc,iubo])%val(1)=1d-1
 		!var([isc,iddw,iubo])%val(1)=1d-1
-		var([iddw,iubo])%val(1)=1d-1
+		!var([iddw,iubo])%val(1)=1d-1
 		do 
 			c=0
 			al=0.2d0
@@ -165,14 +165,14 @@ contains
 					!call mat_diag(Uk,Ek)
 					call heev(Uk,Ek,"V")
 					fk=1d0/(1d0+exp(bt*Ek))
-					!x(icp)=x(icp)+1d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))-Uk(2,:)*dconjg(Uk(2,:)),fk)
-					!x(isc)=x(isc)-dot_product(Uk(1,:)*dconjg(Uk(2,:)),fk)*(cos(brizon%k(i,1))-cos(brizon%k(i,2)))/2d0
-					!x(iubo)=x(iubo)+dot_product(Uk(1,:)*dconjg(Uk(1,:)),fk)*(cos(brizon%k(i,1))+cos(brizon%k(i,2)))/2d0
+					x(icp)=x(icp)+1d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))-Uk(2,:)*dconjg(Uk(2,:)),fk)
+					x(isc)=x(isc)-dot_product(Uk(1,:)*dconjg(Uk(2,:)),fk)*(cos(brizon%k(i,1))-cos(brizon%k(i,2)))/2d0
+					x(iubo)=x(iubo)+dot_product(Uk(1,:)*dconjg(Uk(1,:)),fk)*(cos(brizon%k(i,1))+cos(brizon%k(i,2)))/2d0
 
-					x(icp)=x(icp)+2d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))+Uk(2,:)*dconjg(Uk(2,:))-Uk(3,:)*dconjg(Uk(3,:))-Uk(4,:)*dconjg(Uk(4,:)),fk)
-					!x(isc)=x(isc)-dot_product(Uk(1,:)*dconjg(Uk(3,:))-Uk(2,:)*dconjg(Uk(4,:)),fk)*(cos(brizon%k(i,1))-cos(brizon%k(i,2)))/2d0
-					x(iddw)=x(iddw)-real(img*dot_product(Uk(1,:)*dconjg(Uk(2,:))-Uk(2,:)*dconjg(Uk(1,:)),fk)*(cos(brizon%k(i,1))-cos(brizon%k(i,2)))/2d0)
-					x(iubo)=x(iubo)+dot_product(Uk(1,:)*dconjg(Uk(1,:))-Uk(2,:)*dconjg(Uk(2,:)),fk)*(cos(brizon%k(i,1))+cos(brizon%k(i,2)))/2d0
+					!x(icp)=x(icp)+2d0+dot_product(Uk(1,:)*dconjg(Uk(1,:))+Uk(2,:)*dconjg(Uk(2,:))-Uk(3,:)*dconjg(Uk(3,:))-Uk(4,:)*dconjg(Uk(4,:)),fk)
+					!!x(isc)=x(isc)-dot_product(Uk(1,:)*dconjg(Uk(3,:))-Uk(2,:)*dconjg(Uk(4,:)),fk)*(cos(brizon%k(i,1))-cos(brizon%k(i,2)))/2d0
+					!x(iddw)=x(iddw)-real(img*dot_product(Uk(1,:)*dconjg(Uk(2,:))-Uk(2,:)*dconjg(Uk(1,:)),fk)*(cos(brizon%k(i,1))-cos(brizon%k(i,2)))/2d0)
+					!x(iubo)=x(iubo)+dot_product(Uk(1,:)*dconjg(Uk(1,:))-Uk(2,:)*dconjg(Uk(2,:)),fk)*(cos(brizon%k(i,1))+cos(brizon%k(i,2)))/2d0
 				enddo
 				!$OMP END PARALLEL DO
 				c=c+1
@@ -190,15 +190,15 @@ contains
 				var(icp)%val(1)=var(icp)%val(1)-al*sign(1d0,x(icp)-nf)
 			enddo
 			!if(sum(abs((var([iubo])%val(1)-x([iubo]))))<1d-6) then
-			!if(sum(abs((var([isc,iubo])%val(1)-x([isc,iubo]))))<1d-6) then
+			if(sum(abs((var([isc,iubo])%val(1)-x([isc,iubo]))))<1d-6) then
 			!if(sum(abs((var([isc,iddw,iubo])%val(1)-x([isc,iddw,iubo]))))<1d-6) then
-			if(sum(abs((var([iddw,iubo])%val(1)-x([iddw,iubo]))))<1d-6) then
+			!if(sum(abs((var([iddw,iubo])%val(1)-x([iddw,iubo]))))<1d-6) then
 				exit
 			endif
 			!var([iubo])%val(1)=x([iubo])
-			!var([isc,iubo])%val(1)=x([isc,iubo])
+			var([isc,iubo])%val(1)=x([isc,iubo])
 			!var([isc,iddw,iubo])%val(1)=x([isc,iddw,iubo])
-			var([iddw,iubo])%val(1)=x([iddw,iubo])
+			!var([iddw,iubo])%val(1)=x([iddw,iubo])
 		enddo
 	end subroutine
 	subroutine rpainstable(Tk,q,den)
@@ -525,10 +525,10 @@ program main
 	do i=j/4,3*j/4
 		if(i<j/2) then
 			!call rpa_spin(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.002d0,[0d0,0.5d0],1000)
-			call rpa_spin_i(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.02d0,[0d0,0.5d0],500)
+			call rpa_spin(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.002d0,[0d0,0.5d0],1000)
 		else
 			!call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.002d0,[0d0,0.5d0],1000)
-			call rpa_spin_i(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.02d0,[0d0,0.5d0],500)
+			call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.002d0,[0d0,0.5d0],1000)
 		endif
 	enddo
 	!call rpa_spin(70,[pi,pi,0d0],0.02d0,[0d0,0.5d0],500)

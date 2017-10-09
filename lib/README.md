@@ -183,4 +183,59 @@ fermis(ut,gm,k,omg)
 energy(ut,k)
 band_e(ut,gm,ki,kf,n,omg,m)
 band(ut,ki,kf,n)
+
+### M_hamilton_final_M
 ```
+输入
+	nf: 粒子数
+	Tk: 温度
+输出
+	t_ham:
+		fer_bos: 默认为费米子-1，玻色子为1
+		is_nambu: 是否为Nambu表象
+		mask(:,sb): 该态排序指标在子格上是否有态
+		i2tp(:): 态排序的指标到态指标的映射（厄米共轭对应于不同的态指标，用±号表示）
+		tp2i(:): 态的指标到态排序指标的映射
+		psb(i,sb): 第i个格点之前有多少个sb子格 
+		ptp(:): 态排序指标之前有多少个supercell格点指标（乘以supercell个数可以得到格点指标）
+		H2i(:,2): 平均场Hamilton矩阵指标到supercell格点指标和态指标的映射
+		H2s(:,2): 平均场Hamilton矩阵指标到格点指标和态指标的映射
+		Hi: 在supercell表象下平均场Hamilton矩阵的大小
+		Hs: 在格点表象下平均场Hamilton矩阵的大小
+		Uqi(q,i): 从supercell的表象的Hamiltonian指标到q的Fourier变换（Uqi*c(k,i)=c(k+q)），顺序是：子格，q，自旋
+		Uik(i,k): 从supercell的格点表象的Hamiltonian指标到格点表象的Hamiltonian指标的Fourier变换（Uik*c(k,i)=c(i)）
+		rg(2): var指标的上下限
+		var(:): 不同类型的变分参数，其中var(:0)为不变分，var(1:)做变分
+			nb: 变分参数定义在第几近邻
+			c(:,:): 该变分参数耦合的产生湮灭算符，第二指标表示不同项 
+			sg: 不同相之间的相对系数
+			cg: 不同相是否需要对bd取复共轭
+			V: 相互作用大小，不设置则表示不做变分
+			val(:): 变分参数的值
+			bd(:)：对应格点或键指标所带的因子
+			bd2v(:)：对应格点或键所对应的变分参数指标
+			n：该类型变分参数的个数
+			label: 该类型变分参数的字符标志
+		方法
+			add: 添加Hamilton项
+			init: 初始化Hamiltion量
+			i2H: 格点指标和态指标等到平均场Hamiltonian矩阵指标的映射
+			Hamilton：生成平均场Hamiltonian
+			dHamilton：生成平均场Hamiltonian对变分参数的导数
+			get：按val向量设置变分参数的值
+			put：生成保护变分参数值的向量val
+			Green(gm,k,omg)
+			LDOS(ut,gm,i,omg,m)
+			EDC(ut,gm,k,omg,m)
+			DOS(ut,gm,omg,m,peak)
+			fermis(ut,gm,k,omg)
+			energy(ut,k)
+			band_e(ut,gm,ki,kf,n,omg,m)
+			band(ut,ki,kf,n)
+
+c:
+	l: "±i" 
+	sb: 子格指标
+	tp: 态指标
+```
+
