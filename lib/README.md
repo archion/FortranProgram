@@ -200,6 +200,8 @@ band(ut,ki,kf,n)
 		i2tp(:): 态排序的指标到态指标的映射（厄米共轭对应于不同的态指标，用±号表示）
 		tp2i(:): 态的指标到态排序指标的映射
 		ptp(:): 态排序指标之前（包括当前指标）有多少个supercell格点指标（乘以supercell个数可以得到格点指标）
+		i2H(:,tp): supercell格点指标和态指标到平均场Hamilton矩阵指标的映射
+		s2H(:,tp): 格点指标和态指标到平均场Hamilton矩阵指标的映射
 		H2i(:,2): 平均场Hamilton矩阵指标到supercell格点指标和态指标的映射
 		H2s(:,2): 平均场Hamilton矩阵指标到格点指标和态指标的映射
 		Hi: 在supercell表象下平均场Hamilton矩阵的大小
@@ -221,7 +223,6 @@ band(ut,ki,kf,n)
 		方法
 			add: 添加Hamilton项
 			init: 初始化Hamiltion量
-			i2H: 格点指标和态指标等到平均场Hamiltonian矩阵指标的映射
 			Hamilton：生成平均场Hamiltonian
 			dHamilton：生成平均场Hamiltonian对变分参数的导数
 			get：按val向量设置变分参数的值
