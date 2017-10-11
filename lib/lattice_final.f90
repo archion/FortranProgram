@@ -35,6 +35,7 @@ module M_lattice_final
 		complex(8) :: bdc(3)=(/1d0,1d0,0d0/)
 		type(t_nb), allocatable :: nb(:)
 		real(8), allocatable :: rsb(:,:)
+		integer, allocatable :: i2isb(:,:),isb2i(:,:)
 	contains
 		procedure gen_latt
 		procedure gen_brizon
@@ -317,9 +318,11 @@ contains
 
 			if(self%is_all) then
 				call gen_grid(c1,c2,bd(0,1,1)%r,T(:,:,3),DT)
+				allocate(self%i2isb(Ni*size(DT,1),sb),self%isb2i(Nc*size(DT,1),sb))
 				Nc=size(DT,1)
 				Ns=Ni*Nc
 			else
+				allocate(self%i2isb(Ni,sb),self%isb2i(Nc,sb))
 				Nc=1
 				if(allocated(DT)) deallocate(DT)
 				allocate(DT(1,3))
@@ -409,6 +412,16 @@ contains
 				enddo
 			enddo
 			Nc=Ns/Ni
+
+			self%i2isb(1,:)=0
+			self%i2isb(1,self%nb(0)%bd(1)%sb(1))=1
+			self%isb2i(1,self%nb(0)%bd(1)%sb(1))=1
+			do i=2,size(self%i2isb,1)
+				self%i2isb(i,:)=self%i2isb(i-1,:)
+				self%i2isb(i,self%nb(0)%bd(i)%sb(1))=self%i2isb(i,self%nb(0)%bd(i)%sb(1))+1
+				self%isb2i(self%i2isb(i,self%nb(0)%bd(i)%sb(1)),self%nb(0)%bd(i)%sb(1))=i
+			enddo
+
 		end associate
 	end subroutine
 	subroutine get_brizon(b1,b2,bT)

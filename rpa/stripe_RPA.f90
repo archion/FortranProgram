@@ -249,7 +249,7 @@ program main
 	call mkl_set_dynamic(0)
 	call omp_set_schedule(omp_sched_static,0)
 
-	call mkl_set_num_threads(40)
+	call mkl_set_num_threads(1)
 	call omp_set_num_threads(mkl_get_max_threads())
 
 
@@ -279,7 +279,7 @@ program main
 			!call rpa_spin_i(70,[2d0*pi*i/j,2d0*pi*i/j,0d0],0.02d0,[0d0,1d0],500)
 		else
 			!call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.002d0,[0d0,0.5d0],1000)
-			call rpa_spin_i(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.02d0,[0d0,1d0],500)
+			call rpa_spin(70,[pi-2d0*pi*(i-j/2)/j,pi,0d0],0.02d0,[0d0,1d0],500)
 			!call rpa_spin_i(70,[pi,pi-2d0*pi*(i-j/2)/j,0d0],0.02d0,[0d0,1d0],500)
 		endif
 	enddo

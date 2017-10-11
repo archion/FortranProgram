@@ -72,7 +72,9 @@ latt:
 	T2: 边界矢量
 	bdc: 边界条件
 	layer: 层数（默认1，多层还没实现）
-	sub: 子格的空间坐标
+	rsb: 子格的空间坐标
+	i2isb(i,sb): 第i个格点之前（包括当前格点）有多少个sb子格 
+	isb2i(i,sb): 第sb子格的第i个格点对应的格点指标
 输出
 	sb: 子格数
 	Ns: 总格点数
@@ -197,8 +199,7 @@ band(ut,ki,kf,n)
 		mask(:,sb): 该态排序指标在子格上是否有态
 		i2tp(:): 态排序的指标到态指标的映射（厄米共轭对应于不同的态指标，用±号表示）
 		tp2i(:): 态的指标到态排序指标的映射
-		psb(i,sb): 第i个格点之前有多少个sb子格 
-		ptp(:): 态排序指标之前有多少个supercell格点指标（乘以supercell个数可以得到格点指标）
+		ptp(:): 态排序指标之前（包括当前指标）有多少个supercell格点指标（乘以supercell个数可以得到格点指标）
 		H2i(:,2): 平均场Hamilton矩阵指标到supercell格点指标和态指标的映射
 		H2s(:,2): 平均场Hamilton矩阵指标到格点指标和态指标的映射
 		Hi: 在supercell表象下平均场Hamilton矩阵的大小
@@ -235,7 +236,7 @@ band(ut,ki,kf,n)
 			band(ut,ki,kf,n)
 
 c:
-	l: "±i" 
+	l: "i" 
 	sb: 子格指标
 	tp: 态指标
 ```

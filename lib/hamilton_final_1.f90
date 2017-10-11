@@ -7,7 +7,7 @@ module M_Hamilton_final_M
 	use omp_lib
 	implicit none
 	type c
-		character(2) :: l
+		character :: l
 		integer :: sb=0
 		integer :: tp=0
 	end type
@@ -29,10 +29,11 @@ module M_Hamilton_final_M
 		logical, allocatable :: mask(:,:)
 		integer, allocatable :: i2tp(:)
 		integer, allocatable :: tp2i(:)
-		integer, allocatable :: psb(:,:)
 		integer, allocatable :: ptp(:)
 		integer, allocatable :: H2i(:,:)
 		integer, allocatable :: H2s(:,:)
+		integer, allocatable :: i2H(:,:)
+		integer, allocatable :: s2H(:,:)
 		logical :: is_nambu=.false.
 		integer :: fer_bos=-1
 		integer :: rg(2)=[1,0]
@@ -42,7 +43,7 @@ module M_Hamilton_final_M
 		procedure :: init
 		procedure :: put
 		procedure :: get
-		procedure :: i2H
+		!procedure :: i2H
 		procedure :: Hamilton
 		procedure :: dHamilton
 		procedure :: band
@@ -168,13 +169,15 @@ contains
 			enddo
 		enddo
 	end function
-	function i2H(self,i,tp,flag)
-		class(t_ham), intent(in) :: self
-		integer :: i,tp
-		logical :: flag
-		integer :: i2H
-		i2H=self%ptp(self%tp2i(tp)-1)*merge(latt%Nc,1,flag)+sum(self%psb(i,:),self%mask(self%tp2i(tp),:))
-	end function
+	!function i2H(self,i,tp,Nc)
+		!class(t_ham), intent(in) :: self
+		!integer :: i,tp
+		!integer :: n
+		!integer, optional :: Nc
+		!integer :: i2H
+		!n=self%tp2i(tp)
+		!i2H=self%ptp(n-1)*merge(Nc,1,present(Nc))+sum(latt%i2isb(i,:),self%mask(n,:))
+	!end function
 	subroutine init(self)
 		class(t_ham), intent(inout) :: self
 		integer :: lb,i,j,m,n
@@ -185,13 +188,6 @@ contains
 		deallocate(self%var)
 		allocate(self%var(self%rg(1):self%rg(2)))
 		self%var(self%rg(1):self%rg(2))=tmp
-		allocate(self%psb(merge(latt%Ns,latt%Ni,latt%is_all),latt%sb))
-		self%psb(1,:)=0
-		self%psb(1,latt%nb(0)%bd(1)%sb(1))=1
-		do i=2,merge(latt%Ns,latt%Ni,latt%is_all)
-			self%psb(i,:)=self%psb(i-1,:)
-			self%psb(i,latt%nb(0)%bd(i)%sb(1))=self%psb(i,latt%nb(0)%bd(i)%sb(1))+1
-		enddo
 		m=0
 		i2tp=0
 		tp2i=0
@@ -200,7 +196,7 @@ contains
 			if(size(self%var(i)%c,1)==2) then
 				do j=1,size(self%var(i)%c,2)
 					do n=1,m
-						if(merge(self%var(i)%c(1,j)%tp,-self%var(i)%c(1,j)%tp,self%var(i)%c(1,j)%l(1:1)=="+")==i2tp(n)) then
+						if(self%var(i)%c(1,j)%tp==i2tp(n)) then
 							mask(n,self%var(i)%c(1,j)%sb)=.true.
 							exit
 						endif
@@ -208,7 +204,7 @@ contains
 					if(n==m+1) then
 						m=m+1
 						mask(m,self%var(i)%c(1,j)%sb)=.true.
-						i2tp(m)=merge(self%var(i)%c(1,j)%tp,-self%var(i)%c(1,j)%tp,self%var(i)%c(1,j)%l(1:1)=="+")
+						i2tp(m)=self%var(i)%c(1,j)%tp
 					endif
 				enddo
 			else
@@ -223,23 +219,25 @@ contains
 		allocate(self%ptp(0:size(self%mask,1)))
 		self%ptp(0)=0
 		do i=1,size(self%mask,1)
-			self%ptp(i)=self%ptp(i-1)+sum(self%psb(latt%Ni,:),self%mask(i,:))
+			self%ptp(i)=self%ptp(i-1)+sum(latt%i2isb(latt%Ni,:),self%mask(i,:))
 		enddo
 		self%Hi=self%ptp(size(self%mask,1))
 		self%Hs=self%Hi*latt%Nc
-		allocate(self%H2i(self%Hi,2))
-		if(latt%is_all) allocate(self%H2s(self%Hs,2))
+		allocate(self%H2i(self%Hi,2),self%i2H(latt%Ni,minval(i2tp):maxval(i2tp)))
+		if(latt%is_all) allocate(self%H2s(self%Hs,2),self%s2H(latt%Ns,minval(i2tp):maxval(i2tp)))
 		do i=1,latt%Ns
 			if(.not.latt%is_all.and.i>latt%Ni) exit
 			do n=1,size(self%mask,1)
 				if(self%mask(n,latt%nb(0)%bd(i)%sb(1))) then
 					if(i<=latt%Ni) then
-						self%H2i(self%i2H(i,self%i2tp(n),.false.),1)=i
-						self%H2i(self%i2H(i,self%i2tp(n),.false.),2)=self%i2tp(n)
+						self%i2H(i,self%i2tp(n))=self%ptp(n-1)+sum(latt%i2isb(i,:),self%mask(n,:))
+						self%H2i(self%i2H(i,self%i2tp(n)),1)=i
+						self%H2i(self%i2H(i,self%i2tp(n)),2)=self%i2tp(n)
 					endif
 					if(latt%is_all) then
-						self%H2s(self%i2H(i,self%i2tp(n),.true.),1)=i
-						self%H2s(self%i2H(i,self%i2tp(n),.true.),2)=self%i2tp(n)
+						self%s2H(i,self%i2tp(n))=self%ptp(n-1)*latt%Nc+sum(latt%i2isb(i,:),self%mask(n,:))
+						self%H2s(self%s2H(i,self%i2tp(n)),1)=i
+						self%H2s(self%s2H(i,self%i2tp(n)),2)=self%i2tp(n)
 					endif
 				endif
 			enddo
@@ -255,11 +253,21 @@ contains
 			if(all(abs(latt%bdc(:2))>1d-6)) then
 				allocate(self%Uqi(self%Hi,self%Hi))
 				self%Uqi=0d0
-				do i=1,nq
-					do n=1,size(self%mask,1)
-						do j=1,self%Hi
-							self%Uqi(ptp(n-1)+count(self%mask(n,:))*(i-1)+count(self%mask(n,:latt%nb(0)%bd(self%H2i(j,1))%sb(1))),j)=exp(-img*sum(pbrizon%q(i,:)*latt%nb(0)%bd(self%H2i(j,1))%r))
-						enddo
+				!do i=1,nq
+					!do n=1,size(self%mask,1)
+						!do j=1,self%Hi
+							!self%Uqi(ptp(n-1)+count(self%mask(n,:))*(i-1)+count(self%mask(n,:latt%nb(0)%bd(self%H2i(j,1))%sb(1))),j)=exp(-img*sum(pbrizon%q(i,:)*latt%nb(0)%bd(self%H2i(j,1))%r))
+						!enddo
+					!enddo
+				!enddo
+				do i=1,self%Hi
+					do n=1,nq
+						j=latt%isb2i(n,latt%nb(0)%bd(self%H2i(i,1))%sb(1))
+						if(latt%nb(0)%bd(j)%sb(1)==latt%nb(0)%bd(self%H2i(i,1))%sb(1)) then
+							self%Uqi(i,self%i2H(j,self%H2i(i,2)))=exp(-img*sum(pbrizon%q(latt%i2isb(self%H2i(i,1),latt%nb(0)%bd(self%H2i(i,1))%sb(1)),:)*latt%nb(0)%bd(j)%r))
+						else
+							stop "sb is not arranged by order"
+						endif
 					enddo
 				enddo
 				self%Uqi=self%Uqi*(1d0/sqrt(real(Ni/sb)))
@@ -268,10 +276,14 @@ contains
 				allocate(self%Uik(self%Hs,self%Hs))
 				self%Uik=0d0
 				do i=1,self%Hs
-					do j=1,nk
-						do n=1,size(self%mask,1)
-							self%Uik(i,ptp(n-1)*Nc+count(self%mask(n,:))*(j-1)+count(self%mask(n,:latt%nb(0)%bd(self%H2s(i,1))%sb(1))))=exp(img*sum(latt%nb(0)%bd(self%H2s(i,1))%r*pbrizon%k(j,:)))
-						enddo
+					!do j=1,nk
+						!do n=1,size(self%mask,1)
+							!self%Uik(i,ptp(n-1)*Nc+count(self%mask(n,:))*(j-1)+count(self%mask(n,:latt%nb(0)%bd(self%H2s(i,1))%sb(1))))=exp(img*sum(latt%nb(0)%bd(self%H2s(i,1))%r*pbrizon%k(j,:)))
+						!enddo
+					!enddo
+					j=latt%nb(0)%bd(self%H2s(i,1))%sbc(1)
+					do n=1,nk
+						self%Uik(i,self%i2H(j,self%H2s(i,2))+(n-1)*self%Hi)=exp(img*sum(latt%nb(0)%bd(self%H2s(i,1))%r*pbrizon%k(n,:)))
 					enddo
 				enddo
 				self%Uik=self%Uik*(1d0/sqrt(real(Nc)))
@@ -279,30 +291,33 @@ contains
 		end associate
 	end subroutine
 	subroutine Hamilton(self,idx,H,k,fn,info)
-		class(t_ham), intent(in) :: self
+		class(t_ham), intent(in), target :: self
 		integer :: idx(:)
 		complex(8), intent(inout) :: H(:,:)
 		real(8), optional, intent(in) :: k(:)
 		complex(8), external, optional :: fn
 		integer, optional, intent(in) :: info
 		complex(8) :: bdc,expk,bd,tmp
-		integer :: i,j,l,n,m,nb,hi,hj,sb(2),il
+		integer :: i,j,l,n,m,nb,hi,hj,sb(2),il,Nc
 		real(8) :: dr(3)
 		real(8), allocatable :: sg(:)
-		logical :: flag,flag1
+		integer, pointer :: p2H(:,:)
 		if(.not.present(info)) then
 			H=0d0
 		endif
 		expk=1d0
-		flag=(present(k).and.latt%is_all)
-		flag1=(.not.present(k)).and.latt%is_all
+		if((.not.present(k)).and.latt%is_all) then
+			p2H(1:size(self%s2H,1),lbound(self%s2H,2):ubound(self%s2H,2)) => self%s2H
+		else
+			p2H(1:size(self%i2H,1),lbound(self%i2H,2):ubound(self%i2H,2)) => self%i2H
+		endif
 		do l=1,size(idx)
 			il=idx(l)
 			if(size(self%var(il)%c,1)/=2) then
 				stop "only quadratic term is considered"
 			endif
 			nb=abs(self%var(il)%nb)
-			do n=1,size(latt%nb(nb)%bd)/merge(latt%Nc,1,flag)
+			do n=1,size(latt%nb(nb)%bd)/merge(latt%Nc,1,(present(k).and.latt%is_all))
 				bd=conjg(self%var(il)%bd(n))
 				dr=latt%nb(nb)%bd(n)%dr
 				! the bdc for spin down in Nambu is conjg(bdc)
@@ -322,17 +337,17 @@ contains
 				bd=bd*self%var(il)%val(self%var(il)%bd2v(n))*merge(1d0,self%var(il)%V,isnan(self%var(il)%V))
 				do m=1,size(self%var(il)%c,2)
 					if(all(sb-self%var(il)%c(1:2,m)%sb==0)) then
-						hi=self%i2H(i,self%var(il)%c(1,m)%tp*merge(1,-1,self%var(il)%c(1,m)%l(1:1)=="+"),flag1)
-						hj=self%i2H(j,self%var(il)%c(2,m)%tp*merge(1,-1,self%var(il)%c(2,m)%l(1:1)=="-"),flag1)
+						hi=p2H(i,self%var(il)%c(1,m)%tp)
+						hj=p2H(j,-self%var(il)%c(2,m)%tp)
 						tmp=bdc*expk
-						if(sb(1)==sb(2).and.self%var(il)%c(1,m)%l(2:2)=="j") then
-							hi=self%i2H(j,self%var(il)%c(1,m)%tp*merge(1,-1,self%var(il)%c(1,m)%l(1:1)=="+"),flag1)
-							hj=self%i2H(i,self%var(il)%c(2,m)%tp*merge(1,-1,self%var(il)%c(2,m)%l(1:1)=="-"),flag1)
+						if(sb(1)==sb(2).and.self%var(il)%c(1,m)%l=="j") then
+							hi=p2H(j,self%var(il)%c(1,m)%tp)
+							hj=p2H(i,-self%var(il)%c(2,m)%tp)
 							tmp=conjg(bdc)*conjg(expk)
 						endif
 					elseif(all(sb(2:1:-1)-self%var(il)%c(1:2,m)%sb==0)) then
-						hi=self%i2H(j,self%var(il)%c(1,m)%tp*merge(1,-1,self%var(il)%c(1,m)%l(1:1)=="+"),flag1)
-						hj=self%i2H(i,self%var(il)%c(2,m)%tp*merge(1,-1,self%var(il)%c(2,m)%l(1:1)=="-"),flag1)
+						hi=p2H(j,self%var(il)%c(1,m)%tp)
+						hj=p2H(i,-self%var(il)%c(2,m)%tp)
 						tmp=conjg(bdc)*conjg(expk)
 					else
 						cycle
