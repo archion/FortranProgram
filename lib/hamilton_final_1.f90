@@ -53,6 +53,7 @@ module M_Hamilton_final_M
 	!procedure(real(8)), pointer :: free_energy
 	procedure(mat_diag_interface), pointer :: mat_diag
 	!procedure(self_consist_interface), pointer :: self_consist
+	private init, add, put, get, Hamilton, dHamilton, band
 	interface
 		!subroutine self_consist_interface(fE)
 			!real(8), optional :: fE
@@ -77,7 +78,7 @@ contains
 			call heev(H,E,"V")
 		end select
 	end subroutine
-	function add(self,nb,ca,n,cg,sg,val,V,label) result(idx)
+	function add(self,nb,ca,n,cg,sg,val,V,label,is_var) result(idx)
 		class(t_ham) :: self
 		integer, intent(in) :: nb
 		type(c) :: ca(:)
@@ -87,31 +88,40 @@ contains
 		real(8), intent(in), optional :: val(:)
 		real(8), intent(in), optional :: V
 		character(*), optional :: label
+		logical, optional :: is_var
 		integer :: idx
 		integer, allocatable :: c(:),ord(:)
 		integer :: i,j
-		if(present(V)) then
+		if(present(is_var)) then
+			if(is_var) then
+				self%rg(2)=self%rg(2)+1
+				idx=self%rg(2)
+			else
+				self%rg(1)=self%rg(1)-1
+				idx=self%rg(1)
+			endif
+		else
 			self%rg(2)=self%rg(2)+1
 			idx=self%rg(2)
+		endif
+		if(present(V)) then
 			self%var(idx)%V=V
 		else
-			self%rg(1)=self%rg(1)-1
-			idx=self%rg(1)
 			self%var(idx)%V=transfer([Z'00000000',Z'7FF80000'],1d0)
 		endif
-		self%var(idx)%nb=nb
+		self%var(idx)%nb=abs(nb)
 		if(present(label)) then
 			self%var(idx)%label=label
 		endif
-		allocate(self%var(idx)%c(n,size(ca)/n))
+		allocate(self%var(idx)%c(n,merge(1,size(ca)/n,n==0)))
 		self%var(idx)%c=reshape(ca,shape(self%var(idx)%c))
-		allocate(self%var(idx)%cg(size(ca)/n))
+		allocate(self%var(idx)%cg(size(self%var(idx)%c,2)))
 		if(present(cg)) then
 			self%var(idx)%cg=cg
 		else
 			self%var(idx)%cg=.false.
 		endif
-		allocate(self%var(idx)%sg(size(ca)/n))
+		allocate(self%var(idx)%sg(size(self%var(idx)%c,2)))
 		if(present(sg)) then
 			self%var(idx)%sg(:)=sg
 		else
@@ -211,7 +221,7 @@ contains
 				return
 			endif
 		enddo
-		allocate(self%mask(m,latt%sb),self%i2tp(m),self%tp2i(minval(i2tp):maxval(i2tp)))
+		allocate(self%mask(m,latt%sb),self%i2tp(m),self%tp2i(minval(i2tp+merge(100,0,i2tp==0)):maxval(i2tp+merge(-100,0,i2tp==0))))
 		self%is_nambu=lbound(self%tp2i,1)<0
 		self%mask=mask(:m,:latt%sb)
 		self%i2tp=i2tp(:m)
@@ -223,8 +233,8 @@ contains
 		enddo
 		self%Hi=self%ptp(size(self%mask,1))
 		self%Hs=self%Hi*latt%Nc
-		allocate(self%H2i(self%Hi,2),self%i2H(latt%Ni,minval(i2tp):maxval(i2tp)))
-		if(latt%is_all) allocate(self%H2s(self%Hs,2),self%s2H(latt%Ns,minval(i2tp):maxval(i2tp)))
+		allocate(self%H2i(self%Hi,2),self%i2H(latt%Ni,minval(i2tp+merge(100,0,i2tp==0)):maxval(i2tp+merge(-100,0,i2tp==0))))
+		if(latt%is_all) allocate(self%H2s(self%Hs,2),self%s2H(latt%Ns,minval(i2tp+merge(100,0,i2tp==0)):maxval(i2tp+merge(-100,0,i2tp==0))))
 		do i=1,latt%Ns
 			if(.not.latt%is_all.and.i>latt%Ni) exit
 			do n=1,size(self%mask,1)
@@ -242,8 +252,8 @@ contains
 				endif
 			enddo
 		enddo
-		write(*,*)self%mask
-		write(*,*)self%ptp
+		!write(*,*)self%mask
+		!write(*,*)self%ptp
 
 		mat_diag => default_mat_diag
 		!free_energy => default_free_energy
@@ -290,21 +300,16 @@ contains
 			endif
 		end associate
 	end subroutine
-	subroutine Hamilton(self,idx,H,k,fn,info)
+	subroutine Hamilton(self,idx,H,k)
 		class(t_ham), intent(in), target :: self
 		integer :: idx(:)
 		complex(8), intent(inout) :: H(:,:)
 		real(8), optional, intent(in) :: k(:)
-		complex(8), external, optional :: fn
-		integer, optional, intent(in) :: info
 		complex(8) :: bdc,expk,bd,tmp
 		integer :: i,j,l,n,m,nb,hi,hj,sb(2),il,Nc
 		real(8) :: dr(3)
 		real(8), allocatable :: sg(:)
 		integer, pointer :: p2H(:,:)
-		if(.not.present(info)) then
-			H=0d0
-		endif
 		expk=1d0
 		if((.not.present(k)).and.latt%is_all) then
 			p2H(1:size(self%s2H,1),lbound(self%s2H,2):ubound(self%s2H,2)) => self%s2H
@@ -314,7 +319,8 @@ contains
 		do l=1,size(idx)
 			il=idx(l)
 			if(size(self%var(il)%c,1)/=2) then
-				stop "only quadratic term is considered"
+				write(*,*)"warning!!, only quadratic term is considered" 
+				cycle
 			endif
 			nb=abs(self%var(il)%nb)
 			do n=1,size(latt%nb(nb)%bd)/merge(latt%Nc,1,(present(k).and.latt%is_all))
@@ -362,124 +368,79 @@ contains
 			enddo
 		enddo
 	end subroutine
-	subroutine dHamilton(self,H,cH,D,k)
-		class(t_ham), intent(in) :: self
+	subroutine dHamilton(self,idx,H,cH,D,k)
+		class(t_ham), intent(in), target :: self
+		integer, intent(in) :: idx(:)
 		complex(8), intent(in) :: H(:,:),cH(:,:)
-		real(8), optional, intent(in) :: k(:)
 		complex(8), intent(inout) :: D(:,:,:)
+		real(8), optional, intent(in) :: k(:)
 		complex(8) :: bdc,expk,bd,tmp
-		integer :: i,j,l,lv,m1,m2,m2p,n,ii,Ns,nbd
-		real(8) :: isp(2),dr(3)
-		!D=0d0
-		!if(present(k)) then
-			!Ns=latt%Ni
-		!else
-			!Ns=latt%Ns
-		!endif
-		!do l=1,size(self)
-			!if(mod(abs(self(l)%tp),10)==4) then
-				!isp=[0.5d0,-0.5d0]
-			!elseif(mod(abs(self(l)%tp),10)==5) then
-				!isp=[1d0,-1d0]
-			!else
-				!isp=1d0
-			!endif
-			!!$omp parallel do reduction(+:D) private(i,j,dr,bdc,expk,m2,tmp,bd,lv)
-			!do n=1,size(latt%nb(self(l)%Vnb)%bd)/merge(latt%Nc,1,present(k).and.latt%is_all)
-				!dr=latt%nb(self(l)%Vnb)%bd(n)%dr
-				!bdc=latt%nb(self(l)%Vnb)%bd(n)%bdc
-				!if(self(l)%is_V.or.present(k).or.self(l)%nb/=self(l)%Vnb) bdc=abs(bdc)
-				!if(present(k)) then
-					!i=latt%nb(self(l)%Vnb)%bd(n)%sbc(1)
-					!j=latt%nb(self(l)%Vnb)%bd(n)%sbc(2)
-					!expk=exp(img*sum(k*dr))
-				!else
-					!i=latt%nb(self(l)%Vnb)%bd(n)%i(1)
-					!j=latt%nb(self(l)%Vnb)%bd(n)%i(2)
-					!expk=1d0
-				!endif
-				!if(.not.self(l)%is_V.and.self(l)%nb==0) then
-					!bd=0.5d0
-				!else
-					!bd=1d0
-				!endif
-				!bd=bd*conjg(self(l)%bd(n))*self(l)%V
-				!do m2p=1,size(D,2)
-					!do m1=1,size(D,1)
-						!if(size(D,2)==1) then
-							!m2=m1 
-						!else
-							!m2=m2p
-						!endif
-						!tmp=0d0
-						!select case(mod(abs(self(l)%tp),10))
-						!case(2)
-							!! pair channel
-							!tmp=tmp+cH(m1,i)*H(j+Ns,m2)*bd*bdc*expk
-							!tmp=tmp+cH(m1,i+Ns)*H(j,m2)*bd*bdc*expk
-							!tmp=tmp+cH(m1,j+Ns)*H(i,m2)*conjg(bd*bdc*expk)
-							!tmp=tmp+cH(m1,j)*H(i+Ns,m2)*conjg(bd*bdc*expk)
-							!lv=sum(self(:l)%n)-self(l)%n+self(l)%bd2v(n)
-							!D(m1,m2p,lv)=D(m1,m2p,lv)+tmp
-						!case(3,1,4,5)
-							!! charge and spin z channel
-							!if(self(l)%nb==self(l)%Vnb) then
-								!tmp=tmp+cH(m1,i)*H(j,m2)*isp(1)*bd*bdc*expk
-								!tmp=tmp+cH(m1,j)*H(i,m2)*isp(1)*conjg(bd*bdc*expk)
-								!if(spin==2) then
-									!if(is_nambu) then
-										!tmp=tmp-cH(m1,i+Ns)*H(j+Ns,m2)*isp(2)*conjg(bd)*bdc*expk
-										!tmp=tmp-cH(m1,j+Ns)*H(i+Ns,m2)*isp(2)*bd*conjg(bdc*expk)
-									!else
-										!tmp=tmp+cH(m1,i+Ns)*H(j+Ns,m2)*isp(2)*bd*bdc*expk
-										!tmp=tmp+cH(m1,j+Ns)*H(i+Ns,m2)*isp(2)*conjg(bd*bdc*expk)
-									!endif
-								!endif
-								!lv=sum(self(:l)%n)-self(l)%n+self(l)%bd2v(n)
-								!D(m1,m2p,lv)=D(m1,m2p,lv)+tmp
-							!else
-								!do ii=1,2
-									!tmp=0d0
-									!bd=self(l)%bd(j)*self(l)%V
-									!tmp=tmp+cH(m1,i)*H(i,m2)*isp(1)*conjg(bd)*bdc
-									!if(spin==2) then
-										!if(is_nambu) then
-											!tmp=tmp-cH(m1,i+Ns)*H(i+Ns,m2)*isp(2)*bd*bdc
-										!else
-											!tmp=tmp+cH(m1,i+Ns)*H(i+Ns,m2)*isp(2)*conjg(bd)*bdc
-										!endif
-									!endif
-									!lv=sum(self(:l)%n)-self(l)%n+self(l)%bd2v(i)
-									!D(m1,m2p,lv)=D(m1,m2p,lv)+tmp
-									!call swap(i,j)
-								!enddo
-							!endif
-						!case(7)
-							!! spin xy channel
-							!if(self(l)%nb==self(l)%Vnb) then
-								!tmp=tmp+cH(m1,i)*H(i+Ns,m2)*0.5d0*bd*bdc*expk
-								!tmp=tmp+cH(m1,i+Ns)*H(i,m2)*0.5d0*conjg(bd*bdc*expk)
-								!tmp=tmp+cH(m1,j)*H(j+Ns,m2)*0.5d0*bd*bdc*expk
-								!tmp=tmp+cH(m1,j+Ns)*H(j,m2)*0.5d0*conjg(bd*bdc*expk)
-								!lv=sum(self(:l)%n)-self(l)%n+self(l)%bd2v(n)
-								!D(m1,m2p,lv)=D(m1,m2p,lv)+tmp
-							!else
-								!do ii=1,2
-									!tmp=0d0
-									!bd=self(l)%bd(j)*self(l)%V
-									!tmp=tmp+cH(m1,i)*H(i+Ns,m2)*0.5d0*bd*bdc
-									!tmp=tmp+cH(m1,i+Ns)*H(i,m2)*0.5d0*conjg(bd*bdc)
-									!lv=sum(self(:l)%n)-self(l)%n+self(l)%bd2v(i)
-									!D(m1,m2p,lv)=D(m1,m2p,lv)+tmp
-									!call swap(i,j)
-								!enddo
-							!endif
-						!end select
-					!enddo
-				!enddo
-			!enddo
-			!!$omp end parallel do
-		!enddo
+		integer :: i,j,l,n,m,nb,hi,hj,sb(2),il,Nc,m1,m2,lv
+		real(8) :: dr(3)
+		real(8), allocatable :: sg(:)
+		integer, pointer :: p2H(:,:)
+		expk=1d0
+		if((.not.present(k)).and.latt%is_all) then
+			p2H(1:size(self%s2H,1),lbound(self%s2H,2):ubound(self%s2H,2)) => self%s2H
+		else
+			p2H(1:size(self%i2H,1),lbound(self%i2H,2):ubound(self%i2H,2)) => self%i2H
+		endif
+		do l=1,size(idx)
+			il=idx(l)
+			if(size(self%var(il)%c,1)/=2) then
+				write(*,*)"warning!!, only quadratic term is considered" 
+				cycle
+			endif
+			nb=abs(self%var(il)%nb)
+			do n=1,size(latt%nb(nb)%bd)/merge(latt%Nc,1,(present(k).and.latt%is_all))
+				bd=conjg(self%var(il)%bd(n))
+				dr=latt%nb(nb)%bd(n)%dr
+				! the bdc for spin down in Nambu is conjg(bdc)
+				bdc=latt%nb(nb)%bd(n)%bdc
+				sb=latt%nb(nb)%bd(n)%sb
+
+				if(abs(bd)<1d-6) cycle
+				if((.not.isnan(self%var(il)%V)).or.present(k)) bdc=abs(bdc)
+				if(present(k)) then
+					i=latt%nb(nb)%bd(n)%sbc(1)
+					j=latt%nb(nb)%bd(n)%sbc(2)
+					expk=exp(img*sum(k*dr))
+				else
+					i=latt%nb(nb)%bd(n)%i(1)
+					j=latt%nb(nb)%bd(n)%i(2)
+				endif
+				bd=bd*merge(1d0,self%var(il)%V,isnan(self%var(il)%V))
+				do m=1,size(self%var(il)%c,2)
+					if(all(sb-self%var(il)%c(1:2,m)%sb==0)) then
+						hi=p2H(i,self%var(il)%c(1,m)%tp)
+						hj=p2H(j,-self%var(il)%c(2,m)%tp)
+						tmp=bdc*expk
+						if(sb(1)==sb(2).and.self%var(il)%c(1,m)%l=="j") then
+							hi=p2H(j,self%var(il)%c(1,m)%tp)
+							hj=p2H(i,-self%var(il)%c(2,m)%tp)
+							tmp=conjg(bdc)*conjg(expk)
+						endif
+					elseif(all(sb(2:1:-1)-self%var(il)%c(1:2,m)%sb==0)) then
+						hi=p2H(j,self%var(il)%c(1,m)%tp)
+						hj=p2H(i,-self%var(il)%c(2,m)%tp)
+						tmp=conjg(bdc)*conjg(expk)
+					else
+						cycle
+					endif
+					if(self%var(il)%cg(m)) then
+						tmp=tmp*self%var(il)%sg(m)*conjg(bd)
+					else
+						tmp=tmp*self%var(il)%sg(m)*bd
+					endif
+					lv=sum(self%var(idx(1:l))%n)-self%var(il)%n+self%var(il)%bd2v(n)
+					do m1=1,size(D,1)
+						do m2=1,size(D,2)
+							D(m1,m2,lv)=D(m1,m2,lv)+cH(m1,hi)*H(hj,m2)*tmp
+						enddo
+					enddo
+				enddo
+			enddo
+		enddo
 	end subroutine
 	!function fenergy(E,f)
 		!real(8) :: f(:),E(:)
