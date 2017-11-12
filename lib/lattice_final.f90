@@ -316,6 +316,7 @@ contains
 				Ni=m1
 			endif
 
+
 			if(self%is_all) then
 				call gen_grid(c1,c2,bd(0,1,1)%r,T(:,:,3),DT)
 				allocate(self%i2isb(Ni*size(DT,1),sb),self%isb2i(Nc*size(DT,1),sb))
@@ -597,9 +598,15 @@ contains
 		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%c2
 		write(ut,"(x)")
 
-		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%T1
-		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%T2
-		write(ut,"(x)")
+		if(latt%is_all) then
+			write(ut,"(6es13.2)")0d0,0d0,0d0,latt%T1
+			write(ut,"(6es13.2)")0d0,0d0,0d0,latt%T2
+			write(ut,"(x)")
+		else
+			write(ut,"(6es13.2)")0d0,0d0,0d0,0d0,0d0,0d0
+			write(ut,"(6es13.2)")0d0,0d0,0d0,0d0,0d0,0d0
+			write(ut,"(x)")
+		endif
 
 		do k=1,size(latt%nb(0)%bd)
 			write(ut,"(es13.2$)")latt%nb(0)%bd(k)%r-latt%nb(0)%bd(k)%dr/2d0,latt%nb(0)%bd(k)%dr

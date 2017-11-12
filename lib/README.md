@@ -73,13 +73,13 @@ latt:
 	bdc: 边界条件
 	layer: 层数（默认1，多层还没实现）
 	rsb: 子格的空间坐标
-	i2isb(i,sb): 第i个格点之前（包括当前格点）有多少个sb子格 
-	isb2i(i,sb): 第sb子格的第i个格点对应的格点指标
 输出
 	sb: 子格数
 	Ns: 总格点数
 	Nc: super cell个数
 	Ni: super cell内的格点数
+	i2isb(i,sb): 第i个格点之前（包括当前格点）有多少个sb子格 
+	isb2i(i,sb): 第sb子格的第i个格点对应的格点指标
 	nb: 近邻指标
 		bd: 键指标
 			sb: 两个格点的子格指标

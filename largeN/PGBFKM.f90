@@ -281,9 +281,6 @@ contains
 		integer :: niter
 		real(8) :: SEf1(size(Af)),SEf2(size(Af)),iSEf_(size(Af)),rSEf(size(Af)),iSEB_(size(Af)),rSEB(size(Af)),Af_(size(Af)),AB_(size(Af))
 		integer :: i,n
-		!do i=1,size(omega)
-			!read(10,"(5e28.20)")omega(i),iSEf(i),rSEf(i),iSEB(i),rSEB(i)
-		!enddo
 		n=size(omega)
 		beta=1d0/Tk
 		Af=0d0

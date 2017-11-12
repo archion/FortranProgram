@@ -22,6 +22,7 @@ module M_Hamilton_final_M
 		integer, allocatable :: bd2v(:)
 		integer :: n
 		character(:), allocatable :: label
+		real(8), allocatable :: extdat(:)
 	end type
 	type t_ham
 		type(t_var), allocatable :: var(:)
@@ -78,7 +79,7 @@ contains
 			call heev(H,E,"V")
 		end select
 	end subroutine
-	function add(self,nb,ca,n,cg,sg,val,V,label,is_var) result(idx)
+	function add(self,nb,ca,n,cg,sg,val,V,label,is_var,extdat) result(idx)
 		class(t_ham) :: self
 		integer, intent(in) :: nb
 		type(c) :: ca(:)
@@ -89,6 +90,7 @@ contains
 		real(8), intent(in), optional :: V
 		character(*), optional :: label
 		logical, optional :: is_var
+		real(8), intent(in), optional :: extdat(:)
 		integer :: idx
 		integer, allocatable :: c(:),ord(:)
 		integer :: i,j
@@ -127,6 +129,10 @@ contains
 		else
 			self%var(idx)%sg=1d0
 		endif
+		if(present(extdat)) then
+			allocate(self%var(idx)%extdat(size(extdat)))
+			self%var(idx)%extdat=extdat
+		endif
 		if(present(val)) then
 			allocate(ord(size(val)))
 			ord=[1:size(ord)]
@@ -149,6 +155,7 @@ contains
 			self%var(idx)%bd2v=1
 			self%var(idx)%n=1
 		endif
+		self%var(idx)%val=0d0
 	end function
 	subroutine get(self,val,idx)
 		class(t_ham), intent(inout) :: self
@@ -306,10 +313,11 @@ contains
 		complex(8), intent(inout) :: H(:,:)
 		real(8), optional, intent(in) :: k(:)
 		complex(8) :: bdc,expk,bd,tmp
-		integer :: i,j,l,n,m,nb,hi,hj,sb(2),il,Nc
+		integer :: i,j,l,n,m,nb,hi,hj,sb(2),il,Nc,ir(2)
 		real(8) :: dr(3)
 		real(8), allocatable :: sg(:)
 		integer, pointer :: p2H(:,:)
+		character :: flag
 		expk=1d0
 		if((.not.present(k)).and.latt%is_all) then
 			p2H(1:size(self%s2H,1),lbound(self%s2H,2):ubound(self%s2H,2)) => self%s2H
@@ -341,29 +349,27 @@ contains
 					j=latt%nb(nb)%bd(n)%i(2)
 				endif
 				bd=bd*self%var(il)%val(self%var(il)%bd2v(n))*merge(1d0,self%var(il)%V,isnan(self%var(il)%V))
+
+				flag=" "
 				do m=1,size(self%var(il)%c,2)
-					if(all(sb-self%var(il)%c(1:2,m)%sb==0)) then
-						hi=p2H(i,self%var(il)%c(1,m)%tp)
-						hj=p2H(j,-self%var(il)%c(2,m)%tp)
-						tmp=bdc*expk
-						if(sb(1)==sb(2).and.self%var(il)%c(1,m)%l=="j") then
-							hi=p2H(j,self%var(il)%c(1,m)%tp)
-							hj=p2H(i,-self%var(il)%c(2,m)%tp)
-							tmp=conjg(bdc)*conjg(expk)
-						endif
-					elseif(all(sb(2:1:-1)-self%var(il)%c(1:2,m)%sb==0)) then
-						hi=p2H(j,self%var(il)%c(1,m)%tp)
-						hj=p2H(i,-self%var(il)%c(2,m)%tp)
-						tmp=conjg(bdc)*conjg(expk)
+					if(all(merge(sb(1),sb(2),self%var(il)%c(:,m)%l=="i")-self%var(il)%c(:,m)%sb==0)) then
+						if(flag==" ") flag="i"
+					elseif(all(merge(sb(2),sb(1),self%var(il)%c(:,m)%l=="i")-self%var(il)%c(:,m)%sb==0)) then
+						if(flag==" ") flag="j"
 					else
 						cycle
 					endif
-					if(self%var(il)%cg(m)) then
-						tmp=tmp*self%var(il)%sg(m)*conjg(bd)
+					ir=merge(i,j,self%var(il)%c(1:2,m)%l==flag)
+					if(self%var(il)%c(1,m)%l==flag.and.self%var(il)%c(2,m)%l/=flag) then
+						tmp=bdc*expk
+					elseif(self%var(il)%c(2,m)%l==flag.and.self%var(il)%c(1,m)%l/=flag) then
+						tmp=conjg(bdc*expk)
 					else
-						tmp=tmp*self%var(il)%sg(m)*bd
+						tmp=1d0
 					endif
-					H(hi,hj)=H(hi,hj)+tmp
+					ir(1)=p2H(ir(1),self%var(il)%c(1,m)%tp)
+					ir(2)=p2H(ir(2),-self%var(il)%c(2,m)%tp)
+					H(ir(1),ir(2))=H(ir(1),ir(2))+tmp*merge(conjg(bd),bd,self%var(il)%cg(m))*self%var(il)%sg(m)
 				enddo
 			enddo
 		enddo
@@ -375,10 +381,11 @@ contains
 		complex(8), intent(inout) :: D(:,:,:)
 		real(8), optional, intent(in) :: k(:)
 		complex(8) :: bdc,expk,bd,tmp
-		integer :: i,j,l,n,m,nb,hi,hj,sb(2),il,Nc,m1,m2,lv
+		integer :: i,j,l,n,m,nb,hi,hj,sb(2),il,Nc,m1,m2,lv,ir(2)
 		real(8) :: dr(3)
 		real(8), allocatable :: sg(:)
 		integer, pointer :: p2H(:,:)
+		character :: flag
 		expk=1d0
 		if((.not.present(k)).and.latt%is_all) then
 			p2H(1:size(self%s2H,1),lbound(self%s2H,2):ubound(self%s2H,2)) => self%s2H
@@ -410,32 +417,31 @@ contains
 					j=latt%nb(nb)%bd(n)%i(2)
 				endif
 				bd=bd*merge(1d0,self%var(il)%V,isnan(self%var(il)%V))
+
+				flag=" "
 				do m=1,size(self%var(il)%c,2)
-					if(all(sb-self%var(il)%c(1:2,m)%sb==0)) then
-						hi=p2H(i,self%var(il)%c(1,m)%tp)
-						hj=p2H(j,-self%var(il)%c(2,m)%tp)
-						tmp=bdc*expk
-						if(sb(1)==sb(2).and.self%var(il)%c(1,m)%l=="j") then
-							hi=p2H(j,self%var(il)%c(1,m)%tp)
-							hj=p2H(i,-self%var(il)%c(2,m)%tp)
-							tmp=conjg(bdc)*conjg(expk)
-						endif
-					elseif(all(sb(2:1:-1)-self%var(il)%c(1:2,m)%sb==0)) then
-						hi=p2H(j,self%var(il)%c(1,m)%tp)
-						hj=p2H(i,-self%var(il)%c(2,m)%tp)
-						tmp=conjg(bdc)*conjg(expk)
+					if(all(merge(sb(1),sb(2),self%var(il)%c(:,m)%l=="i")-self%var(il)%c(:,m)%sb==0)) then
+						if(flag==" ") flag="i"
+					elseif(all(merge(sb(2),sb(1),self%var(il)%c(:,m)%l=="i")-self%var(il)%c(:,m)%sb==0)) then
+						if(flag==" ") flag="j"
 					else
 						cycle
 					endif
-					if(self%var(il)%cg(m)) then
-						tmp=tmp*self%var(il)%sg(m)*conjg(bd)
+					ir=merge(i,j,self%var(il)%c(1:2,m)%l==flag)
+					if(self%var(il)%c(1,m)%l==flag.and.self%var(il)%c(2,m)%l/=flag) then
+						tmp=bdc*expk
+					elseif(self%var(il)%c(2,m)%l==flag.and.self%var(il)%c(1,m)%l/=flag) then
+						tmp=conjg(bdc*expk)
 					else
-						tmp=tmp*self%var(il)%sg(m)*bd
+						tmp=1d0
 					endif
+					ir(1)=p2H(ir(1),self%var(il)%c(1,m)%tp)
+					ir(2)=p2H(ir(2),-self%var(il)%c(2,m)%tp)
+					tmp=tmp*merge(conjg(bd),bd,self%var(il)%cg(m))*self%var(il)%sg(m)
 					lv=sum(self%var(idx(1:l))%n)-self%var(il)%n+self%var(il)%bd2v(n)
 					do m1=1,size(D,1)
 						do m2=1,size(D,2)
-							D(m1,m2,lv)=D(m1,m2,lv)+cH(m1,hi)*H(hj,m2)*tmp
+							D(m1,m2,lv)=D(m1,m2,lv)+cH(m1,ir(1))*H(ir(2),m2)*tmp
 						enddo
 					enddo
 				enddo
@@ -863,6 +869,7 @@ contains
 		dk=(kf-ki)/n
 		do m=0,n-1
 			k=ki+dk*m
+			H=0d0
 			call self%Hamilton([self%rg(1):self%rg(2)],H,k)
 			call mat_diag(H,E)
 			write(ut,"((es17.9)$)")k
