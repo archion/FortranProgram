@@ -1,6 +1,8 @@
 module global
 	use M_const
+	use M_matrix
 	implicit none
+	!real(8) :: alpha=0.3d0,r=0.3d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=1.25d0,g=0d0
 	real(8) :: alpha=0.3d0,r=0d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=2d0,g=0.5d0
 	real(8) :: Tk=4d-3,beta,norm_Ac=1d0
 	!integer, parameter :: nll=31*7,nadd1=5,nadd2=20,n=(n+nadd1*2+nadd2*2)*2
@@ -280,24 +282,36 @@ contains
 		real(8) :: tol,rate,Af(:),AB(:),iSEF(:),iSEB(:)
 		integer :: niter
 		real(8) :: SEf1(size(Af)),SEf2(size(Af)),iSEf_(size(Af)),rSEf(size(Af)),iSEB_(size(Af)),rSEB(size(Af)),Af_(size(Af)),AB_(size(Af))
+		real(8) :: x(size(iSEf)*2),x_(size(iSEf)*2)
 		integer :: i,n
 		n=size(omega)
 		beta=1d0/Tk
 		Af=0d0
 		AB=0d0
+		!call mbroyden([real(8)::],[real(8)::],1d0,0,fin=.false.,id=2)
 		do i=1,niter
 			call get_realpart(omega,iSEf,rSEf)
 			call get_realpart(omega,iSEB,rSEB)
 			Af_=iSEf/((omega-rSEf)**2+iSEf**2)
+			!if(i==2) then
+				!do n=1,size(omega)
+					!write(12,"(*(e28.20))")omega(n),iSEf(n),rSEf(n),Af_(n),Af(n)
+				!enddo
+				!stop
+			!endif
 			AB_=iSEB/((1d0/Jk-rSEB)**2+iSEB**2)
 			if(all(abs(Af(n/2+1:)-Af_(n/2+1:))/(Af_(n/2+1:)+1d-70)<tol)) then
-				write(*,*)"converged"
-				exit
+			!if(all(abs(Af(n/2+1:)-Af_(n/2+1:))<tol)) then
+				!if(all(abs(AB(n/2+1:)-AB_(n/2+1:))/(AB_(n/2+1:)+1d-70)<tol)) then
+					write(*,*)"converged"
+					exit
+				!endif
 			endif
 			if(i==niter) then
 				write(*,*)"not converged",maxval(abs(Af(n/2+1:)-Af_(n/2+1:))/(Af_(n/2+1:)+1d-70))
 			endif
 			write(*,*)i,maxval(abs(Af(n/2+1:)-Af_(n/2+1:))/(Af_(n/2+1:)+1d-70))
+			!write(*,*)i,maxval(abs(Af(n/2+1:)-Af_(n/2+1:)))
 			Af=Af_
 			AB=AB_
 
@@ -308,12 +322,122 @@ contains
 			!iSEB_=pi*iSEB_
 			iSEf_=-1d0/pi*(kp*SEf1-g**2*SEf2)
 			iSEB_=-1d0/pi*iSEB_
-			iSEf=(rate*iSEf_+iSEf)/(rate+1d0)
-			iSEB=(rate*iSEB_+iSEB)/(rate+1d0)
+
+			x=[iSEf,iSEB]
+			x_=[iSEf_,iSEB_]
+			!if(i<=8) then
+				call mbroyden(x,x_,1d0,i,8)
+			!else
+				!call mbroyden(x,x_,1d0,i-8)
+			!endif
+			iSEf=x(1:size(x)/2)
+			iSEB=x(size(x)/2+1:)
 		enddo
+		call mbroyden([real(8)::],[real(8)::],1d0,0,fin=.true.)
 		do i=1,size(omega)
-			write(12,"(3e28.20)")omega(i),Af(i),iSEf(i)
+			write(12,"(*(e28.20))")omega(i),Af(i),Ab(i)
 		enddo
+		write(12,"(x/)")
+	end subroutine
+	subroutine mbroyden(vo,vn,alpha,n,n_max,fin,id)
+		real(8) :: vo(:),vn(:),alpha
+		integer :: n
+		integer, optional :: n_max,id
+		logical, optional :: fin
+		integer :: i,j,k,n1,n2,m,md
+		real(8) :: Fm(size(vo,1)),v(size(vo,1))
+		real(8), allocatable, save :: dF(:,:,:),dV(:,:,:),w(:,:),beta(:,:)
+		real(8), allocatable :: dF_(:,:,:),dV_(:,:,:),w_(:,:)
+		integer, save :: mid=1
+		integer :: id_
+		real(8) :: norm,w0=0.01d0,tmp
+		if(present(id)) then
+			id_=id
+		else
+			id_=1
+		endif
+		if(present(fin)) then
+			if(fin) then
+				if(allocated(dF)) deallocate(beta,dF,dV,w)
+				return
+			else
+				mid=id_
+				return
+			endif
+		endif
+		n1=size(vo)
+		if(present(n_max)) then
+			m=min(n-1,n_max)
+			md=n_max
+			if(n==1.and..not.allocated(dF)) allocate(dF(n1,n_max,mid),dV(n1,n_max,mid),w(n_max,mid))
+		else
+			m=n-1
+			md=n
+			if(n==1) then
+				if(.not.allocated(dF)) allocate(dF(n1,8,mid),dV(n1,8,mid),w(8,mid))
+			else
+				n2=size(dF,2)
+				if(n2<n) then
+					allocate(dF_(n1,n2,mid),dV_(n1,n2,mid),w_(n2,mid))
+					dF_=dF
+					dV_=dV
+					w_=w
+					deallocate(dF,dV,w)
+					n2=n2+max(8,nint(n2*0.2d0))
+					allocate(dF(n1,n2,mid),dV(n1,n2,mid),w(n2,mid))
+					dF(:,1:size(dF_,2),:)=dF_
+					dV(:,1:size(dV_,2),:)=dV_
+					w(1:size(w_,1),:)=w_
+					deallocate(dF_,dV_,w_)
+				endif
+			endif
+		endif
+		if(allocated(beta)) then
+			if(m/=size(beta,1)) then
+				deallocate(beta)
+				allocate(beta(m,m))
+			endif
+		else
+			allocate(beta(m,m))
+		endif
+
+		Fm=vn-vo
+		v=vo
+		if(n>1) then
+			k=n-1-(n-2)/md*md
+			w(k,id_)=1d0
+			dV(:,k,id_)=vo-dV(:,k,id_)
+			dF(:,k,id_)=Fm-dF(:,k,id_)
+			norm=sqrt(sum(dF(:,k,id_)**2))
+			dV(:,k,id_)=dV(:,k,id_)/norm
+			dF(:,k,id_)=dF(:,k,id_)/norm
+		else
+			k=0
+		endif
+
+		do i=1,m
+			do j=1,m
+				beta(i,j)=w(i,id_)*w(j,id_)*sum(dF(:,i,id_)*dF(:,j,id_))
+				if(i==j) beta(i,j)=w0**2+beta(i,j)
+			enddo
+		enddo
+		if(m>0) call mat_inv(beta)
+		vo=v+alpha*Fm
+		do i=1,m
+			tmp=0d0
+			do j=1,m
+				tmp=tmp+w(j,id_)*sum(dF(:,j,id_)*Fm)*beta(j,i)
+			enddo
+			vo=vo-w(i,id_)*tmp*(alpha*dF(:,i,id_)+dV(:,i,id_))
+		enddo
+
+		if((n-1)==0) then
+			k=k+1
+		else
+			k=n-(n-1)/md*md
+		endif
+		dV(:,k,id_)=v
+		dF(:,k,id_)=Fm
 	end subroutine
 end module
 program main
@@ -321,29 +445,29 @@ program main
 	implicit none
 	real(8) :: Af(n),AB(n),rGf(n),rGB(n),iSEF(n),iSEB(n),dTk
 	integer :: i
-	open(10,file="/tmp/a.dat")
+	open(10,file="init.dat")
 	open(12,file="/tmp/a_2.dat")
+	open(13,file="TEMPLIST.dat")
 	!call set_omega(omega(1:nll*2),2.3d0,7,10d0)
 	!call add_omega(omega(1:nll*2+nadd1*4),1d0,0.1d0,nadd1)
 	!call add_omega(omega,0.8d0,0.16d0,nadd2)
 	do i=1,size(omega)
-		read(10,"(5e28.20)")omega(i),iSEf(i),rGf(i),iSEB(i),rGB(i)
+		read(10,"(5e28.20)")omega(i),iSEf(i),iSEB(i)
 	enddo
 
 	Tk=0.09d0
-	Tk=0.01d0
+	!Tk=0.01d0
 
 	fcut=abs(omega(find_sidx(omega,-fcut)))
 	Jk=Jk*integrate(A_c)/pi
 	norm_Ac=norm_Ac/integrate(A_c)*pi
 
-	!dTk=Tk/100
+	!Tkn=[1d-6,1d-7,1d-4,1d-5,1d-6,1d-7,1d-8,1d-9]
+	!Tk=1d-5
 	do i=1,100
+		read(13,*)Tk
 		write(*,*)Tk
-		call self_consistent(1d-5,6000,3d-3,Af,AB,iSEf,iSEB)
-		stop
-		call get_realpart(omega,Af,rGf)
-		call get_realpart(omega,AB,rGB)
-		Tk=Tk-dTk
+		call self_consistent(1d-6,1000,3d-3,Af,AB,iSEf,iSEB)
+		!stop
 	enddo
 end program
