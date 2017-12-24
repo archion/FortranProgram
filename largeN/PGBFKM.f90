@@ -10,6 +10,9 @@ module global
 	!integer, parameter :: n=536
 	!real(8) :: omega((n+nadd1*2+nadd2*2)*2)
 	real(8) :: omega(n)
+	interface get_convolution
+		module procedure get_convolution_fadb,get_convolution_dadb
+	end interface
 contains
 	subroutine set_omega(omega,base,nlin,width)
 		real(8) :: omega(:),base,width
@@ -135,88 +138,6 @@ contains
 		enddo
 		re=0.5d0/pi*re
 	end subroutine
-	subroutine get_SEf1(omega,A,rt)
-		real(8) :: omega(:),A(:),rt(:)
-		integer :: i,j,m,n,iwe(size(omega))
-		real(8) :: e1,e2,A1,A2,w,f0,x0,y0,D
-		D=-omega(1)+1d-10
-		n=size(omega)
-		do i=1,n/2
-			w=omega(i)
-			x0=(A(n/2)+(A(n/2+1)-A(n/2))/(omega(n/2+1)-omega(n/2))*(0.0d0-omega(n/2)))*A_c(w)
-			y0=w-1d0/beta*log(1d0-exp(beta*(w-D)))+1d0/beta*log(1d0-exp(-beta*(w+D)))
-			f0=x0*y0
-			do j=1,n
-				iwe(j)=find_sidx(omega,w+omega(j))
-			end do
-			m=iwe(1)
-			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
-			e1=omega(1)
-			rt(i)=0d0
-			do j=1,n-1
-				do m=iwe(j),iwe(j+1)
-					if(m==iwe(j+1)) then
-						e2=omega(j+1)
-						A2=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(e2+w-omega(m)),0d0,m>0.and.m<n)
-					else
-						e2=omega(m+1)-w
-						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
-					endif
-					rt(i)=rt(i)-0.5d0*(e2-e1)*&
-						((fb(-e1-w)+ff(-e1))*(A_c(-e1)*A1-x0)+&
-						(fb(-e2-w)+ff(-e2))*(A_c(-e2)*A2-x0))
-						!((fb(e1+w)+ff(e1))*(A_c(-e1)*A1-x0)+&
-						!(fb(e2+w)+ff(e2))*(A_c(-e2)*A2-x0))
-						!((fb(e1+w)+ff(e1))*(A_c(-e1)*A1)+&
-						!(fb(e2+w)+ff(e2))*(A_c(-e2)*A2))
-					A1=A2
-					e1=e2
-				enddo
-			enddo
-			rt(i)=rt(i)+f0
-			rt(n+1-i)=rt(i)
-		enddo
-	end subroutine
-	subroutine get_SEf2(omega,A,rt)
-		real(8) :: omega(:),A(:),rt(:)
-		integer :: i,j,m,n,iwe(size(omega))
-		real(8) :: e1,e2,A1,A2,w,D,f0,x0,y0
-		D=-omega(1)+1d-10
-		n=size(omega)
-		do i=1,n/2
-			w=omega(i)
-			x0=A(i)*A_phi(0.0d0)
-			y0=w-1d0/beta*log(1d0+exp(beta*(w-D)))+1d0/beta*log(1d0+exp(-beta*(w+D)))
-			f0=x0*y0
-			do j=1,n
-				iwe(j)=find_sidx(omega,w+omega(j))
-			end do
-			m=iwe(1)
-			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
-			e1=omega(1)
-			rt(i)=0d0
-			do j=1,n-1
-				do m=iwe(j),iwe(j+1)
-					if(m==iwe(j+1)) then
-						e2=omega(j+1)
-						A2=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(e2+w-omega(m)),0d0,m>0.and.m<n)
-					else
-						e2=omega(m+1)-w
-						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
-					endif
-					rt(i)=rt(i)-0.5d0*(e2-e1)*&
-						((ff(e1+w)+fb(e1))*(A_phi(-e1)*A1-x0)+&
-						(ff(e2+w)+fb(e2))*(A_phi(-e2)*A2-x0))
-						!((ff(-e1-w)+fb(-e1))*(A_phi(-e1)*A1)+&
-						!(ff(-e2-w)+fb(-e2))*(A_phi(-e2)*A2))
-					A1=A2
-					e1=e2
-				enddo
-			enddo
-			rt(i)=rt(i)+f0
-			rt(n+1-i)=rt(i)
-		enddo
-	end subroutine
 	pure real(8) function ff(x)
 		real(8), intent(in) :: x
 		!if(x<omega(1)) then
@@ -241,119 +162,109 @@ contains
 			!endif
 		endif
 	end function
-	subroutine get_SEB(omega,A,rt)
-		real(8) :: omega(:),A(:),rt(:),fa,fb
-		integer :: i,j,m,n,iwe(size(omega))
-		real(8) :: e1,e2,A1,A2,w
+	subroutine get_convolution_fadb(omega,A,B,is_tau,is_boson,rt)
+		real(8) :: omega(:),A,B(:),rt(:)
+		logical :: is_tau,is_boson
+		integer :: i,j,m,n,iwb(size(omega)),iwa(size(omega)),nm,sgbos,sgtau
+		real(8) :: e1,e2,A1,A2,B1,B2,omg
+		procedure(real(8)), pointer :: ffb
 		n=size(omega)
-		!do i=1,n/2
-		do i=1,n
-			w=omega(i)
+		if(is_tau) then
+			sgtau=-1
+		else
+			sgtau=1
+		endif
+		if(is_boson) then
+			sgbos=1
+			ffb => ff
+		else
+			sgbos=-1
+			ffb => fb
+		endif
+		do i=1,n/2
+		!do i=1,n
+			omg=omega(i)
 			do j=1,n
-				iwe(j)=find_sidx(omega,w+omega(j))
+				iwb(j)=find_sidx(omega,sgtau*(omega(j)-omg))
 			end do
-			m=iwe(1)
-			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
+			m=iwb(1)
+			A1=A(omega(1))
+			B1=merge(B(m)+(B(m+1)-B(m))/(omega(m+1)-omega(m))*(sgtau*(omega(1)-omg)-omega(m)),0d0,m>0.and.m<n)
 			e1=omega(1)
 			rt(i)=0d0
 			do j=1,n-1
-				do m=iwe(j),iwe(j+1)
-					if(m==iwe(j+1)) then
+				do m=iwb(j),iwb(j+1),sgtau
+					if(m==iwb(j+1)) then
 						e2=omega(j+1)
-						A2=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(e2+w-omega(m)),0d0,m>0.and.m<n)
+						A2=A(omega(j+1))
+						B2=merge(B(m)+(B(m+1)-B(m))/(omega(m+1)-omega(m))*(sgtau*(e2-omg)-omega(m)),0d0,m>0.and.m<n)
 					else
-						e2=omega(m+1)-w
-						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
+						e2=sgtau*omega(m+1)+omg
+						A2=A(e2)
+						B2=merge(B(m+1),0d0,m+1>0.and.m+1<n)
 					endif
-					rt(i)=rt(i)+0.5d0*(e2-e1)*&
-						((ff(e1)-ff(e1+w))*A_c(e1)*A1+&
-						(ff(e2)-ff(e2+w))*A_c(e2)*A2)
-					A1=A2
-					e1=e2
-				enddo
-			enddo
-			!rt(n+1-i)=-rt(i)
-		enddo
-	end subroutine
-	subroutine get_SUS(omega,A,B,rt)
-		real(8) :: omega(:),A(:),B(:),rt(:)
-		integer :: i,j,m,n,iwe(size(omega)),inwe(size(omega)),nm
-		real(8) :: e1,e2,A1,A2,B1,B2,w
-		n=size(omega)
-		!do i=1,n/2
-		do i=1,n
-			w=omega(i)
-			do j=1,n
-				iwe(j)=find_sidx(omega,w+omega(j))
-			end do
-			do j=1,n
-				inwe(j)=find_sidx(omega,-w+omega(j))
-			end do
-			m=iwe(1)
-			B1=B(1)
-			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
-			e1=omega(1)
-			rt(i)=0d0
-			do j=1,n-1
-				do m=iwe(j),iwe(j+1)
-					if(m==iwe(j+1)) then
-						e2=omega(j+1)
-						B2=B(j+1)
-						A2=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(e2+w-omega(m)),0d0,m>0.and.m<n)
-					else
-						e2=omega(m+1)-w
-						nm=inwe(m+1)
-						B2=merge(B(nm)+(B(nm+1)-B(nm))/(omega(nm+1)-omega(nm))*(e2-omega(nm)),0d0,nm>0.and.nm<n)
-						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
-					endif
-					rt(i)=rt(i)+0.5d0*(e2-e1)*&
-						((ff(e1)-ff(e1+w))*B1*A1+&
-						(ff(e2)-ff(e2+w))*B2*A2)
+					rt(i)=rt(i)+sgtau*0.5d0*(e2-e1)*&
+						((-ff(e1)+sgbos*ffb(e1-omg))*A1*B1+&
+						(-ff(e2)+sgbos*ffb(e2-omg))*A2*B2)
 					A1=A2
 					B1=B2
 					e1=e2
 				enddo
 			enddo
-			!rt(n+1-i)=-rt(i)
 			rt(i)=rt(i)*pi
+			rt(n+1-i)=-sgbos*rt(i)
 		enddo
 	end subroutine
-	subroutine get_Tmat(omega,A,B,rt)
+	subroutine get_convolution_dadb(omega,A,B,is_tau,is_boson,rt)
 		real(8) :: omega(:),A(:),B(:),rt(:)
-		integer :: i,j,m,n,iwe(size(omega)),inwe(size(omega)),nm
-		real(8) :: e1,e2,B1,B2,A1,A2,w
+		logical :: is_tau,is_boson
+		integer :: i,j,m,n,iwb(size(omega)),iwa(size(omega)),nm,sgbos,sgtau
+		real(8) :: e1,e2,A1,A2,B1,B2,omg
+		procedure(real(8)), pointer :: ffb
 		n=size(omega)
-		!do i=1,n/2
+		if(is_tau) then
+			sgtau=-1
+		else
+			sgtau=1
+		endif
+		if(is_boson) then
+			sgbos=1
+			ffb => ff
+		else
+			sgbos=-1
+			ffb => fb
+		endif
+		!!do i=1,n/2
 		do i=1,n
-			w=omega(i)
+			omg=omega(i)
 			do j=1,n
-				iwe(j)=find_sidx(omega,w+omega(j))
+				iwb(j)=find_sidx(omega,sgtau*(omega(j)-omg))
 			end do
 			do j=1,n
-				inwe(j)=find_sidx(omega,-w+omega(j))
+				iwa(j)=find_sidx(omega,sgtau*omega(j)+omg)
 			end do
-			m=iwe(1)
-			B1=B(1)
-			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
+			m=iwb(1)
+			A1=A(1)
+			B1=merge(B(m)+(B(m+1)-B(m))/(omega(m+1)-omega(m))*(sgtau*(omega(1)-omg)-omega(m)),0d0,m>0.and.m<n)
 			e1=omega(1)
 			rt(i)=0d0
 			do j=1,n-1
-				do m=iwe(j),iwe(j+1)
-					if(m==iwe(j+1)) then
+				do m=iwb(j),iwb(j+1),sgtau
+					if(m==iwb(j+1)) then
 						e2=omega(j+1)
-						B2=B(j+1)
-						A2=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(e2+w-omega(m)),0d0,m>0.and.m<n)
+						A2=A(j+1)
+						B2=merge(B(m)+(B(m+1)-B(m))/(omega(m+1)-omega(m))*(sgtau*(e2-omg)-omega(m)),0d0,m>0.and.m<n)
 					else
-						e2=omega(m+1)-w
-						nm=inwe(m+1)
-						B2=merge(B(nm)+(B(nm+1)-B(nm))/(omega(nm+1)-omega(nm))*(e2-omega(nm)),0d0,nm>0.and.nm<n)
-						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
+						e2=sgtau*omega(m+1)+omg
+						nm=iwa(m+1)
+						A2=merge(A(nm)+(A(nm+1)-A(nm))/(omega(nm+1)-omega(nm))*(e2-omega(nm)),0d0,nm>0.and.nm<n)
+						B2=merge(B(m+1),0d0,m+1>0.and.m+1<n)
 					endif
-					rt(i)=rt(i)+0.5d0*(e2-e1)*&
-						((fb(e1)+ff(e1+w))*B1*A1+&
-						(fb(e2)+ff(e2+w))*B2*A2)
-					B1=B2
+					rt(i)=rt(i)+sgtau*0.5d0*(e2-e1)*&
+						((-ff(e1)+sgbos*ffb(e1-omg))*A1*B1+&
+						(-ff(e2)+sgbos*ffb(e2-omg))*A2*B2)
 					A1=A2
+					B1=B2
 					e1=e2
 				enddo
 			enddo
@@ -367,6 +278,7 @@ contains
 		real(8) :: SEf1(size(Af)),SEf2(size(Af)),iSEf_(size(Af)),rSEf(size(Af)),iSEB_(size(Af)),rSEB(size(Af)),Af_(size(Af)),AB_(size(Af))
 		real(8) :: x(size(iSEf)*2),x_(size(iSEf)*2)
 		integer :: i,n
+		procedure(real(8)), pointer :: ffb
 		n=size(omega)
 		beta=1d0/Tk
 		Af=0d0
@@ -398,11 +310,11 @@ contains
 			Af=Af_
 			AB=AB_
 
-			call get_SEf1(omega,AB,SEf1)
-			call get_SEf2(omega,Af,SEf2)
-			call get_SEB(omega,Af,iSEB_)
-			iSEf_=pi*(kp*SEf1-g**2*SEf2)
-			iSEB_=pi*iSEB_
+			call get_convolution(omega,A_c,AB,is_tau=.true.,is_boson=.false.,rt=SEf1)
+			call get_convolution(omega,A_phi,Af,is_tau=.true.,is_boson=.false.,rt=SEf2)
+			call get_convolution(omega,A_c,Af,is_tau=.false.,is_boson=.true.,rt=iSEB_)
+			iSEf_=-(kp*SEf1+g**2*SEf2)
+			iSEB_=iSEB_
 
 			x=[iSEf,iSEB]
 			x_=[iSEf_,iSEB_]
@@ -562,11 +474,11 @@ program main
 		enddo
 		write(12,"(x/)")
 
-		!call get_SUS(omega,Af,Af,SUS)
-		!call get_Tmat(omega,Af,AB,Tmat)
-		!do i=1,size(omega)
-			!write(22,"(*(e28.20))")omega(i),SUS(i),Tmat(i)
-		!enddo
-		!write(22,"(x/)")
+		call get_convolution(omega,Af,Af,is_tau=.false.,is_boson=.true.,rt=SUS)
+		call get_convolution(omega,Af,AB,is_tau=.true.,is_boson=.false.,rt=Tmat)
+		do i=1,size(omega)
+			write(22,"(*(e28.20))")omega(i),SUS(i),Tmat(i)
+		enddo
+		write(22,"(x/)")
 	enddo
 end program
