@@ -2,11 +2,12 @@ module global
 	use M_const
 	use M_matrix
 	implicit none
-	!real(8) :: alpha=0.3d0,r=0.3d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=1.25d0,g=0d0
-	real(8) :: alpha=0.3d0,r=0d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=2d0,g=0.5d0
-	real(8) :: Tk=4d-3,beta,norm_Ac=1d0
-	!integer, parameter :: nll=31*7,nadd1=5,nadd2=20,n=(n+nadd1*2+nadd2*2)*2
-	integer, parameter :: n=536
+	real(8) :: alpha=0.3d0,r=0.3d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=1.25d0,g=0d0
+	!real(8) :: alpha=0.3d0,r=0.3d0,kp=0.3d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=1.5d0,g=0.2d0
+	!real(8) :: alpha=0.3d0,r=0d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=2d0,g=0.5d0
+	real(8) :: Tk=4d-3,beta,norm_Ac=1d0,norm_Aphi=1d0
+	integer, parameter :: nll=31*7,nadd1=5,nadd2=20,n=(nll+nadd1*2+nadd2*2)*2
+	!integer, parameter :: n=536
 	!real(8) :: omega((n+nadd1*2+nadd2*2)*2)
 	real(8) :: omega(n)
 contains
@@ -64,9 +65,9 @@ contains
 		if(abs(x)<1.0d-12) then
 			A_phi=0.0d0
 		elseif(abs(x)<phicut) then
-			A_phi=pi*abs(x)**(1d0-alpha)*sign(1d0,x)
+			A_phi=norm_Aphi*abs(x)**(1d0-alpha)*sign(1d0,x)
 		else
-			A_phi=pi*phicut**(1d0-alpha)*sign(1d0,x)*1d0/((exp(phibeta*(x-phicut-4d0/phibeta))+1d0)*(exp(phibeta*(-x-phicut-4d0/phibeta))+1d0))
+			A_phi=norm_Aphi*phicut**(1d0-alpha)*sign(1d0,x)*1d0/((exp(phibeta*(x-phicut-4d0/phibeta))+1d0)*(exp(phibeta*(-x-phicut-4d0/phibeta))+1d0))
 		endif
 	end function
     real(8) function A_c(x)
@@ -121,7 +122,6 @@ contains
 		n=size(omega)
 		re(1)=0d0
 		re(n)=0d0
-		!re(2:n-1)=im(2:n-1)*log((omega(n)-omega(2:n-1))/(omega(2:n-1)-omega(1)))
 		re(2:n-1)=2d0*im(2:n-1)*log((omega(n)-omega(2:n-1))/(omega(2:n-1)-omega(1)))
 		do j=1,n
 			dn=[min(n,j+1),max(1,j-1)]
@@ -133,11 +133,10 @@ contains
 				endif
 			enddo
 		enddo
-		!re=1d0/pi*re
-		re=-0.5d0/pi*re
+		re=0.5d0/pi*re
 	end subroutine
-	subroutine get_SEf1(omega,A,SE)
-		real(8) :: omega(:),A(:),SE(:)
+	subroutine get_SEf1(omega,A,rt)
+		real(8) :: omega(:),A(:),rt(:)
 		integer :: i,j,m,n,iwe(size(omega))
 		real(8) :: e1,e2,A1,A2,w,f0,x0,y0,D
 		D=-omega(1)+1d-10
@@ -153,7 +152,7 @@ contains
 			m=iwe(1)
 			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
 			e1=omega(1)
-			SE(i)=0d0
+			rt(i)=0d0
 			do j=1,n-1
 				do m=iwe(j),iwe(j+1)
 					if(m==iwe(j+1)) then
@@ -163,23 +162,23 @@ contains
 						e2=omega(m+1)-w
 						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
 					endif
-					SE(i)=SE(i)+0.5d0*(e2-e1)*&
-						!((fb(-e1-w)+ff(-e1))*(A_c(-e1)*A1-x0)+&
-						!(fb(-e2-w)+ff(-e2))*(A_c(-e2)*A2-x0))
-						((fb(e1+w)+ff(e1))*(A_c(-e1)*A1-x0)+&
-						(fb(e2+w)+ff(e2))*(A_c(-e2)*A2-x0))
+					rt(i)=rt(i)-0.5d0*(e2-e1)*&
+						((fb(-e1-w)+ff(-e1))*(A_c(-e1)*A1-x0)+&
+						(fb(-e2-w)+ff(-e2))*(A_c(-e2)*A2-x0))
+						!((fb(e1+w)+ff(e1))*(A_c(-e1)*A1-x0)+&
+						!(fb(e2+w)+ff(e2))*(A_c(-e2)*A2-x0))
 						!((fb(e1+w)+ff(e1))*(A_c(-e1)*A1)+&
 						!(fb(e2+w)+ff(e2))*(A_c(-e2)*A2))
 					A1=A2
 					e1=e2
 				enddo
 			enddo
-			SE(i)=SE(i)+f0
-			SE(n+1-i)=SE(i)
+			rt(i)=rt(i)+f0
+			rt(n+1-i)=rt(i)
 		enddo
 	end subroutine
-	subroutine get_SEf2(omega,A,SE)
-		real(8) :: omega(:),A(:),SE(:)
+	subroutine get_SEf2(omega,A,rt)
+		real(8) :: omega(:),A(:),rt(:)
 		integer :: i,j,m,n,iwe(size(omega))
 		real(8) :: e1,e2,A1,A2,w,D,f0,x0,y0
 		D=-omega(1)+1d-10
@@ -195,7 +194,7 @@ contains
 			m=iwe(1)
 			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
 			e1=omega(1)
-			SE(i)=0d0
+			rt(i)=0d0
 			do j=1,n-1
 				do m=iwe(j),iwe(j+1)
 					if(m==iwe(j+1)) then
@@ -205,17 +204,17 @@ contains
 						e2=omega(m+1)-w
 						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
 					endif
-					SE(i)=SE(i)+0.5d0*(e2-e1)*&
-						((ff(-e1-w)+fb(-e1))*(A_phi(-e1)*A1-x0)+&
-						(ff(-e2-w)+fb(-e2))*(A_phi(-e2)*A2-x0))
+					rt(i)=rt(i)-0.5d0*(e2-e1)*&
+						((ff(e1+w)+fb(e1))*(A_phi(-e1)*A1-x0)+&
+						(ff(e2+w)+fb(e2))*(A_phi(-e2)*A2-x0))
 						!((ff(-e1-w)+fb(-e1))*(A_phi(-e1)*A1)+&
 						!(ff(-e2-w)+fb(-e2))*(A_phi(-e2)*A2))
 					A1=A2
 					e1=e2
 				enddo
 			enddo
-			SE(i)=SE(i)+f0
-			SE(n+1-i)=SE(i)
+			rt(i)=rt(i)+f0
+			rt(n+1-i)=rt(i)
 		enddo
 	end subroutine
 	pure real(8) function ff(x)
@@ -242,8 +241,8 @@ contains
 			!endif
 		endif
 	end function
-	subroutine get_SEB(omega,A,SE)
-		real(8) :: omega(:),A(:),SE(:)
+	subroutine get_SEB(omega,A,rt)
+		real(8) :: omega(:),A(:),rt(:),fa,fb
 		integer :: i,j,m,n,iwe(size(omega))
 		real(8) :: e1,e2,A1,A2,w
 		n=size(omega)
@@ -256,7 +255,7 @@ contains
 			m=iwe(1)
 			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
 			e1=omega(1)
-			SE(i)=0d0
+			rt(i)=0d0
 			do j=1,n-1
 				do m=iwe(j),iwe(j+1)
 					if(m==iwe(j+1)) then
@@ -266,16 +265,100 @@ contains
 						e2=omega(m+1)-w
 						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
 					endif
-					SE(i)=SE(i)+0.5d0*(e2-e1)*&
-						!((ff(e1)-ff(e1+w))*A_c(e1)*A1+&
-						!(ff(e2)-ff(e2+w))*A_c(e2)*A2)
-						((ff(e1)-ff(e1+w))*A_c(-e1)*A1+&
-						(ff(e2)-ff(e2+w))*A_c(-e2)*A2)
+					rt(i)=rt(i)+0.5d0*(e2-e1)*&
+						((ff(e1)-ff(e1+w))*A_c(e1)*A1+&
+						(ff(e2)-ff(e2+w))*A_c(e2)*A2)
 					A1=A2
 					e1=e2
 				enddo
 			enddo
-			!SE(n+1-i)=-SE(i)
+			!rt(n+1-i)=-rt(i)
+		enddo
+	end subroutine
+	subroutine get_SUS(omega,A,B,rt)
+		real(8) :: omega(:),A(:),B(:),rt(:)
+		integer :: i,j,m,n,iwe(size(omega)),inwe(size(omega)),nm
+		real(8) :: e1,e2,A1,A2,B1,B2,w
+		n=size(omega)
+		!do i=1,n/2
+		do i=1,n
+			w=omega(i)
+			do j=1,n
+				iwe(j)=find_sidx(omega,w+omega(j))
+			end do
+			do j=1,n
+				inwe(j)=find_sidx(omega,-w+omega(j))
+			end do
+			m=iwe(1)
+			B1=B(1)
+			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
+			e1=omega(1)
+			rt(i)=0d0
+			do j=1,n-1
+				do m=iwe(j),iwe(j+1)
+					if(m==iwe(j+1)) then
+						e2=omega(j+1)
+						B2=B(j+1)
+						A2=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(e2+w-omega(m)),0d0,m>0.and.m<n)
+					else
+						e2=omega(m+1)-w
+						nm=inwe(m+1)
+						B2=merge(B(nm)+(B(nm+1)-B(nm))/(omega(nm+1)-omega(nm))*(e2-omega(nm)),0d0,nm>0.and.nm<n)
+						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
+					endif
+					rt(i)=rt(i)+0.5d0*(e2-e1)*&
+						((ff(e1)-ff(e1+w))*B1*A1+&
+						(ff(e2)-ff(e2+w))*B2*A2)
+					A1=A2
+					B1=B2
+					e1=e2
+				enddo
+			enddo
+			!rt(n+1-i)=-rt(i)
+			rt(i)=rt(i)*pi
+		enddo
+	end subroutine
+	subroutine get_Tmat(omega,A,B,rt)
+		real(8) :: omega(:),A(:),B(:),rt(:)
+		integer :: i,j,m,n,iwe(size(omega)),inwe(size(omega)),nm
+		real(8) :: e1,e2,B1,B2,A1,A2,w
+		n=size(omega)
+		!do i=1,n/2
+		do i=1,n
+			w=omega(i)
+			do j=1,n
+				iwe(j)=find_sidx(omega,w+omega(j))
+			end do
+			do j=1,n
+				inwe(j)=find_sidx(omega,-w+omega(j))
+			end do
+			m=iwe(1)
+			B1=B(1)
+			A1=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(w+omega(1)-omega(m)),0d0,m>0.and.m<n)
+			e1=omega(1)
+			rt(i)=0d0
+			do j=1,n-1
+				do m=iwe(j),iwe(j+1)
+					if(m==iwe(j+1)) then
+						e2=omega(j+1)
+						B2=B(j+1)
+						A2=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(e2+w-omega(m)),0d0,m>0.and.m<n)
+					else
+						e2=omega(m+1)-w
+						nm=inwe(m+1)
+						B2=merge(B(nm)+(B(nm+1)-B(nm))/(omega(nm+1)-omega(nm))*(e2-omega(nm)),0d0,nm>0.and.nm<n)
+						A2=merge(A(m+1),0d0,m+1>0.and.m+1<n)
+					endif
+					rt(i)=rt(i)+0.5d0*(e2-e1)*&
+						((fb(e1)+ff(e1+w))*B1*A1+&
+						(fb(e2)+ff(e2+w))*B2*A2)
+					B1=B2
+					A1=A2
+					e1=e2
+				enddo
+			enddo
+			!rt(n+1-i)=-rt(i)
+			rt(i)=rt(i)*pi
 		enddo
 	end subroutine
 	subroutine self_consistent(tol,niter,rate,Af,AB,iSEf,iSEB)
@@ -292,14 +375,14 @@ contains
 		do i=1,niter
 			call get_realpart(omega,iSEf,rSEf)
 			call get_realpart(omega,iSEB,rSEB)
-			Af_=iSEf/((omega-rSEf)**2+iSEf**2)
+			Af_=-1d0/pi*iSEf/((omega-rSEf)**2+iSEf**2)
 			!if(i==2) then
 				!do n=1,size(omega)
 					!write(12,"(*(e28.20))")omega(n),iSEf(n),rSEf(n),Af_(n),Af(n)
 				!enddo
 				!stop
 			!endif
-			AB_=iSEB/((1d0/Jk-rSEB)**2+iSEB**2)
+			AB_=-1d0/pi*iSEB/((1d0/Jk-rSEB)**2+iSEB**2)
 			if(all(abs(Af(n/2+1:)-Af_(n/2+1:))/(Af_(n/2+1:)+1d-70)<tol)) then
 			!if(all(abs(Af(n/2+1:)-Af_(n/2+1:))<tol)) then
 				!if(all(abs(AB(n/2+1:)-AB_(n/2+1:))/(AB_(n/2+1:)+1d-70)<tol)) then
@@ -318,26 +401,24 @@ contains
 			call get_SEf1(omega,AB,SEf1)
 			call get_SEf2(omega,Af,SEf2)
 			call get_SEB(omega,Af,iSEB_)
-			!iSEf_=pi*(kp*SEf1-g**2*SEf2)
-			!iSEB_=pi*iSEB_
-			iSEf_=-1d0/pi*(kp*SEf1-g**2*SEf2)
-			iSEB_=-1d0/pi*iSEB_
+			iSEf_=pi*(kp*SEf1-g**2*SEf2)
+			iSEB_=pi*iSEB_
 
 			x=[iSEf,iSEB]
 			x_=[iSEf_,iSEB_]
+
 			!if(i<=8) then
-				call mbroyden(x,x_,1d0,i,8)
+				!x=x_*rate+x*(1d0-rate)
 			!else
-				!call mbroyden(x,x_,1d0,i-8)
+				!call mbroyden(x,x_,1d0,i-8,8)
 			!endif
+
+			call mbroyden(x,x_,1d0,i,8)
+
 			iSEf=x(1:size(x)/2)
 			iSEB=x(size(x)/2+1:)
 		enddo
 		call mbroyden([real(8)::],[real(8)::],1d0,0,fin=.true.)
-		do i=1,size(omega)
-			write(12,"(*(e28.20))")omega(i),Af(i),Ab(i)
-		enddo
-		write(12,"(x/)")
 	end subroutine
 	subroutine mbroyden(vo,vn,alpha,n,n_max,fin,id)
 		real(8) :: vo(:),vn(:),alpha
@@ -443,31 +524,49 @@ end module
 program main
 	use global
 	implicit none
-	real(8) :: Af(n),AB(n),rGf(n),rGB(n),iSEF(n),iSEB(n),dTk
-	integer :: i
+	real(8) :: Af(n),AB(n),rGf(n),rGB(n),iSEF(n),iSEB(n),SUS(n),Tmat(n),dTk
+	integer :: i,j,e
 	open(10,file="init.dat")
-	open(12,file="/tmp/a_2.dat")
+	open(12,file="../data/largeN_spect.dat")
 	open(13,file="TEMPLIST.dat")
-	!call set_omega(omega(1:nll*2),2.3d0,7,10d0)
-	!call add_omega(omega(1:nll*2+nadd1*4),1d0,0.1d0,nadd1)
-	!call add_omega(omega,0.8d0,0.16d0,nadd2)
-	do i=1,size(omega)
-		read(10,"(5e28.20)")omega(i),iSEf(i),iSEB(i)
-	enddo
+	open(22,file="../data/largeN_suscept.dat")
+	call set_omega(omega(1:nll*2),2.3d0,7,10d0)
+	call add_omega(omega(1:nll*2+nadd1*4),1d0,0.1d0,nadd1)
+	call add_omega(omega,0.8d0,0.16d0,nadd2)
+
+	iSEf=-1d0
+	iSEB(:size(omega)/2)=-1d0
+	iSEB(size(omega)/2+1:)=1d0
+	!do i=1,size(omega)
+		!read(10,"(*(e28.20))")omega(i),iSEf(i),iSEB(i)
+		!iSEf(i)=-iSEf(i)
+		!iSEB(i)=-iSEB(i)
+	!enddo
 
 	Tk=0.09d0
 	!Tk=0.01d0
 
-	fcut=abs(omega(find_sidx(omega,-fcut)))
-	Jk=Jk*integrate(A_c)/pi
-	norm_Ac=norm_Ac/integrate(A_c)*pi
+	!norm_Aphi=norm_Aphi/(integrate(A_phi,size(omega)/2)*2)
+	!fcut=abs(omega(find_sidx(omega,-fcut)))
+	!Jk=Jk*integrate(A_c)
+	norm_Ac=norm_Ac/integrate(A_c)*Jk
+	!norm_Ac=norm_Ac/integrate(A_c)*pi/0.8d0
 
-	!Tkn=[1d-6,1d-7,1d-4,1d-5,1d-6,1d-7,1d-8,1d-9]
-	!Tk=1d-5
-	do i=1,100
-		read(13,*)Tk
+	do
+		read(13,*,iostat=e)Tk
+		if(e==-1) exit
 		write(*,*)Tk
 		call self_consistent(1d-6,1000,3d-3,Af,AB,iSEf,iSEB)
-		!stop
+		do i=1,size(omega)
+			write(12,"(*(e28.20))")omega(i),Af(i),Ab(i)
+		enddo
+		write(12,"(x/)")
+
+		!call get_SUS(omega,Af,Af,SUS)
+		!call get_Tmat(omega,Af,AB,Tmat)
+		!do i=1,size(omega)
+			!write(22,"(*(e28.20))")omega(i),SUS(i),Tmat(i)
+		!enddo
+		!write(22,"(x/)")
 	enddo
 end program
