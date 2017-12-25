@@ -10,9 +10,9 @@ module global
 	use omp_lib
 	use mkl_service
 	implicit none
-	!real(8) :: t(3)=[1d0,0.1d0/2.8d0,0.07d0/2.8d0]
-	real(8) :: t(1)=[1d0]
-	real(8), parameter :: V=0d0,U=2.4d0
+	real(8) :: t(3)=[1d0,0.1d0/2.8d0,0.07d0/2.8d0]
+	!real(8) :: t(1)=[1d0]
+	real(8), parameter :: V=0d0,U=3.6d0
 	type(t_mc) :: mc[ica1,*]
 contains
 	subroutine initial()
@@ -34,8 +34,8 @@ contains
 		latt%c2=latt%a2
 		!latt%T1=[3d0,0d0,0d0]*4d0
 		!latt%T2=[0d0,sqrt(3d0),0d0]*7d0
-		latt%T1=latt%a1*11d0
-		latt%T2=latt%a2*11d0
+		latt%T1=latt%a1*12d0
+		latt%T2=latt%a2*12d0
 		latt%bdc=[1d0,1d0,0d0]
 		allocate(latt%rsb(2,3))
 		latt%rsb(1,:)=[0d0,0d0,0d0]
@@ -52,23 +52,24 @@ contains
 		allocate(Ham%var(-10:10),Hmf%var(-10:10),Hja%var(-10:10),mc%sphy%var(-10:10),mc%dphy%var(-10:10))
 
 !*************************meanfield***********************************
-		! cp
-		idx=Hmf%add(nb=0,ca=[(c("i",i,+1),c("i",i,-1),c("i",i,+2),c("i",i,-2),i=1,2)],n=2,sg=[1d0,-1d0,1d0,-1d0],label="cp")
-		Hmf%var(idx)%bd=-1d0
-		Hmf%var(idx)%val=-0.775965599034009d0
+		!! cp
+		!idx=Hmf%add(nb=0,ca=[(c("i",i,+1),c("i",i,-1),c("i",i,+2),c("i",i,-2),i=1,2)],n=2,sg=[1d0,-1d0,1d0,-1d0],label="cp",is_var=.false.)
+		!Hmf%var(idx)%bd=-1d0
+		!Hmf%var(idx)%val=-9.2857d-01
+		!!Hmf%var(idx)%val=-5.9011d-01
 
-		! d+id
-		idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",2,-2),c("j",2,+1),c("i",1,-2),c("i",1,+2),c("j",2,-1),c("j",2,+2),c("i",1,-1)],n=2,cg=[.false.,.false.,.true.,.true.])
-		do i=1,size(Hmf%var(idx)%bd)
-			if(abs(latt%nb(1)%bd(i)%dr(2))<1d-6) then
-				Hmf%var(idx)%bd(i)=1d0
-			elseif(latt%nb(1)%bd(i)%dr(1)*latt%nb(1)%bd(i)%dr(2)>0d0) then
-				Hmf%var(idx)%bd(i)=exp(img*4d0/3d0*pi)
-			else
-				Hmf%var(idx)%bd(i)=exp(img*2d0/3d0*pi)
-			endif
-		enddo
-		Hmf%var(idx)%val=0.01d0
+		!! d+id
+		!idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",2,-2),c("j",2,+1),c("i",1,-2),c("i",1,+2),c("j",2,-1),c("j",2,+2),c("i",1,-1)],n=2,cg=[.false.,.false.,.true.,.true.])
+		!do i=1,size(Hmf%var(idx)%bd)
+			!if(abs(latt%nb(1)%bd(i)%dr(2))<1d-6) then
+				!Hmf%var(idx)%bd(i)=1d0
+			!elseif(latt%nb(1)%bd(i)%dr(1)*latt%nb(1)%bd(i)%dr(2)>0d0) then
+				!Hmf%var(idx)%bd(i)=exp(img*4d0/3d0*pi)
+			!else
+				!Hmf%var(idx)%bd(i)=exp(img*2d0/3d0*pi)
+			!endif
+		!enddo
+		!Hmf%var(idx)%val=1.9d-2
 
 		!! sdw
 		!idx=Hmf%add(nb=0,ca=[(c("i",i,+1),c("i",i,-1),c("i",i,+2),c("i",i,-2),i=1,2)],n=2,sg=[1d0,1d0,1d0,1d0])
@@ -111,7 +112,7 @@ contains
 !************************jastrow**************************************
 		idx=Hja%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2),c("i",2,+1),c("i",2,-1),c("i",2,-2),c("i",2,+2)],n=4)
 		Hja%var(idx)%bd=-1d0
-		Hja%var(idx)%val=3.9213d-1
+		Hja%var(idx)%val=5.8d-1
 
 !*************************Hamiltionian********************************
 		idx=Ham%add(nb=1,ca=[c("i",1,+1),c("j",2,-1),c("j",2,+1),c("i",1,-1),c("i",1,-2),c("j",2,+2),c("j",2,-2),c("i",1,+2)],n=2)
@@ -161,23 +162,23 @@ contains
 		mc%sphy%var(idx)%bd=1d0
 		mc%sphy%var(idx)%val=0d0
 
-		!idx=mc%sphy%add(nb=1,ca=[c("i",1,+1),c("j",2,-2),c("j",2,+1),c("i",1,-2)],n=2,V=1d0/Ns,label="2sc")
-		!do i=1,size(mc%sphy%var(idx)%bd)
-			!if(abs(latt%nb(1)%bd(i)%dr(2))<1d-6) then
-				!mc%sphy%var(idx)%bd(i)=1d0
-			!elseif(latt%nb(1)%bd(i)%dr(1)*latt%nb(1)%bd(i)%dr(2)>0d0) then
-				!mc%sphy%var(idx)%bd(i)=exp(img*4d0/3d0*pi)
-			!else
-				!mc%sphy%var(idx)%bd(i)=exp(img*2d0/3d0*pi)
-			!endif
-		!enddo
-		!mc%sphy%var(idx)%val=0d0
+		idx=mc%sphy%add(nb=1,ca=[c("i",1,+1),c("j",2,-2),c("j",2,+1),c("i",1,-2)],n=2,V=1d0/(Ns*Ns),label="2sc",extdat=[real(8)::ichar("r"),1d-7])
+		do i=1,size(mc%sphy%var(idx)%bd)
+			if(abs(latt%nb(1)%bd(i)%dr(2))<1d-6) then
+				mc%sphy%var(idx)%bd(i)=1d0
+			elseif(latt%nb(1)%bd(i)%dr(1)*latt%nb(1)%bd(i)%dr(2)>0d0) then
+				mc%sphy%var(idx)%bd(i)=exp(img*4d0/3d0*pi)
+			else
+				mc%sphy%var(idx)%bd(i)=exp(img*2d0/3d0*pi)
+			endif
+		enddo
+		mc%sphy%var(idx)%val=0d0
 
 
 !************************dynamic measurement**************************
-		idx=mc%dphy%add(nb=0,ca=[c("i",1,+1),c("i",1,+2),c("i",2,+1),c("i",2,+2)],n=2,label="2s",extdat=[q(:,this_image(mc,1)),0d0])
-		mc%dphy%var(idx)%bd=1d0
-		mc%dphy%var(idx)%val=0d0
+		!idx=mc%dphy%add(nb=0,ca=[c("i",1,+1),c("i",1,+2),c("i",2,+1),c("i",2,+2)],n=2,label="2s",extdat=[q(:,this_image(mc,1)),0d0])
+		!mc%dphy%var(idx)%bd=1d0
+		!mc%dphy%var(idx)%val=0d0
 
 		call Hmf%init()
 		call Hja%init()
@@ -239,16 +240,17 @@ program main
 	mc%hot=1
 	mc%step=Ns
 	mc%delay=2
-	mc%ne(1)=Ns/2-22
+	mc%ne(1)=Ns/2-36
 	if(is_ph) then
 		mc%ne(2)=Ns-mc%ne(1)
 	else
 		mc%ne(2)=mc%ne(1)
 	endif
 	!Hmf%var(1:vn)%val(1)=[-6.2487E-01,2.5764E-01,1.0392E-01,-3.6208E-02] ! dsc+mu+t'+SDW E=-3.2721E-01
-	mc%samp=1024*8*16*8
-	mc%hot=1024*8*2
-	mc%step=nint(sqrt(real(Ns)))
+	mc%samp=1024*8*16*8*8
+	mc%hot=1024*8*8*2
+	!mc%step=nint(sqrt(real(Ns)))
+	mc%step=Ns
 	call mc%do_var(100)
 	stop
 	mc%num=this_image(mc,1)

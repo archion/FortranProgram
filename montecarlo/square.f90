@@ -35,8 +35,10 @@ contains
 		latt%c2=[-1d0,1d0,0d0]
 		!latt%c1=[4d0,1d0,0d0]
 		!latt%c2=[0d0,2d0,0d0]
-		latt%T1=[1d0,0d0,0d0]*10d0
-		latt%T2=[0d0,1d0,0d0]*10d0
+		latt%c1=[8d0,0d0,0d0]
+		latt%c2=[0d0,1d0,0d0]
+		latt%T1=[1d0,0d0,0d0]*8d0
+		latt%T2=[0d0,1d0,0d0]*8d0
 		latt%bdc=[1d0,1d0,0d0]
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=[0d0,0d0,0d0]
@@ -55,10 +57,10 @@ contains
 		! cp
 		idx=Hmf%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,+2),c("i",1,-2)],n=2,sg=[1d0,-1d0],label="cp")
 		Hmf%var(idx)%bd=-1d0
-		Hmf%var(idx)%val=0d0
+		Hmf%var(idx)%val=-0.361803398874990d0
 
 		! d-wave sc
-		idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2),c("j",1,+2),c("i",1,-1),c("i",1,+2),c("j",1,-1)],n=2)
+		idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2),c("j",1,+2),c("i",1,-1),c("i",1,+2),c("j",1,-1)],n=2,label="sc")
 		do i=1,size(Hmf%var(idx)%bd)
 			if(abs(latt%nb(1)%bd(i)%dr(1))>1d-6) then
 				Hmf%var(idx)%bd(i)=1d0
@@ -66,9 +68,23 @@ contains
 				Hmf%var(idx)%bd(i)=-1d0
 			endif
 		enddo
-		!Hmf%var(idx)%val=2.92d-1
-		!Hmf%var(idx)%val=2.62d-1
-		Hmf%var(idx)%val=4d-1
+		Hmf%var(idx)%val=2.92d0
+
+		!! PDW
+		!idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2),c("j",1,+2),c("i",1,-1),c("i",1,+2),c("j",1,-1)],n=2,label="sc")
+		!do i=1,size(Hmf%var(idx)%bd)
+			!Hmf%var(idx)%bd(i)=merge(1d0,-1d0,abs(latt%nb(1)%bd(i)%dr(1))>1d-6)*cos(sum([2d0*pi/8d0,0d0,0d0]*(latt%nb(1)%bd(i)%r)))
+			!!if(abs(latt%nb(1)%bd(i)%r(1)-3.5d0)<1d-5) then
+				!!Hmf%var(idx)%bd(i)=0d0
+			!!elseif(abs(latt%nb(1)%bd(i)%r(1)+8-7.5d0)<1d-5) then
+				!!Hmf%var(idx)%bd(i)=0d0
+			!!elseif(latt%nb(1)%bd(i)%r(1)>3.5d0) then
+				!!Hmf%var(idx)%bd(i)=-merge(1d0,-1d0,abs(latt%nb(1)%bd(i)%dr(1))>1d-6)
+			!!else
+				!!Hmf%var(idx)%bd(i)=merge(1d0,-1d0,abs(latt%nb(1)%bd(i)%dr(1))>1d-6)
+			!!endif
+		!enddo
+		!Hmf%var(idx)%val=3d0
 
 		!! ddw
 		!idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",1,-1),c("j",1,+1),c("i",1,-1),c("j",1,+2),c("i",1,-2),c("i",1,+2),c("j",1,-2)],n=2,sg=[1d0,-1d0,-1d0,1d0])
@@ -79,18 +95,18 @@ contains
 				!Hmf%var(idx)%bd(i)=-img
 			!endif
 		!enddo
-		!Hmf%var(idx)%val=3.24d-1
+		!Hmf%var(idx)%val=1d-1
 
-		! sdw
-		idx=Hmf%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,+2),c("i",1,-2)],n=2)
-		do i=1,size(Hmf%var(idx)%bd)
-			if(mod(nint(sum(latt%nb(0)%bd(latt%nb(0)%bd(i)%i(1))%r)),2)==0) then
-				Hmf%var(idx)%bd(i)=1d0
-			else
-				Hmf%var(idx)%bd(i)=-1d0
-			endif
-		enddo
-		Hmf%var(idx)%val=0d-1
+		!! sdw
+		!idx=Hmf%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,+2),c("i",1,-2)],n=2)
+		!do i=1,size(Hmf%var(idx)%bd)
+			!if(mod(nint(sum(latt%nb(0)%bd(latt%nb(0)%bd(i)%i(1))%r)),2)==0) then
+				!Hmf%var(idx)%bd(i)=1d0
+			!else
+				!Hmf%var(idx)%bd(i)=-1d0
+			!endif
+		!enddo
+		!Hmf%var(idx)%val=1d-1
 
 		! bond order
 		do l=2,size(t)
@@ -134,35 +150,30 @@ contains
 
 
 !*************************static measurement**************************
-		idx=mc%sphy%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2)],n=2,sg=[1d0,-1d0],V=1d0/Ns,label="1s")
-		do i=1,size(mc%sphy%var(idx)%bd)
-			if(mod(nint(sum(latt%nb(0)%bd(latt%nb(0)%bd(i)%i(1))%r)),2)==0) then
-				mc%sphy%var(idx)%bd(i)=1d0
-			else
-				mc%sphy%var(idx)%bd(i)=-1d0
-			endif
-		enddo
-		mc%sphy%var(idx)%val=0d0
+		!idx=mc%sphy%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2)],n=2,sg=[1d0,-1d0],V=1d0/Ns,label="1s")
+		!do i=1,size(mc%sphy%var(idx)%bd)
+			!if(mod(nint(sum(latt%nb(0)%bd(latt%nb(0)%bd(i)%i(1))%r)),2)==0) then
+				!mc%sphy%var(idx)%bd(i)=1d0
+			!else
+				!mc%sphy%var(idx)%bd(i)=-1d0
+			!endif
+		!enddo
 
-		idx=mc%sphy%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2)],n=2,V=1d0/Ns,label="1n")
-		mc%sphy%var(idx)%bd=1d0
-		mc%sphy%var(idx)%val=0d0
+		!idx=mc%sphy%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2)],n=2,V=1d0/Ns,label="1n")
 
-		idx=mc%sphy%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2)],n=2,V=1d0/(Ns*Ns),label="2sc",extdat=[real(8)::ichar("r"),1d-7])
-		do i=1,size(mc%sphy%var(idx)%bd)
-			if(abs(latt%nb(1)%bd(i)%dr(1))>1d-6) then
-				mc%sphy%var(idx)%bd(i)=1d0
-			else
-				mc%sphy%var(idx)%bd(i)=-1d0
-			endif
-		enddo
-		mc%sphy%var(idx)%val=0d0
+		!idx=mc%sphy%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2)],n=2,V=1d0/(Ns*Ns),label="2sc",extdat=[real(8)::ichar("r"),1d-7])
+		!do i=1,size(mc%sphy%var(idx)%bd)
+			!if(abs(latt%nb(1)%bd(i)%dr(1))>1d-6) then
+				!mc%sphy%var(idx)%bd(i)=1d0
+			!else
+				!mc%sphy%var(idx)%bd(i)=-1d0
+			!endif
+		!enddo
 
+		!idx=mc%sphy%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2)],n=2,V=1d0/(sqrt(real(Ns))),label="2rsc",val=[real(8)::(i,i=1,size(latt%nb(1)%bd))],extdat=[real(8)::ichar("r"),1d-7,ichar("f"),merge(1d0,0d0,abs(latt%nb(1)%bd(:)%r(1))<1d-6)])
 
 !************************dynamic measurement**************************
-		!idx=mc%dphy%add(nb=0,ca=[c("i",1,+1),c("i",1,+2)],n=2,label="2s",extdat=[q(:,this_image(mc,1)),0d0])
-		!mc%dphy%var(idx)%bd=1d0
-		!mc%dphy%var(idx)%val=0d0
+		idx=mc%dphy%add(nb=0,ca=[c("i",1,+1),c("i",1,+2)],n=2,label="2s",extdat=[real(8)::ichar("q"),q(:,this_image(mc,1)),0d0])
 
 		call Hmf%init()
 		call Hja%init()
@@ -175,7 +186,7 @@ program main
 	use global
 	implicit none
 	logical :: f
-	integer :: i,j,l
+	integer :: i,j,l,idx
 	real(8) :: et,E
 	character(10) :: hostname
 	i=hostnm(hostname)
@@ -230,24 +241,46 @@ program main
 		mc%ne(2)=mc%ne(1)
 	endif
 	!Hmf%var(1:vn)%val(1)=[-6.2487E-01,2.5764E-01,1.0392E-01,-3.6208E-02] ! dsc+mu+t'+SDW E=-3.2721E-01
-	mc%samp=1024*8*16*8
+	mc%samp=1024*8*16*2
 	mc%hot=1024*8*2
 	mc%step=nint(sqrt(real(Ns)))
 	!call mc%do_var(10)
-	!stop
+	!!stop
 	mc%num=this_image(mc,1)
 
 	mc%sg=1
-	mc%samp=1024*8*8*16
+	!mc%samp=1024*8*8*16
+	mc%samp=1024*8*8*4
 	mc%hot=1024*8*8
 	mc%step=nint(sqrt(real(Ns)))*2
+
+	critical
+	if(this_image(mc,2)==1) then
+		do idx=1,Hmf%rg(2)
+			if(Hmf%var(idx)%label=="sc") then
+				do i=1,size(latt%nb(1)%bd)
+					write(30,"(*(es12.4))")latt%nb(1)%bd(i)%r,latt%nb(1)%bd(i)%dr,Hmf%var(idx)%val(Hmf%var(idx)%bd2v(i))*Hmf%var(idx)%bd(i)
+				enddo
+				write(30,"(x/)")
+			endif
+		enddo
+	endif
+	endcritical
 
 	call mc%init(.true.)
 	call mc%do_vmc()
 	critical
 	if(this_image(mc,2)==1) then
 		write(*,"(*(es12.4))")mc%dphy%var(1:mc%dphy%rg(2))%extdat(1)/pi,mc%dphy%var(1:mc%dphy%rg(2))%extdat(2)/pi,Hmf%var(1:)%val(1),mc%E,mc%err,mc%dphy%var(1:mc%dphy%rg(2))%val(1)
-		write(*,"(*(es12.4))")mc%sphy%var(1:)%val(1)
+		do idx=1,mc%sphy%rg(2)
+			if(mc%sphy%var(idx)%label=="2rsc") then
+				do i=1,size(latt%nb(1)%bd)
+					write(30,"(*(es12.4))")latt%nb(1)%bd(i)%r,latt%nb(1)%bd(i)%dr,mc%sphy%var(idx)%val(mc%sphy%var(idx)%bd2v(i))*mc%sphy%var(idx)%bd(i)
+				enddo
+			else
+				write(*,"(es12.4$)")mc%sphy%var(idx)%val(:)
+			endif
+		enddo
 		error stop
 	endif
 	endcritical

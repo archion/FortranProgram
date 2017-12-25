@@ -44,6 +44,7 @@ module M_Hamilton_final_M
 		procedure :: init
 		procedure :: put
 		procedure :: get
+		procedure :: find
 		!procedure :: i2H
 		procedure :: Hamilton
 		procedure :: dHamilton
@@ -137,7 +138,7 @@ contains
 			allocate(ord(size(val)))
 			ord=[1:size(ord)]
 			call qsort(val,ord)
-			call collect(val,c)
+			call collect(val(ord),c)
 
 			allocate(self%var(idx)%bd2v(size(val)))
 			allocate(self%var(idx)%bd(size(val)))
@@ -145,7 +146,7 @@ contains
 			self%var(idx)%n=size(c)-1
 			do i=1,size(c)-1
 				do j=c(i),c(i+1)-1
-					self%var(idx)%bd2v(ord)=i
+					self%var(idx)%bd2v(ord(j))=i
 				enddo
 			enddo
 		else
@@ -155,7 +156,20 @@ contains
 			self%var(idx)%bd2v=1
 			self%var(idx)%n=1
 		endif
+		self%var(idx)%bd=1d0
 		self%var(idx)%val=0d0
+	end function
+	integer function find(self,label) result(i)
+		class(t_ham), intent(inout) :: self
+		character(*) :: label
+		do i=self%rg(1),self%rg(2)
+			if(self%var(i)%label==label) then
+				exit
+			endif
+		enddo
+		if(i==self%rg(2)+1) then
+			i=1/0
+		endif
 	end function
 	subroutine get(self,val,idx)
 		class(t_ham), intent(inout) :: self

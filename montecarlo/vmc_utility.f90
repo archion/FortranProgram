@@ -13,7 +13,7 @@ module vmc_utility
 		complex(8), allocatable :: S(:,:),Ok2(:,:),Ek2(:,:),psi0(:),wf(:,:),dwf(:,:,:)
 		real(8), allocatable :: g(:)
 		integer :: num
-		integer :: delay
+		integer :: delay=2
 		integer :: opt=2 ! 1: Tr(AdA)
 						 ! 2: O=cicj
 	contains
@@ -29,7 +29,7 @@ contains
 		class(t_mc) :: self[ica1,*]
 		logical :: init_cfg
 		complex(8) :: H(Hmf%Hs,Hmf%Hs),cH(size(H,1),size(H,2)),D(size(H,1),size(H,2),sum(Hmf%var(1:)%n)),psi0_(Ns*Ns),Hq(Hmf%Hi)
-		real(8) :: E(size(H,1)),dr(3),tmp
+		real(8) :: E(size(H,1)),dr(3),tmp,q(3)
 		integer :: l,i,j,n,n1,n2,nn_(0:Ns*Ns,2),kq,ord(Hmf%Hs),Nu
 		logical :: check=.true.,is_mix
 		if(is_ph) then
@@ -90,16 +90,16 @@ contains
 			self%Ecfg(ord(1:self%ne(1)))=[1:self%ne(1)]
 			self%Ecfg(ord(Nu+1:Nu+self%ne(2)))=[self%ne(1)+1:sum(self%ne)]
 			if(self%sg/=3) then
-				if(abs(E(ord(self%ne(1)))-E(ord(self%ne(1)+1)))<1d-7.or.abs(E(ord(Nu+self%ne(2)))-E(ord(Nu+self%ne(2)+1)))<1d-7) then
-					if(this_image()==1) write(*,*)"warning, close-shell condition is not satisfied, maybe set to:",(self%ne(1)-count(abs((E(ord(self%ne(1)))-E(ord(:self%ne(1)))))<1d-7)),"or",(self%ne(1)+count(abs((-E(ord(self%ne(1)))+E(ord(self%ne(1)+1:Ns))))<1d-7))
-				endif
 				if(this_image()==1) then
 					do i=Hmf%rg(1),Hmf%rg(2)
 						if(Hmf%var(i)%label=="cp") then
-							write(*,*)"cp is: ",Hmf%var(i)%val(1)-Hmf%var(i)%bd(1)*(E(ord(self%ne(1)))+E(ord(self%ne(1)+1)))/2d0
+							write(*,"(' cp is: ',es14.4$)")real(Hmf%var(i)%val(1)-Hmf%var(i)%bd(1)*(E(ord(self%ne(1)))+E(ord(self%ne(1)+1)))/2d0)
 							exit
 						endif
 					enddo
+				endif
+				if(abs(E(ord(self%ne(1)))-E(ord(self%ne(1)+1)))<1d-7.or.abs(E(ord(Nu+self%ne(2)))-E(ord(Nu+self%ne(2)+1)))<1d-7) then
+					if(this_image()==1) write(*,"('close-shell condition!!, ne(1) set to:',i4,' or',i4)")(self%ne(1)-count(abs((E(ord(self%ne(1)))-E(ord(:self%ne(1)))))<1d-7)),(self%ne(1)+count(abs((-E(ord(self%ne(1)))+E(ord(self%ne(1)+1:Ns))))<1d-7))
 				endif
 			endif
 		endif
@@ -116,11 +116,16 @@ contains
 			psi0_=0d0
 			l=0
 			do i=1,brizon%nk
+				if(self%dphy%var(1)%extdat(1)==real(ichar("q"),8)) then
+					q=self%dphy%var(1)%extdat(2:4)
+				else
+					error stop "q error"
+				endif
 				kq=0
-				if(.not.is_in(-brizon%k(i,:)+self%dphy%var(1)%extdat,brizon%Tc,dr)) then
+				if(.not.is_in(-brizon%k(i,:)+q,brizon%Tc,dr)) then
 				endif
 				do j=1,brizon%nk
-					if(sum(abs(-brizon%k(i,:)+self%dphy%var(1)%extdat+dr-brizon%k(j,:)))<1d-5) then
+					if(sum(abs(-brizon%k(i,:)+q+dr-brizon%k(j,:)))<1d-5) then
 						if(kq/=0) then
 							if(this_image(self,2)==1) write(*,*)"warn! kq"
 						else
@@ -130,7 +135,7 @@ contains
 				enddo
 				
 				if(kq==0) then
-					if(this_image(self,2)==1) write(*,*)self%dphy%var(1)%extdat(:2)/pi,"warn!! kq2"
+					if(this_image(self,2)==1) write(*,*)q(:2)/pi,"warn!! kq2"
 					error stop
 				endif
 				Hq(Hmf%i2H(:,1))=exp(-img*(dr(1)*latt%nb(0)%bd(1:latt%Ni)%r(1)+dr(2)*latt%nb(0)%bd(1:latt%Ni)%r(2)))
@@ -220,6 +225,7 @@ contains
 					!$omp end parallel do
 					self%dwf(:,:,l)=matmul(matmul(H,D(:,:,l)),cH)
 				end select
+				self%dwf(:,:,l)=conjg(self%dwf(:,:,l))
 			enddo
 		endif
 	end subroutine
@@ -627,7 +633,7 @@ contains
 		enddo
 		norm=self%dphy%var(1)%val(1)/real(sum(psi0_(n0:)))
 		write(*,"(es12.4$)")-sum(imag(Sq)*domg)/pi,real(sum(psi0_(n0:))),self%dphy%var(1)%val(1)
-		write(ut,"('#q=',3es12.4,2i5)")self%dphy%var(1)%extdat/pi,i,size(EO)
+		write(ut,"('#q=',3es12.4,2i5)")self%dphy%var(1)%extdat(2:4)/pi,i,size(EO)
 		do l=1,m
 			if(Smax(2)<abs(imag(Sq(l)))) Smax=[omg(1)+domg*l,abs(imag(Sq(l)))]
 			write(ut,"(*(es17.9))")omg(1)+domg*l,Sq(l)*norm
@@ -668,7 +674,9 @@ contains
 			call self%init(.true.)
 			call self%do_vmc()
 			if(this_image()==1) then
-				write(*,"(es12.4$)")Hmf%var(1:)%val(1),Hja%var(1:)%val(1),self%E,self%err
+				write(*,"(es10.2$)")Hmf%var(1:)%val(1),Hja%var(1:)%val(1)
+				write(*,"(es14.6$)")self%E
+				write(*,"(es9.2$)")self%err
 				write(*,"(i3$)")int(sign(1d0,self%g))
 			endif
 			return
@@ -685,7 +693,9 @@ contains
 			call self%init(init_cfg)
 			call self%do_vmc()
 			if(this_image()==1) then
-				write(*,"(es12.4$)")Hmf%var(1:)%val(1),Hja%var(1:)%val(1),self%E,self%err
+				write(*,"(es10.2$)")Hmf%var(1:)%val(1),Hja%var(1:)%val(1)
+				write(*,"(es14.6$)")self%E
+				write(*,"(es9.2$)")self%err
 				write(*,"(i3$)")int(sign(1d0,self%g))
 			endif
 			El(i)=self%E

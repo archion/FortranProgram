@@ -4,7 +4,7 @@ module pmt
 	implicit none
 	real(8), parameter :: t(3)=(/1d0,0d0,0d0/),&
 		!DJ=0.25d0,V=0.0625d0-DJ/4d0
-		V=0.12d0,DJ=0.35d0
+		V=0.15d0,DJ=0.3d0
 		!V=-0.25d0/4d0,DJ=0.25d0
 		!V=0d0,DJ=0.25d0
 	integer, parameter :: icp=1,isc=2,iddw=3,iubo=4
@@ -206,6 +206,11 @@ program main
 	call mkl_set_num_threads(32)
 	call omp_set_num_threads(mkl_get_max_threads())
 
+	nf=1d0-0.02d0
+	Tk=0.4d0
+	call selfconsist()
+	write(*,"(6es12.4)")Tk,nf,var([icp,isc,iubo])%val(1),var(iddw)%val(1)
+	stop
 	!!nf=1d0-0.165d0
 	!!Tk=0.02d0
 	!var([icp,isc,iubo])%val(1)=[-1.4781d-01,8.8716d-06,1.9090d-01]
