@@ -2,17 +2,14 @@ module global
 	use M_const
 	use M_matrix
 	implicit none
-	real(8) :: alpha=0.3d0,r=0.3d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=1.25d0,g=0d0
+	!real(8) :: alpha=0.3d0,r=0.3d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=1.25d0,g=0d0
 	!real(8) :: alpha=0.3d0,r=0.3d0,kp=0.3d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=1.5d0,g=0.2d0
-	!real(8) :: alpha=0.3d0,r=0d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=2d0,g=0.5d0
+	real(8) :: alpha=0.3d0,r=0d0,kp=0.5d0,fcut=1d0,fbeta=20d0,phicut=5d-2,phibeta=200d0,Jk=2d0,g=0.5d0
 	real(8) :: Tk=4d-3,beta,norm_Ac=1d0,norm_Aphi=1d0
-	integer, parameter :: nll=31*7,nadd1=5,nadd2=20,n=(nll+nadd1*2+nadd2*2)*2
-	!integer, parameter :: n=536
+	!integer, parameter :: nll=31*7,nadd1=5,nadd2=20,n=(nll+nadd1*2+nadd2*2)*2
+	integer, parameter :: n=536
 	!real(8) :: omega((n+nadd1*2+nadd2*2)*2)
 	real(8) :: omega(n)
-	interface get_convolution
-		module procedure get_convolution_fadb,get_convolution_dadb
-	end interface
 contains
 	subroutine set_omega(omega,base,nlin,width)
 		real(8) :: omega(:),base,width
@@ -162,114 +159,89 @@ contains
 			!endif
 		endif
 	end function
-	subroutine get_convolution_fadb(omega,A,B,is_tau,is_boson,rt)
-		real(8) :: omega(:),A,B(:),rt(:)
-		logical :: is_tau,is_boson
-		integer :: i,j,m,n,iwb(size(omega)),iwa(size(omega)),nm,sgbos,sgtau
+	subroutine get_convolution(omega,A,B,Af,Bf,tau,eta,rt)
+		real(8) :: omega(:),rt(:)
+		real(8), optional :: A(:),B(:),Af,Bf
+		integer :: tau(2),eta(2)
+		integer :: i,j,k,n,iwb(size(omega)),ibw(size(omega)),m
 		real(8) :: e1,e2,A1,A2,B1,B2,omg
-		procedure(real(8)), pointer :: ffb
+		procedure(real(8)), pointer :: f1,f2
+		if(.not.(present(A).xor.present(Af))) stop "error"
+		if(.not.(present(B).xor.present(Bf))) stop "error"
 		n=size(omega)
-		if(is_tau) then
-			sgtau=-1
-		else
-			sgtau=1
-		endif
-		if(is_boson) then
-			sgbos=1
-			ffb => ff
-		else
-			sgbos=-1
-			ffb => fb
-		endif
-		do i=1,n/2
-		!do i=1,n
-			omg=omega(i)
-			do j=1,n
-				iwb(j)=find_sidx(omega,sgtau*(omega(j)-omg))
+		select case(eta(1))
+		case(1)
+			f1 => fb
+		case(-1)
+			f1 => ff
+		end select
+		select case(eta(2))
+		case(1)
+			f2 => fb
+		case(-1)
+			f2 => ff
+		end select
+		do k=1,n/2
+		!do k=1,n
+			omg=omega(k)
+			if(present(A)) then
+				do i=1,n
+					ibw(i)=find_sidx(omega,tau(1)*(omg-tau(2)*omega(i)))
+				end do
+				A1=A(1)
+			else
+				A1=Af(omega(1))
+			endif
+			do i=1,n
+				iwb(i)=find_sidx(omega,tau(2)*(omg-tau(1)*omega(i)))
 			end do
-			m=iwb(1)
-			A1=A(omega(1))
-			B1=merge(B(m)+(B(m+1)-B(m))/(omega(m+1)-omega(m))*(sgtau*(omega(1)-omg)-omega(m)),0d0,m>0.and.m<n)
+			if(present(B)) then
+				i=iwb(1)
+				B1=merge(B(i)+(B(i+1)-B(i))/(omega(i+1)-omega(i))*(tau(2)*(omg-tau(1)*omega(1))-omega(i)),0d0,i>0.and.i<n)
+			else
+				B1=Bf(tau(2)*(omg-tau(1)*omega(1)))
+			endif
 			e1=omega(1)
-			rt(i)=0d0
-			do j=1,n-1
-				do m=iwb(j),iwb(j+1),sgtau
-					if(m==iwb(j+1)) then
-						e2=omega(j+1)
-						A2=A(omega(j+1))
-						B2=merge(B(m)+(B(m+1)-B(m))/(omega(m+1)-omega(m))*(sgtau*(e2-omg)-omega(m)),0d0,m>0.and.m<n)
+			rt(k)=0d0
+			do i=1,n-1
+				do j=iwb(i),iwb(i+1),sign(1,iwb(i+1)-iwb(i))
+					if(j==iwb(i+1)) then
+						e2=omega(i+1)
+						if(present(A)) then
+							A2=A(i+1)
+						else
+							A2=Af(omega(i+1))
+						endif
+						if(present(B)) then
+							B2=merge(B(j)+(B(j+1)-B(j))/(omega(j+1)-omega(j))*(tau(2)*(omg-tau(1)*e2)-omega(j)),0d0,j>0.and.j<n)
+						else
+							B2=Bf(tau(2)*(omg-tau(1)*e2))
+						endif
 					else
-						e2=sgtau*omega(m+1)+omg
-						A2=A(e2)
-						B2=merge(B(m+1),0d0,m+1>0.and.m+1<n)
+						m=j+(1-tau(1)*tau(2))/2
+						e2=tau(1)*(omg-tau(2)*omega(m))
+						if(present(B)) then
+							B2=merge(B(m),0d0,m>0.and.m<n)
+						else
+							B2=Bf(omega(m))
+						endif
+						if(present(A)) then
+							m=ibw(m)
+							A2=merge(A(m)+(A(m+1)-A(m))/(omega(m+1)-omega(m))*(e2-omega(m)),0d0,m>0.and.m<n)
+						else
+							A2=Af(e2)
+						endif
 					endif
-					rt(i)=rt(i)+sgtau*0.5d0*(e2-e1)*&
-						((-ff(e1)+sgbos*ffb(e1-omg))*A1*B1+&
-						(-ff(e2)+sgbos*ffb(e2-omg))*A2*B2)
+					rt(k)=rt(k)+0.5d0*(e2-e1)*&
+						((-f1(tau(1)*e1)+eta(1)*eta(2)*f2(tau(1)*e1-omg))*A1*B1+&
+						(-f1(tau(1)*e2)+eta(1)*eta(2)*f2(tau(1)*e2-omg))*A2*B2)
 					A1=A2
 					B1=B2
 					e1=e2
 				enddo
 			enddo
-			rt(i)=rt(i)*pi
-			rt(n+1-i)=-sgbos*rt(i)
-		enddo
-	end subroutine
-	subroutine get_convolution_dadb(omega,A,B,is_tau,is_boson,rt)
-		real(8) :: omega(:),A(:),B(:),rt(:)
-		logical :: is_tau,is_boson
-		integer :: i,j,m,n,iwb(size(omega)),iwa(size(omega)),nm,sgbos,sgtau
-		real(8) :: e1,e2,A1,A2,B1,B2,omg
-		procedure(real(8)), pointer :: ffb
-		n=size(omega)
-		if(is_tau) then
-			sgtau=-1
-		else
-			sgtau=1
-		endif
-		if(is_boson) then
-			sgbos=1
-			ffb => ff
-		else
-			sgbos=-1
-			ffb => fb
-		endif
-		!!do i=1,n/2
-		do i=1,n
-			omg=omega(i)
-			do j=1,n
-				iwb(j)=find_sidx(omega,sgtau*(omega(j)-omg))
-			end do
-			do j=1,n
-				iwa(j)=find_sidx(omega,sgtau*omega(j)+omg)
-			end do
-			m=iwb(1)
-			A1=A(1)
-			B1=merge(B(m)+(B(m+1)-B(m))/(omega(m+1)-omega(m))*(sgtau*(omega(1)-omg)-omega(m)),0d0,m>0.and.m<n)
-			e1=omega(1)
-			rt(i)=0d0
-			do j=1,n-1
-				do m=iwb(j),iwb(j+1),sgtau
-					if(m==iwb(j+1)) then
-						e2=omega(j+1)
-						A2=A(j+1)
-						B2=merge(B(m)+(B(m+1)-B(m))/(omega(m+1)-omega(m))*(sgtau*(e2-omg)-omega(m)),0d0,m>0.and.m<n)
-					else
-						e2=sgtau*omega(m+1)+omg
-						nm=iwa(m+1)
-						A2=merge(A(nm)+(A(nm+1)-A(nm))/(omega(nm+1)-omega(nm))*(e2-omega(nm)),0d0,nm>0.and.nm<n)
-						B2=merge(B(m+1),0d0,m+1>0.and.m+1<n)
-					endif
-					rt(i)=rt(i)+sgtau*0.5d0*(e2-e1)*&
-						((-ff(e1)+sgbos*ffb(e1-omg))*A1*B1+&
-						(-ff(e2)+sgbos*ffb(e2-omg))*A2*B2)
-					A1=A2
-					B1=B2
-					e1=e2
-				enddo
-			enddo
-			!rt(n+1-i)=-rt(i)
-			rt(i)=rt(i)*pi
+			rt(k)=-pi*eta(1)*tau(1)*tau(2)*rt(k)
+			rt(n+1-k)=-eta(1)*eta(2)*rt(k)
 		enddo
 	end subroutine
 	subroutine self_consistent(tol,niter,rate,Af,AB,iSEf,iSEB)
@@ -277,8 +249,7 @@ contains
 		integer :: niter
 		real(8) :: SEf1(size(Af)),SEf2(size(Af)),iSEf_(size(Af)),rSEf(size(Af)),iSEB_(size(Af)),rSEB(size(Af)),Af_(size(Af)),AB_(size(Af))
 		real(8) :: x(size(iSEf)*2),x_(size(iSEf)*2)
-		integer :: i,n
-		procedure(real(8)), pointer :: ffb
+		integer :: i,n,k
 		n=size(omega)
 		beta=1d0/Tk
 		Af=0d0
@@ -295,32 +266,32 @@ contains
 				!stop
 			!endif
 			AB_=-1d0/pi*iSEB/((1d0/Jk-rSEB)**2+iSEB**2)
-			if(all(abs(Af(n/2+1:)-Af_(n/2+1:))/(Af_(n/2+1:)+1d-70)<tol)) then
-			!if(all(abs(Af(n/2+1:)-Af_(n/2+1:))<tol)) then
-				!if(all(abs(AB(n/2+1:)-AB_(n/2+1:))/(AB_(n/2+1:)+1d-70)<tol)) then
-					write(*,*)"converged"
-					exit
-				!endif
+			if(all(abs(Af(n/2+1:)-Af_(n/2+1:))/(Af_(n/2+1:)+1d-70)<tol).and.all(abs(AB(n/2+1:)-AB_(n/2+1:))/(AB_(n/2+1:)+1d-70)<tol)) then
+				write(*,*)"converged"
+				exit
 			endif
 			if(i==niter) then
-				write(*,*)"not converged",maxval(abs(Af(n/2+1:)-Af_(n/2+1:))/(Af_(n/2+1:)+1d-70))
+				write(*,*)"not converged",max(maxval(abs(Af(n/2+1:)-Af_(n/2+1:))/(Af_(n/2+1:)+1d-70)),maxval(abs(AB(n/2+1:)-AB_(n/2+1:))/(AB_(n/2+1:)+1d-70)))
 			endif
 			write(*,*)i,maxval(abs(Af(n/2+1:)-Af_(n/2+1:))/(Af_(n/2+1:)+1d-70))
 			!write(*,*)i,maxval(abs(Af(n/2+1:)-Af_(n/2+1:)))
 			Af=Af_
 			AB=AB_
 
-			call get_convolution(omega,A_c,AB,is_tau=.true.,is_boson=.false.,rt=SEf1)
-			call get_convolution(omega,A_phi,Af,is_tau=.true.,is_boson=.false.,rt=SEf2)
-			call get_convolution(omega,A_c,Af,is_tau=.false.,is_boson=.true.,rt=iSEB_)
-			iSEf_=-(kp*SEf1+g**2*SEf2)
-			iSEB_=iSEB_
+			call get_convolution(omega,Af=A_c,B=AB,tau=[1,1],eta=[-1,1],rt=SEf1)
+			!call get_convolution(omega,A=Af,Bf=A_phi,tau=[1,1],eta=[-1,1],rt=SEf2)
+			call get_convolution(omega,Af=A_phi,B=Af,tau=[1,1],eta=[1,-1],rt=SEf2)
+			call get_convolution(omega,Af=A_c,B=Af,tau=[1,-1],eta=[-1,-1],rt=iSEB_)
+
+
+			iSEf_=(kp*SEf1-g**2*SEf2)
+			iSEB_=-iSEB_
 
 			x=[iSEf,iSEB]
 			x_=[iSEf_,iSEB_]
 
 			!if(i<=8) then
-				!x=x_*rate+x*(1d0-rate)
+				!x=(x_*rate+x)/(1d0+rate)
 			!else
 				!call mbroyden(x,x_,1d0,i-8,8)
 			!endif
@@ -438,44 +409,45 @@ program main
 	implicit none
 	real(8) :: Af(n),AB(n),rGf(n),rGB(n),iSEF(n),iSEB(n),SUS(n),Tmat(n),dTk
 	integer :: i,j,e
+	open(12,File="../data/largeN_spect.dat")
+	open(22,File="../data/largeN_suscept.dat")
 	open(10,file="init.dat")
-	open(12,file="../data/largeN_spect.dat")
 	open(13,file="TEMPLIST.dat")
-	open(22,file="../data/largeN_suscept.dat")
-	call set_omega(omega(1:nll*2),2.3d0,7,10d0)
-	call add_omega(omega(1:nll*2+nadd1*4),1d0,0.1d0,nadd1)
-	call add_omega(omega,0.8d0,0.16d0,nadd2)
+	!call set_omega(omega(1:nll*2),2.3d0,7,10d0)
+	!call add_omega(omega(1:nll*2+nadd1*4),1d0,0.1d0,nadd1)
+	!call add_omega(omega,0.8d0,0.16d0,nadd2)
 
-	iSEf=-1d0
-	iSEB(:size(omega)/2)=-1d0
-	iSEB(size(omega)/2+1:)=1d0
-	!do i=1,size(omega)
-		!read(10,"(*(e28.20))")omega(i),iSEf(i),iSEB(i)
-		!iSEf(i)=-iSEf(i)
-		!iSEB(i)=-iSEB(i)
-	!enddo
+	do i=1,size(omega)
+		read(10,"(*(e28.20))")omega(i),iSEf(i),iSEB(i)
+		iSEf(i)=-iSEf(i)
+		iSEB(i)=-iSEB(i)
+	enddo
+	!iSEf=-1d0
+	!iSEB(:size(omega)/2)=-1d0
+	!iSEB(size(omega)/2+1:)=1d0
 
 	Tk=0.09d0
 	!Tk=0.01d0
 
 	!norm_Aphi=norm_Aphi/(integrate(A_phi,size(omega)/2)*2)
-	!fcut=abs(omega(find_sidx(omega,-fcut)))
-	!Jk=Jk*integrate(A_c)
-	norm_Ac=norm_Ac/integrate(A_c)*Jk
-	!norm_Ac=norm_Ac/integrate(A_c)*pi/0.8d0
+	fcut=abs(omega(find_sidx(omega,-fcut)))
+	Jk=Jk*integrate(A_c)/pi
+	!norm_Ac=norm_Ac/integrate(A_c)*Jk
+	norm_Ac=norm_Ac/integrate(A_c)
 
 	do
 		read(13,*,iostat=e)Tk
 		if(e==-1) exit
 		write(*,*)Tk
-		call self_consistent(1d-6,1000,3d-3,Af,AB,iSEf,iSEB)
+		call self_consistent(1d-6,6000,3d-3,Af,AB,iSEf,iSEB)
 		do i=1,size(omega)
-			write(12,"(*(e28.20))")omega(i),Af(i),Ab(i)
+			write(12,"(*(e28.20))")omega(i),Af(i)*pi,Ab(i)*pi,iSEf(i),iSEB(i),A_c(omega(i))*pi,merge(0d0,A_phi(omega(i))*pi,abs(A_phi(omega(i))*pi)<1d-20)
 		enddo
 		write(12,"(x/)")
 
-		call get_convolution(omega,Af,Af,is_tau=.false.,is_boson=.true.,rt=SUS)
-		call get_convolution(omega,Af,AB,is_tau=.true.,is_boson=.false.,rt=Tmat)
+		call get_convolution(omega,A=Af,B=Af,tau=[1,-1],eta=[1,1],rt=SUS)
+		call get_convolution(omega,A=Af,B=AB,tau=[1,1],eta=[1,-1],rt=SUS)
+
 		do i=1,size(omega)
 			write(22,"(*(e28.20))")omega(i),SUS(i),Tmat(i)
 		enddo

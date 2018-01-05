@@ -1,6 +1,6 @@
 reset
-sx=4.25
-sy=2.85
+sx=4.3
+sy=3.12
 x1lb="X"
 y1lb="Y"
 #x2lb="X"
@@ -16,7 +16,6 @@ ticfontsize=floor(fontsize*0.7)
 c2sx=0.1235/12*fontsize
 c2sy=0.2206/12*fontsize
 set term eps rounded fontscale 1 font "Helvetica,".fontsize lw 5 size sx+(lmg+rmg)*c2sx,sy+(dmg+umg)*c2sy 
-
 set output "-."."eps"
 unset key
 unset tics
@@ -37,14 +36,14 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
 set xrange [:]
-set yrange [1e-6:]
+#set yrange [1e-6:1e9]
 set zrange [:]
-set logscale x
-set logscale y
+#set logscale x
+#set logscale y
 a=-0.2
 b=1
-#fit [x=0.000001:0.1] b*x**a  "-" index 20 u 1:(abs($2)) via a,b
-plot for[i=0:71] "-" index i u 1:(abs($2)) with l notitle "".i, b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b,a)
+#fit [x=0.00001:0.1] b*x**a  "-" index 71 u 1:(abs($2)) via a,b
+plot for[i=0:71] "-" index i u ($1):($3) with l notitle "".i#, b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b,a)
 set key font ",".fontsize at graph 1,0.98,1 horizontal maxcols 1 spacing 1.0 samplen 1.5 #opaque autotitle
 set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){
