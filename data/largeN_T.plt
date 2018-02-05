@@ -40,14 +40,11 @@ set yrange [:]
 set zrange [:]
 set logscale x
 set logscale y
-#a=-0.771
-a=-0.785
-b=0.0001/1.1*tan(pi*(1.+a)/2.)
-#fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-#plot for[i=0:71:70] "-" index i u ($2/$1):(atan($9/$3)+pi/2.0) with l notitle sprintf("J= %1.2f",(i+1)/72*0.05+1),for[i=0:71:70] "-" index i u ($2/$1):(atan(tanh(($2/$1)/2.)/tan((a+1)*pi/2.))+pi/2.0) with l dt 2 notitle#, 10000.*b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,a),10000.*b*x**(-0.894) w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,-0.894)
-#plot for[i=0:71] "-" index i u ($2):($3) with l notitle sprintf("J= %1.2f",(i+1)/72*0.05+1), 10000.*b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,a)#,10000.*b*x**(-0.894) w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,-0.894)
-plot "-" index 71 u 2:3 with l notitle
-set key font ",".ticfontsize at graph 0.43,0.65,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 #opaque autotitle
+a=-0.2
+b=1
+fit [x=0.00001:0.1] b*x**a  "-" index 0 u 1:(abs($2)) via a,b
+plot for[i=0:0] "-" index i u ($1):(abs($2)) with l notitle "".i, b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b,a)
+set key font ",".fontsize at graph 1,0.98,1 horizontal maxcols 1 spacing 1.0 samplen 1.5 #opaque autotitle
 set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){
 	set key at screen 1,1,1

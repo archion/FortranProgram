@@ -35,18 +35,15 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set cbtics scale 0.5 offset character -0.7, 0 font ",".(ticfontsize)
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
-set xrange [:]
+set xrange [1e-6:0.01]
 set yrange [:]
 set zrange [:]
 set logscale x
-set logscale y
-#a=-0.771
-a=-0.785
-b=0.0001/1.1*tan(pi*(1.+a)/2.)
+#set logscale y
+a=-0.771
+b=0.0001/5
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-#plot for[i=0:71:70] "-" index i u ($2/$1):(atan($9/$3)+pi/2.0) with l notitle sprintf("J= %1.2f",(i+1)/72*0.05+1),for[i=0:71:70] "-" index i u ($2/$1):(atan(tanh(($2/$1)/2.)/tan((a+1)*pi/2.))+pi/2.0) with l dt 2 notitle#, 10000.*b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,a),10000.*b*x**(-0.894) w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,-0.894)
-#plot for[i=0:71] "-" index i u ($2):($3) with l notitle sprintf("J= %1.2f",(i+1)/72*0.05+1), 10000.*b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,a)#,10000.*b*x**(-0.894) w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,-0.894)
-plot "-" index 71 u 2:3 with l notitle
+plot "-" index 0 u 1:3 with p notitle
 set key font ",".ticfontsize at graph 0.43,0.65,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 #opaque autotitle
 set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){
