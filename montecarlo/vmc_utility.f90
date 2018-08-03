@@ -727,8 +727,10 @@ contains
 		do i=2,min(n/5,30)
 			x(:,ord(1))=x(:,ord(1))+x(:,ord(i))
 		enddo
-		call Hmf%get(x(:sum(Hmf%var(1:)%n),ord(1))/min(n/5,30),[1:Hmf%rg(2)])
-		call Hja%get(x(sum(Hmf%var(1:)%n)+1:,ord(1))/min(n/5,30),[1:Hja%rg(2)])
+		if(this_image()==1) then
+			call Hmf%get(x(:sum(Hmf%var(1:)%n),ord(1))/min(n/5,30),[1:Hmf%rg(2)])
+			call Hja%get(x(sum(Hmf%var(1:)%n)+1:,ord(1))/min(n/5,30),[1:Hja%rg(2)])
+		endif
 		!E=minval(El(:i))
 	end subroutine
 end module

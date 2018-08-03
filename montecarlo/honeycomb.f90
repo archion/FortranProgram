@@ -251,6 +251,19 @@ program main
 	mc%hot=1024*8*8*2
 	!mc%step=nint(sqrt(real(Ns)))
 	mc%step=Ns
+
+	do i=lbound(Hmf%var,1),ubound(Hmf%var,1)
+		if(Hmf%var(i)%label="d+id") then
+			isc=i
+			exit
+		endif
+	enddo
+	do i=1,10
+		Hmf%var(isc)%val=i*0.1d0
+		call mc%do_vmc()
+		write(*,*)Hmf%var(isc)%val,mc%E,mc%err
+	enddo
+	stop
 	call mc%do_var(100)
 	stop
 	mc%num=this_image(mc,1)

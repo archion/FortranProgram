@@ -1,13 +1,13 @@
 reset
 sx=4.3
 sy=3.12
-x1lb="X"
-y1lb="Y"
+x1lb="T"
+y1lb="S"
 #x2lb="X"
 #y2lb="Y"
 #zlb="Z"
-lmg=8.5
-rmg=5.5
+lmg=5.5
+rmg=2.5
 umg=2.5
 dmg=2.5
 fontsize=15
@@ -28,22 +28,29 @@ set margin lmg,rmg,dmg,umg
 set pm3d corners2color c2
 set palette rgbformulae 22,13,-31
 #set logscale cb
-#set cbrange [0.8:100]
+set cbrange [0.7:0.75]
 set cbrange [:]
 set cbtics scale 0.5 offset 0,character 2.1 font ",".(ticfontsize)
 set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set cbtics scale 0.5 offset character -0.7, 0 font ",".(ticfontsize)
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
-set xrange [1e-6:0.01]
+set xrange [:1e-6]
 set yrange [:]
 set zrange [:]
 set logscale x
 #set logscale y
 a=-0.771
 b=0.0001/5
+#set style line 1 linetype dl
+
+
+set style line 2 dashtype 3
+set style line 3 dashtype 2
+
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-plot "-" index 0 u 1:3 with p notitle
+plot for[i=1:1] "-" index 0 u "T":(column(word("S Sa1 Sa2",i))) with lp pt 7 ps 0.5 title word("S Sa1 Sa2",i)
+#plot "-" index 0 u "J":"T":"S" with p pt 7 palette notitle
 set key font ",".ticfontsize at graph 0.43,0.65,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 #opaque autotitle
 set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){

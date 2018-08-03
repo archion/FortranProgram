@@ -1,13 +1,13 @@
 reset
 sx=4.3
 sy=3.12
-x1lb="X"
-y1lb="Y"
+x1lb="{/Symbol w}"
+y1lb="A_B"
 #x2lb="X"
 #y2lb="Y"
 #zlb="Z"
-lmg=8.5
-rmg=5.5
+lmg=5.5
+rmg=8.5
 umg=2.5
 dmg=2.5
 fontsize=15
@@ -40,15 +40,25 @@ set yrange [:]
 set zrange [:]
 set logscale x
 set logscale y
-#a=-0.771
-a=-0.785
-b=0.0001/1.1*tan(pi*(1.+a)/2.)
+#a=0.229-1.
+#a=0.106-1.
+#a=0.03992865381623536-1.
+#a=0.414862855232646-1.
+#a=0.394862855232646-1.
+#a=0.1064525448624235-1.
+#a=0.22940981529676907-1.
+#a=0.3286489218401046-1.
+#a=0.06309878156026809-1.
+#a=0.543604996816506-1.
+#a=0.014569749254921006-1.
+a=0.41-1.
+#a=0.229-1
+b=0.00001/0.11
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-#plot for[i=0:71:70] "-" index i u ($2/$1):(atan($9/$3)+pi/2.0) with l notitle sprintf("J= %1.2f",(i+1)/72*0.05+1),for[i=0:71:70] "-" index i u ($2/$1):(atan(tanh(($2/$1)/2.)/tan((a+1)*pi/2.))+pi/2.0) with l dt 2 notitle#, 10000.*b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,a),10000.*b*x**(-0.894) w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,-0.894)
-#plot for[i=0:71] "-" index i u ($2):($3) with l notitle sprintf("J= %1.2f",(i+1)/72*0.05+1), 10000.*b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,a)#,10000.*b*x**(-0.894) w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,-0.894)
-plot "-" index 71 u 2:3 with l notitle
-set key font ",".ticfontsize at graph 0.43,0.65,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 #opaque autotitle
-set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
+plot for[i=0:71] for[j=1:1] "-" index i u ((column("Tk")-1e-4)<1e-11?column("omega"):1/0):(-column(word("iGf rG2",j))) with l notitle, 10000.*b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,a)#,10000.*b*x**(-0.894) w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,-0.894)
+#plot "-" index 0 u 2:5 with l notitle
+set key font ",".(ticfontsize-2) at graph 0.84,0.95,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 autotitle #opaque
+set label "(b)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){
 	set key at screen 1,1,1
 }
