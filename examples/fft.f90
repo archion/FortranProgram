@@ -1,35 +1,37 @@
+include "mkl_dfti.f90"
+include "../lib/fft.f90"
+include "../lib/serde.f90"
 program fft
-	use mkl_dfti
+	use M_serde
+	use M_fft
 	implicit none
-	real, parameter :: pi=3.1415927
-	complex, parameter :: i=(0.0,1.0)
-	integer, parameter :: n=2048
-	complex :: x(0:n-1)=0
+	integer, parameter :: n=3
+	!complex(8) :: x(0:n*n-1)
+	real(8) :: x(0:n*n-1)
+	complex(8) :: y(0:n*n-1)
 	integer :: k=0,status
-	real :: y(0:n-1)=0,xx(0:n-1)=0
 	type(dfti_descriptor), pointer :: handle
-	open(unit=10,file='../data/output.dat')
-	x(0)=1
-	do k=2,n/2-1
-		x(k)=-x(k-2)
-	enddo
-	do k=1,n/2-1
-		x(k)=2*x(k)*exp(i*pi*k/(2*n))*sinh(4.0*(1.0-real(k)/real(n)*2.0))/sinh(4.0)
-	enddo
-	status=dfticreatedescriptor(handle,dfti_single,dfti_complex,1,n)
-	status=dfticommitdescriptor(handle)
-	status=dfticomputebackward(handle,x)
-	status=dftifreedescriptor(handle)
-	do k=0,n/2-1
-		y(2*k)=real(x(k))
-		y(2*k+1)=real(x(n-1-k))
-	enddo
-	do k=0,n-1
-		xx(k)=cos(pi*(k+0.5)/n)
-	enddo
-	y=y/(pi*sqrt(1-xx*xx))
-	write(10,"(2e15.7)")(xx(k),y(k),k=0,n-1)
-	close(10)
+	type(t_serde(2)) :: map
+	map%shap=[n,n]
+	!do k=0,n**2-1
+		!x(k:k)=merge(1d0,0d0,(map%get_idx(k+1,[1])-1)==1)
+	!enddo
+	x=[1d0,2d0,0.5d0,0.7d0,3d0,0d0,2d0,4d0,9d0]
+
+	!call mfft(x,-1,[n,n],y,scal=1d0/size(x))
+	!call mfft(x,1,[n,n])
+
+	!call mfft(x,-1,[n,n],y,scal=1d0/size(x))
+	!call mfft(y,1,[n,n],x)
+
+	!call mfft(x,1,[n,n],y,scal=1d0/size(x))
+	!call mfft(y,-1,[n,n],x)
+
+	call mfft(x,1,[n,n],y,scal=1d0/size(x))
+	call mfft(y,-1,[n,n],x)
+	!write(*,*)merge(cmplx(0d0,kind=8),x,abs(x)<1d-10)
+	!write(*,*)merge(cmplx(0d0,kind=8),y,abs(y)<1d-10)
+	write(*,*)merge(0d0,x,abs(x)<1d-10)
 end program fft
 
 

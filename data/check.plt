@@ -52,8 +52,8 @@ set style line 2 dashtype 2
 #plot for[i=61*3-3:61*3-2] for[j=1:2] "-" index i u (column("omega")):(1**(i%2)*(column(word("iGB rGB iSEB rSEB",j)))) with l ls (i+1)%2*2+j title word("iGf rGf",j)
 #plot for [k=71:71] for[i=k*2-2:k*2-1] for[j=1:1] "-" index i u (column("omega")):(1.05**(i%2)*column(word("iGf iGB",j))*column("iGB")) with l title word("iGf rGf",j)
 #plot for [k=1:4:2] for[i=k*1-1:k*1-1] for[j=2:2] "-" index i u (column("omega")):((-1)**(k/2)*(column(word("iGf iGf",j)))) with l title word("iGf rGf",j)
-array cl[1]=["rSEf"]
-array fact[2]=[0,0.27]
+array cl[1]=["rGB"]
+array fact[2]=[0,0]
 #array fact[2]=[0,0]
 plot for [i=1:|cl|] for[j=0:1] "-" index j u "omega":(column(cl[i])-fact[j+1]) with l
 set key font ",".(ticfontsize-2) at graph 0.84,0.25,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 autotitle #opaque

@@ -22,10 +22,10 @@ module M_utility
 		module procedure to_char_single,to_char_array
 	end interface
 	interface qsort
-		module procedure rqsort,sqsort
+		module procedure rqsort,sqsort,rmqsort
 	end interface
 	interface collect
-		module procedure rcollect,scollect
+		module procedure rcollect,scollect,rmcollect
 	end interface
 	real(8) :: otime(0:6)=0d0
 contains
@@ -312,6 +312,83 @@ contains
 		j=1
 		do i=2,size(self)
 			if((abs(self(i)-self(i-1))>1d-6)) then
+				j=j+1
+				tmp(j)=i
+			endif
+		enddo
+		j=j+1
+		tmp(j)=i
+		allocate(a(j))
+		a=tmp(:j)
+	end subroutine
+	recursive subroutine rmqsort(self,ord)
+		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
+		real(8) :: self(:,:)
+		integer :: ord(:)
+		integer :: left,right,n
+		real(8) :: random
+		real(8) :: pivot(size(self,1))
+		integer :: marker,i
+		logical :: is_large,is_small
+		n=size(ord)
+		if(n>1) then
+			!call random_number(random)
+			!pivot=self(int(random*real(n-1))+1)%val   !random pivor (not best performance, but avoids worst-case)
+			pivot=self(:,ord((n+1)/2))   !random pivor (not best performance, but avoids worst-case)
+			left=0
+			right=n+1
+			do while (left < right)
+				right=right-1
+				do
+					is_large=.false.
+					do i=1,size(self,1)
+						if((self(i,ord(right))-pivot(i))>1d-8) then
+							is_large=.true.
+							exit
+						elseif((self(i,ord(right))-pivot(i))<-1d-8) then
+							exit
+						endif
+					enddo
+					if(.not.is_large) exit
+					right=right-1
+				enddo
+				left=left+1
+				do
+					is_large=.true.
+					do i=1,size(self,1)
+						if((self(i,ord(left))-pivot(i))<-1d-8) then
+							is_large=.false.
+							exit
+						elseif((self(i,ord(left))-pivot(i))>1d-8) then
+							exit
+						endif
+					enddo
+					if(is_large) exit
+					left= left+1
+				enddo
+				if(left<right) then
+					marker=ord(left)
+					ord(left)=ord(right)
+					ord(right)=marker
+				endif
+			end do
+			if(left==right) then
+				marker=left+1
+			else
+				marker=left
+			endif
+			call rmqsort(self,ord(1:marker-1))
+			call rmqsort(self,ord(marker:n))
+		endif
+	end subroutine
+	subroutine rmcollect(self,a)
+		real(8) :: self(:,:)
+		integer :: i,j,tmp(size(self,2))
+		integer, allocatable :: a(:)
+		tmp(1)=1
+		j=1
+		do i=2,size(self,2)
+			if(any(abs(self(:,i)-self(:,i-1))>1d-8)) then
 				j=j+1
 				tmp(j)=i
 			endif

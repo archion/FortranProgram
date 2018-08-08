@@ -20,14 +20,19 @@ contains
 			prod=prod*self%shap(i)
 		enddo
 	end function
-	function get_idx(self,i) result(idx)
+	function get_idx(self,i,p) result(idx)
 		class(t_serde(*)) :: self
-		integer :: i
-		integer :: idx(self%n)
-		integer :: j,prod
+		integer :: i,p(:)
+		integer :: idx(size(p))
+		integer :: j,k,prod
 		prod=1
+		k=1
 		do j=1,self%n
-			idx(j)=mod((i-1)/prod,self%shap(j))+1
+			if(j==p(k)) then
+				idx(k)=mod((i-1)/prod,self%shap(j))+1
+				if(k==size(p)) exit
+				k=k+1
+			endif
 			prod=prod*self%shap(j)
 		enddo
 	end function

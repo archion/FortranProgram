@@ -8,11 +8,11 @@ module global
 	real(8), parameter :: onepi=1d0/pi,halfpi=onepi*0.5d0
 	real(8) :: alpha=0.8d0,r=0.3d0,kp=0.3d0,fcut=1d0,fbeta=1d0,phicut=5d-2,phibeta=200d0,Jk=1.8d0,g=0d0
 	real(8) :: Tk,beta,norm_Ac=1d0,norm_Aphi=1d0,base=2.3d0,bcut=10d0
-	integer, parameter :: nlog=31,nl=7,nadd(2)=[5,10]
+	integer, parameter :: nlog=31,nl=7,nadd(3)=[5,10,15]
 	!integer, parameter :: nlog=35,nl=34,nadd(2)=[5,10]
 	integer, parameter :: n=(nl*nlog+sum(nadd*2))*2
 	integer, parameter :: set_rGB=1,set_Gt=2,set_rG=3,set_rSE=4,export_Gw=1,export_Gt=2,export_fe=3,export_entropy=4
-	real(8) :: omega(n),tau(n)
+	real(8) :: omega(n),tau(n),Jkc(n)
 	logical :: is_expinit=.true.
 	type gfs(n)
 		integer, len :: n
@@ -36,9 +36,9 @@ contains
 		do k=1,size(flag)
 			select case(flag(k))
 			case(export_Gw)
-				write(ut(k),"(A)")"Tk omega rGf iGf rGB iGB rSEf iSEf rSEB iSEB rGc iGc rGphi iGphi rhoc rhophi rSEc iSEc rSEphi iSEphi rTmat iTmat rSus iSus rGc0 iGc0 rGphi0 iGphi0"
+				write(ut(k),"(A)")"Tk omega rGf iGf rGB iGB rSEf iSEf rSEB iSEB rGc iGc rGphi iGphi rhoc rhophi rSEc iSEc rSEphi iSEphi rTmat iTmat rSus iSus rGc0 iGc0 rGphi0 iGphi0 Jk"
 				do i=1,n
-					write(ut(k),"(*(e28.20))")Tk,omega(i),self%Gf(i),self%GB(i),self%SEf(i),self%SEB(i),self%Gc(i),self%Gphi(i),self%rhoc(i),self%rhophi(i),self%SEc(i),self%SEphi(i),self%Tmat(i),self%Sus(i),self%Gc0(i),self%Gphi0(i)
+					write(ut(k),"(*(e28.20))")Tk,omega(i),self%Gf(i),self%GB(i),self%SEf(i),self%SEB(i),self%Gc(i),self%Gphi(i),self%rhoc(i),self%rhophi(i),self%SEc(i),self%SEphi(i),self%Tmat(i),self%Sus(i),self%Gc0(i),self%Gphi0(i),Jkc(i)
 				enddo
 				write(ut(k),"(x/)")
 			case(export_Gt)
@@ -471,14 +471,20 @@ contains
 				call set_realpart(omega,self%SEf)
 				call set_realpart(omega,self%SEB)
 				self%Gf=1d0/(omega-self%SEf)
-				self%GB=1d0/(-1d0/Jk-self%SEB)
+				!self%GB=1d0/(-1d0/Jk-self%SEB)
+				self%GB=1d0/(-1d0/Jkc-self%SEB)
+
+				call self%export([233],[export_Gw])
+				call set_realpart(omega,self%GB)
+				call self%export([233],[export_Gw])
+				stop
 				call get_ftau(omega,G=self%Gf,eta=-1,time=[-1d-70],rt=nf)
 
 				x=[self%SEf%im,self%SEB%im]
 
 				self%SEB=0d0
 				self%SEf=0d0
-				call get_convolution(omega,A=-kp*self%Gc0,B=self%GB+Jk,tau=[1,1],eta=[-1,1],rt=self%SEf)
+				call get_convolution(omega,A=-kp*self%Gc0,B=self%GB,tau=[1,1],eta=[-1,1],rt=self%SEf)
 				call get_convolution(omega,A=self%Gc0,B=self%Gf,tau=[1,-1],eta=[-1,-1],rt=self%SEB)
 				call get_convolution(omega,A=-g**2*self%Gphi0,B=self%Gf,tau=[1,1],eta=[1,-1],rt=self%SEf)
 
@@ -583,7 +589,8 @@ contains
 			df*(imag(log(-1d0/self%Gf))+self%Gf%re*imag(omega-1d0/self%Gf)+0.5d0*(1d0+sign(1d0,omega))*pi)&
 			!df*(imag(log(-1d0/self%Gf))+self%Gf%re*self%SEf%im)&
 			!+kp*db*(imag(log(-1d0/self%GB))+self%GB%re*self%SEB%im)&
-			+kp*db*(imag(log(-1d0/self%GB))+(self%GB%re+Jk)*imag(-1d0/Jk-1d0/self%GB))&
+			!+kp*db*(imag(log(-1d0/self%GB))+(self%GB%re+Jk)*imag(-1d0/Jk-1d0/self%GB))&
+			+kp*db*(imag(log(-1d0/self%GB))+(self%GB%re+Jkc)*imag(-1d0/Jkc-1d0/self%GB))&
 			)/pi&
 			-log(2d0)&
 			!+integrate(A=-kp*(-self%Gft)*self%Gct*self%GBt,x=tau)&
@@ -604,7 +611,7 @@ contains
 		!write(*,*)integrate(A=-kp*(-self%Gft)*self%Gc0t*self%GBt,x=tau),"GftGc0tGBt"
 		!write(*,*)integrate(A=omega*ff_*(-self%Gf%im/pi)),"rhoGf0^-1"
 		!write(*,*)integrate(A=-ff_*imag(self%Gf*self%SEf)/pi),"Gf*SEf"
-		!write(*,*)integrate(A=fb_*imag((self%GB+Jk)*self%SEB)/pi*(-kp)),"(GB+J)*SEB"
+		!write(*,*)integrate(A=fb_*imag((self%GB)*self%SEB)/pi*(-kp)),"(GB)*SEB"
 
 		rt=(integrate(A=&
 			ff_*(imag(log(-1d0/self%Gf)+self%Gf*(omega-1d0/self%Gf))+0.5d0*(1d0+sign(1d0,omega))*pi)&
@@ -681,8 +688,18 @@ program main
 	call set_omega(omega(1:nl*nlog*2),base,nl,bcut)
 	call add_omega(omega(1:nl*nlog*2+sum(nadd(1:1))*4),1d0,0.1d0,nadd(1))
 	call add_omega(omega(1:nl*nlog*2+sum(nadd(1:2))*4),0.8d0,0.16d0,nadd(2))
+	call add_omega(omega(1:nl*nlog*2+sum(nadd(1:3))*4),2d0,0.5d0,nadd(3))
 	write(*,"('n: ',i4,', max freq: ',es10.2,', min freq: ',es10.2)")n,maxval(abs(omega)),minval(abs(omega))
 
+	do i=n/2+1,n
+		!if(abs(omega(i))<2d0*fcut) then
+			!Jkc(i)=Jk
+		!else
+			!Jkc(i)=Jk/(1d0+exp(5d0*(omega(i)-2d0*fcut)))
+			Jkc(i)=Jk/(1d0+1d0*omega(i))
+		!endif
+		Jkc(n-i+1)=Jkc(i)
+	enddo
 	do 
 		is_expinit=.true.
 		norm_Ac=1d0
