@@ -1,3 +1,4 @@
+include "mkl_dfti.f90"
 module M_fft
 	use M_const
 	use mkl_dfti

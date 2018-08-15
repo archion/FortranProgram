@@ -140,7 +140,7 @@ contains
 			endif
 		endif
 	end subroutine
-	subroutine get(self,val)
+	subroutine get_val(self,val)
 		class(t_var), intent(inout) :: self(:)
 		real(8), intent(in) :: val(:)
 		integer :: n,l1,l2
@@ -367,7 +367,7 @@ contains
 		common fE,err
 		v=0d0
 		fE=0d0
-		call get(var(1:),x)
+		call get_val(var(1:),x)
 		if(size(x)>1) then
 			call var%update()
 		endif

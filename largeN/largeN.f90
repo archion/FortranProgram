@@ -2,16 +2,17 @@ include "fn.f90"
 module global
 	use M_fn
 	use M_const
+	use M_utility
 	use M_matrix
 	use mkl_service
 	implicit none
 	real(8), parameter :: onepi=1d0/pi,halfpi=onepi*0.5d0
 	real(8) :: alpha=0.8d0,r=0.3d0,kp=0.3d0,fcut=1d0,fbeta=1d0,phicut=5d-2,phibeta=200d0,Jk=1.8d0,g=0d0
-	real(8) :: Tk,beta,norm_Ac=1d0,norm_Aphi=1d0,base=2.3d0,bcut=10d0
+	real(8) :: Tk,beta,norm_Ac=1d0,norm_Aphi=1d0,base=2.3d0,bcut=10d0,min_omega=1d-9
 	integer, parameter :: nlog=31,nl=7,nadd(3)=[5,10,15]
 	!integer, parameter :: nlog=35,nl=34,nadd(2)=[5,10]
-	integer, parameter :: n=(nl*nlog+sum(nadd*2))*2
-	integer, parameter :: set_rGB=1,set_Gt=2,set_rG=3,set_rSE=4,export_Gw=1,export_Gt=2,export_fe=3,export_entropy=4
+	integer, parameter :: n=(nl*nlog+sum(nadd))*2
+	integer, parameter :: set_rGB=1,set_Gt=2,set_rG=3,set_rSE=4,export_Gw=1,export_Gt=2,export_fe=3,export_entropy=4,export_SE=5
 	real(8) :: omega(n),tau(n),Jkc(n)
 	logical :: is_expinit=.true.
 	type gfs(n)
@@ -24,10 +25,66 @@ module global
 	contains
 		procedure :: self_consistent,analytic,set_Gfunction
 		procedure :: entropy,fenergy
-		procedure :: export
+		procedure :: export,init
 	end type
 contains
 	include "mbroyden.f90"
+	subroutine init(self,ut)
+		class(gfs(*)) :: self
+		integer :: ut
+		integer :: i,e
+		real(8) :: omg(2),dat(2,2)
+		do i=n/2+1,n
+			!if(abs(omega(i))<2d0*fcut) then
+				!Jkc(i)=Jk
+			!else
+				Jkc(i)=Jk/(1d0+exp(5d0*(omega(i)-4d0*fcut)))
+				!Jkc(i)=Jk!imag(self%Gf*self%SEf)/pi/(1d0+1d1*omega(i))
+			!endif
+			Jkc(n-i+1)=Jkc(i)
+		enddo
+
+		is_expinit=.true.
+		norm_Ac=1d0
+		do i=1,n
+			self%rhoc(i)=A_c(omega(i))
+			self%rhophi(i)=A_phi(omega(i))
+		enddo
+		norm_Ac=1d0/integrate(omega,A=self%rhoc)
+		self%rhoc=self%rhoc*norm_Ac
+		self%Gc0%im=-self%rhoc*pi
+		self%Gphi0%im=-self%rhophi*pi
+
+		i=1
+		rewind(ut)
+		read(ut,"(*(e28.20))")omg(1),dat(1,:)
+		o:	do 
+			read(ut,"(*(e28.20))",iostat=e)omg(2),dat(2,:)
+			if(e==-1) then
+				backspace(ut)
+				backspace(ut)
+				backspace(ut)
+				read(ut,"(*(e28.20))")omg(1),dat(1,:)
+				dat(2,:)=dat(2,:)+(dat(2,:)-dat(1,:))/(omg(2)-omg(1))*(-omega(1)-omg(2))
+				omg(2)=-omega(1)
+				read(ut,"(*(e28.20))")omg(1),dat(1,:)
+			endif
+			do 
+				if(omg(2)-omega(i)>=0d0) then
+					dat(1,:)=dat(1,:)+(dat(2,:)-dat(1,:))/(omg(2)-omg(1))*(omega(i)-omg(1))
+					self%SEf(i)%im=dat(1,1)
+					self%SEB(i)%im=dat(1,2)
+					omg(1)=omega(i)
+					i=i+1
+					if(i==n+1) exit o
+				else
+					omg(1)=omg(2)
+					dat(1,:)=dat(2,:)
+					exit
+				endif
+			enddo
+		enddo o
+	end subroutine
 	subroutine export(self,ut,flag)
 		class(gfs(*)) :: self
 		integer :: ut(:)
@@ -45,6 +102,13 @@ contains
 				write(ut(k),"(A)")"Tk omega Gft GBt SEft SEBt Gct Gphit SEct SEphit Tmatt Sust Gc0t Gphi0t"
 				do i=1,n
 					write(ut(k),"(*(e28.20))")Tk,tau(i),self%Gft(i),self%GBt(i),self%SEft(i),self%SEBt(i),self%Gct(i),self%Gphit(i),self%SEct(i),self%SEphit(i),self%Tmatt(i),self%Sust(i),self%Gc0t(i),self%Gphi0t(i)
+				enddo
+			case(export_SE)
+				write(*,*)"export initial...."
+				rewind(ut(k))
+				is_expinit=.false.
+				do i=1,n
+					write(ut(k),"(*(e28.20))")omega(i),self%SEf(i)%im,self%SEB(i)%im
 				enddo
 			end select
 		end do
@@ -74,55 +138,6 @@ contains
 			end select
 		enddo
 	end subroutine
-	subroutine set_omega(omega,base,nlin,width)
-		real(8) :: omega(:),base,width
-		integer :: nlin
-		integer :: nlog,n,i,j
-		real(8) :: u,l,t,tmp
-		n=size(omega)/2
-		nlog=n/nlin
-		if(mod(n,nlin)/=0) stop "check n and nlin"
-		u=width
-		l=u/base
-		do i=nlog,1,-1
-			t=(u-l)/real(nlin,8)
-			tmp=l
-			do j=1,nlin
-				tmp=tmp+t
-				omega(n+(i-1)*nlin+j)=tmp
-				omega(n-((i-1)*nlin+j)+1)=-tmp
-			enddo
-			u=l
-			l=u/base
-		enddo
-	end subroutine
-	subroutine add_omega(omega,center,width,nadd)
-		real(8) :: omega(:),center,width
-		integer :: nadd,n,m,l,u,i
-		real(8) :: s,at1,at2
-		n=size(omega)-nadd*4
-		l=find_sidx(omega(1:n),center-width)
-		u=find_sidx(omega(1:n),center+2d0*width)
-		omega(u+1+nadd*4:)=omega(u+1:n)
-		omega(n/2+1+nadd*2:l+nadd*2)=omega(n/2+1:l)
-		omega(n-l+1+nadd*2:n/2+nadd*2)=omega(n-l+1:n/2)
-		n=size(omega)
-		l=l+nadd*2
-		u=u+nadd*4
-		m=u-l
-		m=l+m-m/2
-		s=width/100d0
-		at1=atan(width)
-		at2=atan(2d0*width)
-		do i=l+1,u
-			if(i<=m) then
-				omega(i)=center-tan(s+(at1-s)/(m-l)*(m-i))
-			else
-				omega(i)=center+tan(s+(at2-s)/(u-m)*(i-m-1))
-			endif
-			omega(n-i+1)=-omega(i)
-		enddo
-	end subroutine
 	real(8) function A_phi(x)
 		real(8) :: x
 		if(abs(x)<1.0d-19) then
@@ -149,102 +164,6 @@ contains
 		else
 			A_c=0d0
 		endif
-	end function
-	real(8) function integrate(Af,A,x) result(f)
-		real(8), optional :: Af,A(:)
-		real(8), optional :: x(:)
-		integer :: i
-		f=0d0
-		if(present(x)) then
-			if(present(A)) then
-				do i=1,size(x)-1
-					f=f+0.5d0*(x(i+1)-x(i))*(A(i+1)+A(i))
-				enddo
-			else
-				do i=1,size(x)-1
-					f=f+0.5d0*(x(i+1)-x(i))*(Af(x(i+1))+Af(x(i)))
-				enddo
-			endif
-		else
-			if(present(A)) then
-				do i=1,size(omega)-1
-					f=f+0.5d0*(omega(i+1)-omega(i))*(A(i+1)+A(i))
-				enddo
-			else
-				do i=1,size(omega)-1
-					f=f+0.5d0*(omega(i+1)-omega(i))*(Af(omega(i+1))+Af(omega(i)))
-				enddo
-			endif
-		endif
-	end function
-	integer function find_sidx(omega,x) result(l)
-		real(8) :: omega(:),x
-		integer :: m,u
-		l=0
-		u=size(omega)+1
-		do
-			if((u-l)>1) then
-				m=(l+u)/2
-				if(x>omega(m)) then
-					l=m
-				else
-					u=m
-				endif
-			else
-				exit
-			endif
-		enddo
-	end function
-	pure real(8) function ff(x)
-		real(8), intent(in) :: x
-		!if(x<omega(1)) then
-		!ff=1d0
-		!elseif(x>-omega(1)) then
-		!ff=0d0
-		!else
-		ff=1d0/(exp(x)+1d0)
-		!endif
-	end function
-	real(8) function fb(x)
-		real(8), intent(in) :: x
-		integer :: m
-		real(8) :: f1,f2
-		if(abs(x)<1d-20) then
-			!fb=1d0/(exp(-1d-11)-1d0)+(1d0/(exp(-1d-11)-1d0)-(-exp(-1d-11)/(exp(-1d-11)-1d0)))/(-2d-11)*(x+1d-11)
-			fb=-0.5d0
-		elseif(x<0d0) then
-			!if(x<omega(1)) then
-			!fb=-1d0
-			!elseif(x>-omega(1)) then
-			!fb=0d0
-			!else
-			fb=1d0/(exp(x)-1d0)
-		else
-			fb=-exp(-x)/(exp(-x)-1d0)
-			!endif
-		endif
-		!!write(*,*)x/beta,fb
-		!m=find_sidx(omega*beta,x)
-		!if(m<1) then
-			!fb=1d0/(exp(x)-1d0)
-		!elseif(m>=n) then
-			!fb=1d0/(exp(x)-1d0)
-		!else
-			!if(omega(m)>0) then
-				!f1=-exp(-beta*omega(m))/(exp(-beta*omega(m))-1d0)
-				!f2=-exp(-beta*omega(m+1))/(exp(-beta*omega(m+1))-1d0)
-			!elseif(omega(m+1)>0) then
-				!f1=1d0/(exp(beta*omega(m))-1d0)
-				!f2=-exp(-beta*omega(m+1))/(exp(-beta*omega(m+1))-1d0)
-			!else
-				!f1=1d0/(exp(beta*omega(m))-1d0)
-				!f2=1d0/(exp(beta*omega(m+1))-1d0)
-			!endif
-
-			!fb=f1+(f2-f1)/(omega(m+1)*beta-omega(m)*beta)*(x-omega(m)*beta)
-		!endif
-		!!write(*,*)x/beta,fb
-		!!read(*,*)
 	end function
 	subroutine get_ftau(omega,G,Gf,eta,time,rt)
 		real(8) :: omega(:),time(:),rt(:)
@@ -312,11 +231,11 @@ contains
 			!do k=1,n
 			!omg=omega(k)
 			!do i=1,n
-				!ibw(i)=find_sidx(omega,tau(1)*(omg-tau(2)*omega(i)))
+				!ibw(i)=find(omega,tau(1)*(omg-tau(2)*omega(i)))
 			!end do
 			!A1=A(1)
 			!do i=1,n
-				!iwb(i)=find_sidx(omega,tau(2)*(omg-tau(1)*omega(i)))
+				!iwb(i)=find(omega,tau(2)*(omg-tau(1)*omega(i)))
 			!end do
 			!i=iwb(1)
 			!!B1=merge(B(i)+(B(i+1)-B(i))/(omega(i+1)-omega(i))*(tau(2)*(omg-tau(1)*omega(1))-omega(i)),cmplx(0d0,kind=8),i>0.and.i<n)
@@ -385,11 +304,11 @@ contains
 			do k=1,n
 			omg=omega(k)
 			do i=1,n
-				ibw(i)=find_sidx(omega,tau(1)*(omg-tau(2)*omega(i)))
+				ibw(i)=find(omega,tau(1)*(omg-tau(2)*omega(i)))
 			end do
 			A1=A(1)
 			do i=1,n
-				iwb(i)=find_sidx(omega,tau(2)*(omg-tau(1)*omega(i)))
+				iwb(i)=find(omega,tau(2)*(omg-tau(1)*omega(i)))
 			end do
 			i=iwb(1)
 			B1=merge(B(i)+(B(i+1)-B(i))/(omega(i+1)-omega(i))*(tau(2)*(omg-tau(1)*omega(1))-omega(i)),cmplx(0d0,kind=8),i>0.and.i<n)
@@ -474,10 +393,6 @@ contains
 				!self%GB=1d0/(-1d0/Jk-self%SEB)
 				self%GB=1d0/(-1d0/Jkc-self%SEB)
 
-				call self%export([233],[export_Gw])
-				call set_realpart(omega,self%GB)
-				call self%export([233],[export_Gw])
-				stop
 				call get_ftau(omega,G=self%Gf,eta=-1,time=[-1d-70],rt=nf)
 
 				x=[self%SEf%im,self%SEB%im]
@@ -485,6 +400,10 @@ contains
 				self%SEB=0d0
 				self%SEf=0d0
 				call get_convolution(omega,A=-kp*self%Gc0,B=self%GB,tau=[1,1],eta=[-1,1],rt=self%SEf)
+				!call self%export([233],[export_Gw])
+				!call set_realpart(omega,self%SEf)
+				!call self%export([233],[export_Gw])
+				!stop
 				call get_convolution(omega,A=self%Gc0,B=self%Gf,tau=[1,-1],eta=[-1,-1],rt=self%SEB)
 				call get_convolution(omega,A=-g**2*self%Gphi0,B=self%Gf,tau=[1,1],eta=[1,-1],rt=self%SEf)
 
@@ -543,7 +462,7 @@ contains
 
 				do i=1,n
 					self%Gc0=1d0/(omega(i)-omega-self%SEc(i))
-					self%Gc(i)=cmplx(integrate(A=self%rhoc*self%Gc0%re),integrate(A=self%rhoc*self%Gc0%im),kind=8)
+					self%Gc(i)=integrate(omega,A=self%rhoc*self%Gc0)
 				enddo
 
 				self%Gc0=1d0/(1d0/self%Gc+self%SEc)
@@ -575,7 +494,7 @@ contains
 		df=omega*(0.5d0*beta/cosh(0.5d0*omega*beta))**2
 		db=omega*(0.5d0*beta/sinh(0.5d0*omega*beta))**2
 
-		!rt=-((integrate(A=&
+		!rt=-((integrate(omega,A=&
 			!ff_*(imag(log(-1d0/Gf)+Gf*(omega-1d0/Gf))+0.5d0*(1d0+sign(1d0,omega))*pi)&
 			!+kp*fb_*imag(log(-1d0/GB)+GB*(-1d0/Jk-1d0/GB))&
 			!!+kp*fb_*imag(log(-1d0/GB)+GB*SEB)&
@@ -583,9 +502,9 @@ contains
 			!!+kp*fb_*imag(log(-1d0/GB))&
 			!)/pi&
 				!-1d0/beta*log(2d0)&
-				!+integrate(A=-kp*(-Gft)*Gct*GBt,x=tau)&
+				!+integrate(tau,A=-kp*(-Gft)*Gct*GBt)&
 			!))
-		rt=-(integrate(A=&
+		rt=-(integrate(omega,A=&
 			df*(imag(log(-1d0/self%Gf))+self%Gf%re*imag(omega-1d0/self%Gf)+0.5d0*(1d0+sign(1d0,omega))*pi)&
 			!df*(imag(log(-1d0/self%Gf))+self%Gf%re*self%SEf%im)&
 			!+kp*db*(imag(log(-1d0/self%GB))+self%GB%re*self%SEB%im)&
@@ -593,7 +512,7 @@ contains
 			+kp*db*(imag(log(-1d0/self%GB))+(self%GB%re+Jkc)*imag(-1d0/Jkc-1d0/self%GB))&
 			)/pi&
 			-log(2d0)&
-			!+integrate(A=-kp*(-self%Gft)*self%Gct*self%GBt,x=tau)&
+			!+integrate(tau,A=-kp*(-self%Gft)*self%Gct*self%GBt)&
 			)
 			
 	end function
@@ -606,14 +525,14 @@ contains
 			fb_(i)=fb(beta*omega(i))
 		enddo
 
-		!write(*,*)integrate(A=(-self%Gft)*self%SEft,x=tau),"Gft*SEft"
-		!write(*,*)integrate(A=-kp*self%GBt*self%SEBt,x=tau),"GBt*SEBt"
-		!write(*,*)integrate(A=-kp*(-self%Gft)*self%Gc0t*self%GBt,x=tau),"GftGc0tGBt"
-		!write(*,*)integrate(A=omega*ff_*(-self%Gf%im/pi)),"rhoGf0^-1"
-		!write(*,*)integrate(A=-ff_*imag(self%Gf*self%SEf)/pi),"Gf*SEf"
-		!write(*,*)integrate(A=fb_*imag((self%GB)*self%SEB)/pi*(-kp)),"(GB)*SEB"
+		write(*,*)integrate(tau,A=(-self%Gft)*self%SEft),"Gft*SEft"
+		write(*,*)integrate(tau,A=-kp*self%GBt*self%SEBt),"GBt*SEBt"
+		write(*,*)integrate(tau,A=-kp*(-self%Gft)*self%Gc0t*self%GBt),"GftGc0tGBt"
+		write(*,*)integrate(omega,A=omega*ff_*(-self%Gf%im/pi)),"rhoGf0^-1"
+		write(*,*)integrate(omega,A=-ff_*imag(self%Gf*self%SEf)/pi),"Gf*SEf"
+		write(*,*)integrate(omega,A=fb_*imag((self%GB)*self%SEB)/pi*(-kp)),"(GB)*SEB"
 
-		rt=(integrate(A=&
+		rt=(integrate(omega,A=&
 			ff_*(imag(log(-1d0/self%Gf)+self%Gf*(omega-1d0/self%Gf))+0.5d0*(1d0+sign(1d0,omega))*pi)&
 			!+kp*fb_*imag(log(-1d0/self%GB)+self%GB*(-1d0/Jk-1d0/self%GB))&
 			!+kp*fb_*imag(log(-1d0/self%GB)+self%GB*self%SEB)&
@@ -622,7 +541,7 @@ contains
 			!+kp*fb_*imag(log(-1d0/self%GB))&
 			)/pi&
 			-1d0/beta*log(2d0)&
-			+integrate(A=-kp*(-self%Gft)*self%Gct*self%GBt,x=tau)&
+			+integrate(tau,A=-kp*(-self%Gft)*self%Gct*self%GBt)&
 			)
 	end function
 	subroutine analytic(self,a_f,a_b)
@@ -663,7 +582,6 @@ program main
 	use global
 	implicit none
 	type(gfs(n)) :: phy,aphy
-	real(8) :: omg(2),dat(2,2)
 	integer :: i,j,e
 
 	call omp_set_nested(.false.)
@@ -685,69 +603,23 @@ program main
 	open(26,File="../data/largeN_fenergy.dat")
 	open(27,File="../data/largeN_A0.dat")
 	open(233,File="../data/check.dat")
-	call set_omega(omega(1:nl*nlog*2),base,nl,bcut)
-	call add_omega(omega(1:nl*nlog*2+sum(nadd(1:1))*4),1d0,0.1d0,nadd(1))
-	call add_omega(omega(1:nl*nlog*2+sum(nadd(1:2))*4),0.8d0,0.16d0,nadd(2))
-	call add_omega(omega(1:nl*nlog*2+sum(nadd(1:3))*4),2d0,0.5d0,nadd(3))
+
+	call set_grid(omega(n/2+1:),[reset,add_log_linear,(add_linear,i=1,size(nadd))],from=[min_omega,0.9d0,0.7d0,3.5d0],to=[bcut,1.1d0,0.9d0,4.5d0],n=[nlog,nl, nadd])
+	omega(1:n/2)=-omega(n:n/2+1:-1)
 	write(*,"('n: ',i4,', max freq: ',es10.2,', min freq: ',es10.2)")n,maxval(abs(omega)),minval(abs(omega))
 
-	do i=n/2+1,n
-		!if(abs(omega(i))<2d0*fcut) then
-			!Jkc(i)=Jk
-		!else
-			!Jkc(i)=Jk/(1d0+exp(5d0*(omega(i)-2d0*fcut)))
-			Jkc(i)=Jk/(1d0+1d0*omega(i))
-		!endif
-		Jkc(n-i+1)=Jkc(i)
-	enddo
 	do 
-		is_expinit=.true.
-		norm_Ac=1d0
-		do i=1,n
-			phy%rhoc(i)=A_c(omega(i))
-			phy%rhophi(i)=A_phi(omega(i))
-		enddo
-		norm_Ac=1d0/integrate(A=phy%rhoc)
-		phy%rhoc=phy%rhoc*norm_Ac
-		phy%Gc0%im=-phy%rhoc*pi
-		phy%Gphi0%im=-phy%rhophi*pi
-
-		i=1
-		rewind(10)
-		read(10,"(*(e28.20))")omg(1),dat(1,:)
-		o:	do 
-			read(10,"(*(e28.20))",iostat=e)omg(2),dat(2,:)
-			if(e==-1) then
-				backspace(10)
-				backspace(10)
-				backspace(10)
-				read(10,"(*(e28.20))")omg(1),dat(1,:)
-				dat(2,:)=dat(2,:)+(dat(2,:)-dat(1,:))/(omg(2)-omg(1))*(-omega(1)-omg(2))
-				omg(2)=-omega(1)
-				read(10,"(*(e28.20))")omg(1),dat(1,:)
-			endif
-			do 
-				if(omg(2)-omega(i)>=0d0) then
-					dat(1,:)=dat(1,:)+(dat(2,:)-dat(1,:))/(omg(2)-omg(1))*(omega(i)-omg(1))
-					phy%SEf(i)%im=dat(1,1)
-					phy%SEB(i)%im=dat(1,2)
-					omg(1)=omega(i)
-					i=i+1
-					if(i==n+1) exit o
-				else
-					omg(1)=omg(2)
-					dat(1,:)=dat(2,:)
-					exit
-				endif
-			enddo
-		enddo o
+		call phy%init(10)
 		rewind(13)
 		write(25,"(A)")"T Sn Sa"
 		write(26,"(A)")"T Fn Fa pT pFn pFa"
 		do
 			read(13,*,iostat=e)Tk
 			beta=1d0/Tk
-			if(e==-1) exit
+			if(e==-1) then
+				write(*,*)"Read Tk error!!!"
+				exit
+			endif
 			write(*,"(*(A4,es9.2))")"Tk:  ",Tk," Jk:",Jk," kp:",kp," r: ",r," g: ",g
 
 			tau(1:n/2)=omega(n/2+1:n)/(3d0*omega(n)-omega(n-1))/Tk
@@ -761,8 +633,8 @@ program main
 				0.29d0&
 			)
 			call aphy%set_Gfunction([set_Gt])
-			write(25,"(*(e28.20))")Tk,phy%entropy(),aphy%entropy()
-			write(26,"(*(e28.20))")Tk,phy%fenergy(),aphy%fenergy()
+			!write(25,"(*(e28.20))")Tk,phy%entropy(),aphy%entropy()
+			!write(26,"(*(e28.20))")Tk,phy%fenergy(),aphy%fenergy()
 			if(.not.phy%conv) then
 				exit
 			endif
@@ -771,12 +643,7 @@ program main
 			!write(27,"(*(e28.20))")Tk,-phy%Gf(n/2)%im
 
 			if(is_expinit) then
-				write(*,*)"export initial...."
-				rewind(10)
-				do i=1,n
-					write(10,"(*(e28.20))")omega(i),phy%SEf(i)%im,phy%SEB(i)%im
-				enddo
-				is_expinit=.false.
+				call phy%export([10],[export_SE])
 			endif
 		enddo
 		stop

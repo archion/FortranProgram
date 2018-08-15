@@ -43,8 +43,8 @@ module M_Hamilton_final_M
 		procedure :: add
 		procedure :: init
 		procedure :: put
-		procedure :: get
-		procedure :: find
+		procedure :: get_val
+		procedure :: find_label
 		!procedure :: i2H
 		procedure :: Hamilton
 		procedure :: dHamilton
@@ -55,7 +55,7 @@ module M_Hamilton_final_M
 	!procedure(real(8)), pointer :: free_energy
 	procedure(mat_diag_interface), pointer :: mat_diag
 	!procedure(self_consist_interface), pointer :: self_consist
-	private init, add, put, get, Hamilton, dHamilton, band
+	private init, add, put, get_val, Hamilton, dHamilton, band
 	interface
 		!subroutine self_consist_interface(fE)
 			!real(8), optional :: fE
@@ -159,7 +159,7 @@ contains
 		self%var(idx)%bd=1d0
 		self%var(idx)%val=0d0
 	end function
-	integer function find(self,label) result(i)
+	integer function find_label(self,label) result(i)
 		class(t_ham), intent(inout) :: self
 		character(*) :: label
 		do i=self%rg(1),self%rg(2)
@@ -171,7 +171,7 @@ contains
 			i=1/0
 		endif
 	end function
-	subroutine get(self,val,idx)
+	subroutine get_val(self,val,idx)
 		class(t_ham), intent(inout) :: self
 		integer :: idx(:)
 		real(8), intent(in) :: val(:)

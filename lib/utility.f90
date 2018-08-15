@@ -9,6 +9,15 @@ module M_utility
 	contains
 		procedure :: swap_sort
 	end type
+	interface integrate
+		module procedure rintegrate,cintegrate
+	end interface
+	interface get
+		module procedure cget,rget,iget
+	end interface
+	interface find
+		module procedure rfind
+	end interface
 	interface mwrite
 		module procedure cmwrite,rmwrite,imwrite
 	end interface
@@ -28,7 +37,153 @@ module M_utility
 		module procedure rcollect,scollect,rmcollect
 	end interface
 	real(8) :: otime(0:6)=0d0
+	integer, parameter :: reset=0,add_log_linear=1,add_linear=2
 contains
+	logical function next(x,y,dx,tol) result(rt)
+		real(8) :: x,y
+		real(8), optional :: dx,tol
+		real(8), save :: px,py,dx_,tol_
+		logical, save :: flag
+		rt=.false.
+		if(present(dx)) then 
+			py=transfer([Z'00000000',Z'7FF80000'],1d0)
+			flag=.false.
+			dx_=dx
+			tol_=tol
+			return
+		endif
+		if(.not.isnan(py)) then
+			if(py*y<0d0) flag=.true.
+			if(flag) then
+				dx_=dx_/2d0
+			endif
+			if(py*y<0d0) then
+				dx_=-dx_
+			elseif(sign(1d0,py)*sign(1d0,(py-y)/(px-x)*dx_)>0d0) then 
+				x=px
+				dx_=-dx_
+			endif
+		endif
+		px=x
+		py=y
+		if(abs(dx_)<tol_) then
+			rt=.true.
+		else
+			x=x+dx_
+		endif
+	end function
+	real(8) function rintegrate(x,A) result(f)
+		real(8) :: x(:)
+		real(8) :: A(:)
+		integer :: i
+		f=0d0
+		do i=1,size(x)-1
+			f=f+0.5d0*(x(i+1)-x(i))*(A(i+1)+A(i))
+		enddo
+	end function
+	complex(8) function cintegrate(x,A) result(f)
+		real(8) :: x(:)
+		complex(8) :: A(:)
+		integer :: i
+		f=0d0
+		do i=1,size(x)-1
+			f=f+0.5d0*(x(i+1)-x(i))*(A(i+1)+A(i))
+		enddo
+	end function
+	pure real(8) function ff(x)
+		real(8), intent(in) :: x
+		ff=1d0/(exp(x)+1d0)
+	end function
+	pure real(8) function fb(x)
+		real(8), intent(in) :: x
+		integer :: m
+		real(8) :: f1,f2
+		if(abs(x)<1d-20) then
+			fb=-0.5d0
+		elseif(x<0d0) then
+			fb=1d0/(exp(x)-1d0)
+		else
+			fb=-exp(-x)/(exp(-x)-1d0)
+		endif
+	end function
+	subroutine set_grid(grid,flag,from,to,n)
+		real(8) :: grid(:),from(:),to(:)
+		integer :: flag(:),n(:)
+		integer,save :: n_
+		integer :: i,j,k,l,u,m,o
+		real(8) :: base,from_,dx
+		m=1
+		o=1
+		do k=1,size(flag)
+			select case(flag(k))
+			case(reset)
+				n_=0
+			case(add_log_linear)
+				l=find(grid(1:n_),from(o))
+				u=find(grid(1:n_),to(o))
+				grid(u+n(m)*n(m+1)+1:n_+n(m)*n(m+1))=grid(u+1:n_)
+				u=u+n(m)*n(m+1)
+				n_=n_+n(m)*n(m+1)
+				base=(to(o)/from(o))**(1d0/n(m))
+				from_=from(o)/base
+				do i=l+1,u
+					if(mod(i-l-1,n(m+1))==0) then
+						from_=from_*base
+						dx=from_*(base-1d0)/n(m+1)
+					endif
+					grid(i)=from_+dx*(mod(i-l-1,n(m+1))+1)
+				enddo
+				m=m+2
+				o=o+1
+			case(add_linear)
+				l=find(grid(1:n_),from(o))
+				u=find(grid(1:n_),to(o))
+				grid(u+n(m)+1:n_+n(m))=grid(u+1:n_)
+				u=u+n(m)
+				n_=n_+n(m)
+				dx=(to(o)-from(o))/(u-l)
+				do i=l+1,u
+					grid(i)=from(o)+dx*(i-l)
+				enddo
+				m=m+1
+				o=o+1
+			end select
+		enddo
+	end subroutine
+	pure integer function rfind(A,x) result(rt)
+		real(8), intent(in) :: A(:)
+		real(8), intent(in) :: x
+		integer :: m,u
+		rt=0
+		u=size(A)+1
+		do
+			if((u-rt)>1) then
+				m=(rt+u)/2
+				if(x>=A(m)) then
+					rt=m
+				else
+					u=m
+				endif
+			else
+				exit
+			endif
+		enddo
+	end function
+	pure complex(8) function cget(x,i) result(rt)
+		complex(8), intent(in) :: x(:)
+		integer, intent(in) :: i
+		rt=x(i)
+	end function
+	pure real(8) function rget(x,i) result(rt)
+		real(8), intent(in) :: x(:)
+		integer, intent(in) :: i
+		rt=x(i)
+	end function
+	pure integer function iget(x,i) result(rt)
+		integer, intent(in) :: x(:)
+		integer, intent(in) :: i
+		rt=x(i)
+	end function
 	subroutine show_time()
 		integer :: i
 		write(*,"(A)")"The timing results is:"

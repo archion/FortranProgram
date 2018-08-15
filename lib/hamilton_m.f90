@@ -147,7 +147,7 @@ contains
 			var(iv(0))%n=1
 		endif
 	end subroutine
-	subroutine get(self,val)
+	subroutine get_val(self,val)
 		class(t_var), intent(inout) :: self(:)
 		real(8), intent(in) :: val(:)
 		integer :: n,l1,l2
@@ -596,13 +596,13 @@ contains
 				endif
 			enddo
 		enddo
-		call get(var,x)
+		call get_val(var,x)
 		if(info==1) then
 			fE=fE1+free_energy()
 		else
 			fE=fE/latt%Ns
 		endif
-		call get(var(:0),px)
+		call get_val(var(:0),px)
 		do l=lbound(var,1),0
 			do n=1,size(var(l)%bd)
 				if(abs(var(l)%val(var(l)%bd2v(n)))>1d-17) then
