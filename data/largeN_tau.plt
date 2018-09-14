@@ -38,16 +38,16 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 set xrange [:]
 set yrange [:]
 set zrange [:]
-#set logscale x
-#set logscale y
+set logscale x
+set logscale y
 #a=0.769
 a=0.41
 b=0.0001/1.1*tan(pi*(1.+a)/2.)
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-array cl[2]=["SEf","GphiGf"]
-array fact[2]=[1,-1]
+array cl[2]=["Gc0t","GphiGf"]
+array fact[2]=[-1,-1]
 #plot for[k=1:40] for[i=k*1-1:k*1-1] "-" index i every :::1::1 u (pi*column("T")/sin(pi*column("tau")*column("T"))):(-column("GB")) with l notitle#,  1/((1.7*x)**(-0.6)+2.) w line dt 2 notitle#,  (x)**(a) w line dt 2 notitle
-plot for[k=1:1] for[j=1:|cl|] for[i=k*1-1:k*1-1] "-" index i u (column("tau")*column("T")):(column(cl[j])*fact[j]) with l notitle
+plot for[k=1:1] for[j=1:1] for[i=0:1] "-" index i u (column("tau")*column("Tk")):(column(cl[1])*fact[j]) with l notitle
 #plot for[i=1:1] "-" index i u 0:(pi*column("T")/sin(pi*column("tau")*column("T"))) with l notitle sprintf("J= %1.2f",(i+1)/72*0.05+1)#,  1./((x)**(-a)+2) w line dt 2 notitle,  (x)**(a) w line dt 2 notitle
 #plot "-" index 0 every 1:1:::574/2 u (pi*$1/sin(pi*$2*$1)):(pi*$1/sin(pi*$2*$1)) with p notitle
 set key font ",".ticfontsize at graph 0.43,0.65,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 #opaque autotitle

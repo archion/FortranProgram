@@ -1,6 +1,6 @@
 out = largeN.out
 AFLAG = -qopenmp
 #LFLAG = -lslatec
-LFLAG = -lmath77
-DEBUG = 
+LFLAG = -lmath77 -lslatec
+DEBUG =
 include ../makefile

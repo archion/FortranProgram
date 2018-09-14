@@ -466,7 +466,7 @@ contains
 		AB=0d0
 		Ac=0d0
 		Aphi=0d0
-		call mbroyden([real(8)::],[real(8)::],1d0,0,fin=.false.,id=2)
+		call mbroyden(0,x,x_,rate,nsave=40,id=2)
 		do i2=1,niter(2)
 			flag=.false.
 			ei=0
@@ -556,7 +556,7 @@ contains
 					!ei=30
 					!x=x_
 				else
-					call mbroyden(x,x_,rate,i1,40,id=1)
+					call mbroyden(i1,x,x_,id=1)
 				endif
 				!x=x_
 
@@ -665,14 +665,14 @@ contains
 				endif
 			endif
 
-			call mbroyden(x,x_,rate,i2,40,id=2)
+			call mbroyden(i2,x,x_,id=2)
 			!x=rate*x_+(1d0-rate)*x
 			!x=x_
 			Ac0=x(1:n)
 			Aphi0=x(n+1:)
 		enddo
 		write(*,*)i2,maxval(abs(x-x_)/(abs(x_)+1d-70))
-		call mbroyden([real(8)::],[real(8)::],1d0,0,fin=.true.)
+		call mbroyden(huge(1),x,x_)
 	end function
 	!real(8) function entropy_coleman(Ac,Af,AB) result(rt)
 	real(8) function entropy_coleman(Ac,iSEf,iSEB) result(rt)
@@ -763,7 +763,7 @@ contains
 		rt=integrate(A=&
 			df*imag(log(-1d0/Gf))&
 			-df*Gf.re*SEf.im&
-			!-df*kp*(pi*Ac)*SEc&
+			-df*kp*(pi*Ac)*SEc&
 			+kp*db*imag(log(-1d0/GB))&
 			-kp*db*GB.re*SEB.im&
 			)/pi
@@ -1075,7 +1075,8 @@ end module
 program main
 	use global
 	implicit none
-	real(8) :: Af(n),AB(n),Ac(n),Aphi(n),Ac0(n),Aphi0(n),rhoc(n),rhophi(n),rGf(n),rGB(n),iSEF(n),iSEB(n),SUS(n),rSUS(n),Tmat(n),SUSt(n),Tmatt(n),Gft(n),GBt(n),Gphit(n),Gct(n),SEft(n),dTk,omg(2),dat(2,2),fe(2)=0d0,tmp,mix
+	real(8) :: Af(n),AB(n),Ac(n),Aphi(n),Ac0(n),Aphi0(n),rhoc(n),rhophi(n),rGf(n),rGB(n),rSEF(n),rSEB(n),iSEF(n),iSEB(n),SUS(n),rSUS(n),Tmat(n),SUSt(n),Tmatt(n),Gft(n),GBt(n),Gphit(n),Gct(n),SEft(n),dTk,omg(2),fe(2)=0d0,tmp,mix
+	complex(8) :: dat(2,2)
 	integer :: i,j,e
 	logical :: conv
 
@@ -1161,7 +1162,7 @@ program main
 	!enddo
 	!stop
 
-	write(25,"(A)")"T J S Sa1 Sa2"
+	write(25,"(A)")"T J Sn Sa"
 	do 
 		is_expinit=.true.
 		norm_Ac=1d0
@@ -1197,8 +1198,8 @@ program main
 			do 
 				if(omg(2)-omega(i)>=0d0) then
 					dat(1,:)=dat(1,:)+(dat(2,:)-dat(1,:))/(omg(2)-omg(1))*(omega(i)-omg(1))
-					iSEf(i)=dat(1,1)
-					iSEB(i)=dat(1,2)
+					iSEf(i)=imag(dat(1,1))
+					iSEB(i)=imag(dat(1,2))
 					omg(1)=omega(i)
 					i=i+1
 					if(i==n+1) exit o
@@ -1240,10 +1241,10 @@ program main
 			write(25,"(es28.20$)")tmp
 			tmp=entropy_analytic_T(1)
 			write(*,*)"entropy analytic T: ",tmp
-			write(25,"(es28.20$)")tmp
-			tmp=entropy_analytic_T(2)
-			write(*,*)"entropy thesis: ",tmp
 			write(25,"(es28.20)")tmp
+			!tmp=entropy_analytic_T(2)
+			!write(*,*)"entropy thesis: ",tmp
+			!write(25,"(es28.20)")tmp
 
 			!if(Tk<1.1d-9) then
 			!stop
@@ -1290,13 +1291,14 @@ program main
 			!enddo
 			!write(23,"(x/)")
 
-			!call get_realpart(omega,SUS,rSUS)
 			!write(24,"(*(e28.20))")Tk,rSUS(n/2)
 			if(is_expinit) then
+				call get_realpart(omega,iSEf,rSEf)
+				call get_realpart(omega,iSEB,rSEB)
 				write(*,*)"export initial...."
 				rewind(10)
 				do i=1,n
-					write(10,"(*(e28.20))")omega(i),iSEf(i),iSEB(i)
+					write(10,"(*(e28.20))")omega(i),rSEf(i),iSEf(i),rSEB(i),iSEB(i)
 				enddo
 				is_expinit=.false.
 			endif

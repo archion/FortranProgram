@@ -29,15 +29,14 @@ module M_lattice
 	type t_bd
 		type(t_bond), allocatable :: bd(:)
 	end type
-	real(8) :: err=1d-6
 	type t_latt
-		real(8) :: T1(3),T2(3),a1(3),a2(3),a3(3)
+		real(wp) :: T1(3),T2(3),a1(3),a2(3),a3(3)
 		integer :: Ns,layer
-		complex(8) :: bdc(3)=(/1d0,1d0,0d0/)
+		complex(wp) :: bdc(3)=(/1._wp,1._wp,0._wp/)
 		type(t_neb), allocatable :: neb(:)
 		type(t_bd), allocatable :: bond(:)
-		real(8), allocatable :: sub(:,:)
-		real(8), allocatable :: i2r(:,:)
+		real(wp), allocatable :: sub(:,:)
+		real(wp), allocatable :: i2r(:,:)
 	contains
 		procedure gen_latt
 		procedure gen_neb
@@ -52,6 +51,7 @@ module M_lattice
 		real(8), allocatable :: T(:,:)
 	end type
 	integer :: nab
+	real(8) :: err=1e-8_dp
 	type(t_latt), public :: latt
 	type(t_brizon), public :: brizon,o_brizon
 	public theta,t_latt,t_brizon,check_lattice,ab

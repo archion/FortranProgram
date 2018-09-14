@@ -1,5 +1,5 @@
 out=libmy.a
-source90=$(wildcard *.f90)
+source90=$(filter-out $(wildcard lattice*.f90 hamilton*.f90), $(wildcard *.f90))
 source77=$(wildcard ./minpack/*.f)
 object90=$(source90:.f90=.o)
 object77=$(patsubst %.f,%.o,$(notdir $(source77)))

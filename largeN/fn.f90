@@ -1,24 +1,23 @@
 module M_fn
 	use M_const
-	real(8), parameter :: zero = 0.0d0, one = 1.0d0,    &
-		two = 2.0d0, half = 0.5d0, rmin = tiny( one ),              &
-		eps0 = epsilon( one ), sqrt_log_rmin = sqrt( -log( rmin ) ),        &
-		pi2 = pi * pi, one_sqrt_pi = one / sqrt( pi )
-	complex(8), parameter ::                                    &
-		cmplxj = cmplx( zero, one, kind=8 ),                            &
-		cmplx0 = cmplx( zero, zero, kind=8 )
+	real(dp), parameter :: rmin = tiny( 1._dp ),              &
+		sqrt_log_rmin = sqrt( -log( rmin ) ),        &
+		one_sqrt_pi = one / sqrt( pi )
+	complex(wp), parameter ::                                    &
+		cmplxj = cmplx( zero, one, kind=wp ),                            &
+		cmplx0 = cmplx( zero, zero, kind=wp )
 contains
-	complex(8) function lgamma(z) result(rt)
-		complex(8) :: z
-		real(8) :: reim(2),err
-		call zgam([z.re,z.im],reim,err,0)
-		rt=cmplx(reim(1),reim(2))
+	complex(wp) function lgamma(z) result(rt)
+		complex(wp) :: z
+		real(dp) :: reim(2),err
+		call zgam([real(z.re,kind=dp),real(z.im,kind=dp)],reim,err,0)
+		rt=cmplx(reim(1),reim(2),kind=wp)
 	end function
-	complex(8) function zgamma(z) result(rt)
-		complex(8) :: z
-		real(8) :: reim(2),err
-		call zgam([z.re,z.im],reim,err,0)
-		rt=exp(cmplx(reim(1),reim(2)))
+	complex(wp) function zgamma(z) result(rt)
+		complex(wp) :: z
+		real(dp) :: reim(2)
+		call zgam([real(z.re,kind=dp),real(z.im,kind=dp)],reim,err,0)
+		rt=exp(cmplx(reim(1),reim(2),kind=wp))
 	end function
 	!*********************************************************************72
 	elemental complex(8) function wzag( z, err )
@@ -69,7 +68,7 @@ contains
 			return
 		end if
 
-		myerr = max( err, eps0 )
+		myerr = max( err, eps )
 		a = sqrt( - pi2 / log( err / 2d0 ) )
 		half_a = half * a
 		a_sqr = a**2

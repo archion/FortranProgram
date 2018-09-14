@@ -3,14 +3,18 @@ module M_utility
 	use omp_lib
 	use mkl_service
 	use M_rd
+	use M_const
 	implicit none
 	type t_sort
-		real(8) :: val
+		real(wp) :: val
 	contains
 		procedure :: swap_sort
 	end type
 	interface integrate
-		module procedure rintegrate,cintegrate
+		module procedure rintegrate,cintegrate,rfintegrate,cfintegrate
+	end interface
+	interface set_grid
+		module procedure rset_grid,cset_grid
 	end interface
 	interface get
 		module procedure cget,rget,iget
@@ -20,9 +24,6 @@ module M_utility
 	end interface
 	interface mwrite
 		module procedure cmwrite,rmwrite,imwrite
-	end interface
-	interface arth
-		module procedure carth,rarth,iarth
 	end interface
 	interface swap
 		module procedure siswap,srswap,vcswap,viswap,vrswap
@@ -36,100 +37,229 @@ module M_utility
 	interface collect
 		module procedure rcollect,scollect,rmcollect
 	end interface
-	real(8) :: otime(0:6)=0d0
-	integer, parameter :: reset=0,add_log_linear=1,add_linear=2
+	real(dp) :: otime(0:6)=0d0
 contains
-	logical function next(x,y,dx,tol) result(rt)
-		real(8) :: x,y
-		real(8), optional :: dx,tol
-		real(8), save :: px,py,dx_,tol_
+	logical function next(x,y,dx,xtol,ytol) result(rt)
+		real(wp) :: x,y
+		real(wp), optional :: dx,xtol,ytol
+		real(wp), save :: px,py,dx_,xtol_,ytol_
 		logical, save :: flag
 		rt=.false.
 		if(present(dx)) then 
-			py=transfer([Z'00000000',Z'7FF80000'],1d0)
+			py=nan
 			flag=.false.
 			dx_=dx
-			tol_=tol
+			if(present(xtol)) then
+				xtol_=xtol
+			else
+				xtol_=huge(1._wp)
+			endif
+			if(present(ytol)) then
+				ytol_=ytol
+			else
+				ytol_=huge(1._wp)
+			endif
 			return
 		endif
 		if(.not.isnan(py)) then
-			if(py*y<0d0) flag=.true.
+			if(py*y<0._wp) flag=.true.
 			if(flag) then
-				dx_=dx_/2d0
+				dx_=dx_/2._wp
 			endif
-			if(py*y<0d0) then
+			if(py*y<0._wp) then
 				dx_=-dx_
-			elseif(sign(1d0,py)*sign(1d0,(py-y)/(px-x)*dx_)>0d0) then 
+			elseif(sign(1._wp,py)*sign(1._wp,(py-y)/(px-x)*dx_)>0._wp) then 
 				x=px
 				dx_=-dx_
 			endif
 		endif
 		px=x
 		py=y
-		if(abs(dx_)<tol_) then
+		!if(abs(dx_)<tol_) then
+		if(abs(y)<ytol_.and.abs(dx_)<xtol_) then
 			rt=.true.
 		else
 			x=x+dx_
 		endif
 	end function
-	real(8) function rintegrate(x,A) result(f)
-		real(8) :: x(:)
-		real(8) :: A(:)
+	real(wp) function rintegrate(x,A) result(f)
+		real(wp) :: x(:)
+		real(wp) :: A(:)
 		integer :: i
-		f=0d0
+		f=0._wp
 		do i=1,size(x)-1
-			f=f+0.5d0*(x(i+1)-x(i))*(A(i+1)+A(i))
+			f=f+0.5_wp*(x(i+1)-x(i))*(A(i+1)+A(i))
 		enddo
 	end function
-	complex(8) function cintegrate(x,A) result(f)
-		real(8) :: x(:)
-		complex(8) :: A(:)
+	complex(wp) function cintegrate(x,A) result(f)
+		real(wp) :: x(:)
+		complex(wp) :: A(:)
 		integer :: i
-		f=0d0
+		f=0._wp
 		do i=1,size(x)-1
-			f=f+0.5d0*(x(i+1)-x(i))*(A(i+1)+A(i))
+			f=f+0.5_wp*(x(i+1)-x(i))*(A(i+1)+A(i))
 		enddo
 	end function
-	pure real(8) function ff(x)
-		real(8), intent(in) :: x
-		ff=1d0/(exp(x)+1d0)
-	end function
-	pure real(8) function fb(x)
-		real(8), intent(in) :: x
-		integer :: m
-		real(8) :: f1,f2
-		if(abs(x)<1d-20) then
-			fb=-0.5d0
-		elseif(x<0d0) then
-			fb=1d0/(exp(x)-1d0)
+	complex(wp) function cfintegrate(f,bound,tol,singular) result(rt)
+		complex(wp) :: f
+		real(wp) :: bound(2),tol
+		logical, optional :: singular
+		integer, parameter :: lim=300,lenw=lim*4
+		real(dp) :: abserr,work(lenw),rrt,crt
+		integer :: neval,ier,last,iwork(lim)
+		external f
+		if(bound(1)/=-inf.and.bound(2)/=inf) then
+			if(present(singular)) then
+				if(singular) then
+					call dqags(rf,real(bound(1),kind=dp),real(bound(2),kind=dp),real(tol,kind=dp),real(tol,kind=dp),rrt,abserr,neval,ier,lim,lenw,last,iwork,work)
+					call dqags(cf,real(bound(1),kind=dp),real(bound(2),kind=dp),real(tol,kind=dp),real(tol,kind=dp),crt,abserr,neval,ier,lim,lenw,last,iwork,work)
+				else
+					call dqag(rf,real(bound(1),kind=dp),real(bound(2),kind=dp),real(tol,kind=dp),real(tol,kind=dp),1,rrt,abserr,neval,ier,lim,lenw,last,iwork,work)
+					call dqag(cf,real(bound(1),kind=dp),real(bound(2),kind=dp),real(tol,kind=dp),real(tol,kind=dp),1,crt,abserr,neval,ier,lim,lenw,last,iwork,work)
+				endif
+			else
+				call dqag(rf,real(bound(1),kind=dp),real(bound(2),kind=dp),real(tol,kind=dp),real(tol,kind=dp),1,rrt,abserr,neval,ier,lim,lenw,last,iwork,work)
+				call dqag(cf,real(bound(1),kind=dp),real(bound(2),kind=dp),real(tol,kind=dp),real(tol,kind=dp),1,crt,abserr,neval,ier,lim,lenw,last,iwork,work)
+			endif
+		elseif(bound(1)/=-inf) then
+			call dqagi(rf,real(bound(1),kind=dp),1,real(tol,kind=dp),real(tol,kind=dp),rrt,abserr,neval,ier,lim,lenw,last,iwork,work)
+			call dqagi(cf,real(bound(1),kind=dp),1,real(tol,kind=dp),real(tol,kind=dp),crt,abserr,neval,ier,lim,lenw,last,iwork,work)
+		elseif(bound(2)/=inf) then
+			call dqagi(rf,real(bound(2),kind=dp),-1,real(tol,kind=dp),real(tol,kind=dp),rrt,abserr,neval,ier,lim,lenw,last,iwork,work)
+			call dqagi(cf,real(bound(2),kind=dp),-1,real(tol,kind=dp),real(tol,kind=dp),crt,abserr,neval,ier,lim,lenw,last,iwork,work)
 		else
-			fb=-exp(-x)/(exp(-x)-1d0)
+			call dqagi(rf,real(bound(2),kind=dp),2,real(tol,kind=dp),real(tol,kind=dp),rrt,abserr,neval,ier,lim,lenw,last,iwork,work)
+			call dqagi(cf,real(bound(2),kind=dp),2,real(tol,kind=dp),real(tol,kind=dp),crt,abserr,neval,ier,lim,lenw,last,iwork,work)
+		endif
+		rt=cmplx(rrt,crt,kind=wp)
+	contains
+		real(dp) function rf(x) result(y)
+			real(dp) :: x
+			y=real(f(real(x,kind=wp)),kind=dp)
+		end function
+		real(dp) function cf(x) result(y)
+			real(dp) :: x
+			y=real(imag(f(real(x,kind=wp))),kind=dp)
+		end function
+	end function
+	real(wp) function rfintegrate(f,bound,tol,singular) result(rt)
+		real(wp) :: f,bound(2),tol
+		logical, optional :: singular
+		integer, parameter :: lim=300,lenw=lim*4
+		real(dp) :: abserr,work(lenw),rt_
+		integer :: neval,ier,last,iwork(lim)
+		external f
+		if(bound(1)/=-inf.and.bound(2)/=inf) then
+			if(present(singular)) then
+				if(singular) then
+					call dqags(f_,real(bound(1),kind=dp),real(bound(2),kind=dp),real(tol,kind=dp),real(tol,kind=dp),rt_,abserr,neval,ier,lim,lenw,last,iwork,work)
+				else
+					call dqag(f_,real(bound(1),kind=dp),real(bound(2),kind=dp),real(tol,kind=dp),real(tol,kind=dp),1,rt_,abserr,neval,ier,lim,lenw,last,iwork,work)
+				endif
+			else
+				call dqag(f_,real(bound(1),kind=dp),real(bound(2),kind=dp),real(tol,kind=dp),real(tol,kind=dp),1,rt_,abserr,neval,ier,lim,lenw,last,iwork,work)
+			endif
+		elseif(bound(1)/=-inf) then
+			call dqagi(f_,real(bound(1),kind=dp),1,real(tol,kind=dp),real(tol,kind=dp),rt_,abserr,neval,ier,lim,lenw,last,iwork,work)
+		elseif(bound(2)/=inf) then
+			call dqagi(f_,real(bound(2),kind=dp),-1,real(tol,kind=dp),real(tol,kind=dp),rt_,abserr,neval,ier,lim,lenw,last,iwork,work)
+		else
+			call dqagi(f_,real(bound(2),kind=dp),2,real(tol,kind=dp),real(tol,kind=dp),rt_,abserr,neval,ier,lim,lenw,last,iwork,work)
+		endif
+		rt=real(rt_,kind=wp)
+	contains
+		real(dp) function f_(x) result(y)
+			real(dp) :: x
+			y=real(f(real(x,kind=wp)),kind=dp)
+		end function
+	end function
+	pure elemental real(wp) function ff(x)
+		real(wp), intent(in) :: x
+		ff=1._wp/(exp(x)+1._wp)
+	end function
+	pure elemental real(wp) function fb(x)
+		real(wp), intent(in) :: x
+		integer :: m
+		real(wp) :: f1,f2
+		if(abs(x)<1d-20) then
+			fb=-0.5_wp
+		elseif(x<0._wp) then
+			fb=1._wp/(exp(x)-1._wp)
+		else
+			fb=-exp(-x)/(exp(-x)-1._wp)
 		endif
 	end function
-	subroutine set_grid(grid,flag,from,to,n)
-		real(8) :: grid(:),from(:),to(:)
+	subroutine cset_grid(grid,flag,from,to,n)
+		complex(wp) :: grid(:)
+		real(wp) :: from(:),to(:)
 		integer :: flag(:),n(:)
 		integer,save :: n_
 		integer :: i,j,k,l,u,m,o
-		real(8) :: base,from_,dx
+		real(wp) :: base,from_,dx
 		m=1
 		o=1
 		do k=1,size(flag)
 			select case(flag(k))
 			case(reset)
 				n_=0
+				grid=0._wp
+			case(add_log_linear)
+				l=find(grid(1:n_)%re,from(o))
+				u=find(grid(1:n_)%re,to(o))
+				grid(u+n(m)*n(m+1)+1:n_+n(m)*n(m+1))=grid(u+1:n_)
+				u=u+n(m)*n(m+1)
+				n_=n_+n(m)*n(m+1)
+				base=(to(o)/from(o))**(1._wp/n(m))
+				from_=from(o)/base
+				do i=l+1,u
+					if(mod(i-l-1,n(m+1))==0) then
+						from_=from_*base
+						dx=from_*(base-1._wp)/n(m+1)
+					endif
+					grid(i)=from_+dx*(mod(i-l-1,n(m+1))+1)
+				enddo
+				m=m+2
+				o=o+1
+			case(add_linear)
+				l=find(grid(1:n_)%re,from(o))
+				u=find(grid(1:n_)%re,to(o))
+				grid(u+n(m)+1:n_+n(m))=grid(u+1:n_)
+				u=u+n(m)
+				n_=n_+n(m)
+				dx=(to(o)-from(o))/(u-l)
+				do i=l+1,u
+					grid(i)=from(o)+dx*(i-l)
+				enddo
+				m=m+1
+				o=o+1
+			end select
+		enddo
+	end subroutine
+	subroutine rset_grid(grid,flag,from,to,n)
+		real(wp) :: grid(:),from(:),to(:)
+		integer :: flag(:),n(:)
+		integer,save :: n_
+		integer :: i,j,k,l,u,m,o
+		real(wp) :: base,from_,dx
+		m=1
+		o=1
+		do k=1,size(flag)
+			select case(flag(k))
+			case(reset)
+				n_=0
+				grid=0._wp
 			case(add_log_linear)
 				l=find(grid(1:n_),from(o))
 				u=find(grid(1:n_),to(o))
 				grid(u+n(m)*n(m+1)+1:n_+n(m)*n(m+1))=grid(u+1:n_)
 				u=u+n(m)*n(m+1)
 				n_=n_+n(m)*n(m+1)
-				base=(to(o)/from(o))**(1d0/n(m))
+				base=(to(o)/from(o))**(1._wp/n(m))
 				from_=from(o)/base
 				do i=l+1,u
 					if(mod(i-l-1,n(m+1))==0) then
 						from_=from_*base
-						dx=from_*(base-1d0)/n(m+1)
+						dx=from_*(base-1._wp)/n(m+1)
 					endif
 					grid(i)=from_+dx*(mod(i-l-1,n(m+1))+1)
 				enddo
@@ -151,8 +281,8 @@ contains
 		enddo
 	end subroutine
 	pure integer function rfind(A,x) result(rt)
-		real(8), intent(in) :: A(:)
-		real(8), intent(in) :: x
+		real(wp), intent(in) :: A(:)
+		real(wp), intent(in) :: x
 		integer :: m,u
 		rt=0
 		u=size(A)+1
@@ -169,13 +299,13 @@ contains
 			endif
 		enddo
 	end function
-	pure complex(8) function cget(x,i) result(rt)
-		complex(8), intent(in) :: x(:)
+	pure complex(wp) function cget(x,i) result(rt)
+		complex(wp), intent(in) :: x(:)
 		integer, intent(in) :: i
 		rt=x(i)
 	end function
-	pure real(8) function rget(x,i) result(rt)
-		real(8), intent(in) :: x(:)
+	pure real(wp) function rget(x,i) result(rt)
+		real(wp), intent(in) :: x(:)
 		integer, intent(in) :: i
 		rt=x(i)
 	end function
@@ -194,7 +324,7 @@ contains
 		enddo
 	end subroutine
 	subroutine cmwrite(f,A)
-		complex(8) :: A(:,:)
+		complex(wp) :: A(:,:)
 		integer :: f,i
 		do i=1,size(A,1)
 			!write(f,"(sp,e16.4,e11.4'I'$)")A(i,:)
@@ -211,7 +341,7 @@ contains
 		write(f,"(1X)")
 	end subroutine
 	subroutine rmwrite(f,A)
-		real(8) :: A(:,:)
+		real(wp) :: A(:,:)
 		integer :: f,i
 		do i=1,size(A,1)
 			write(f,"(es12.4$)")A(i,:)
@@ -234,19 +364,19 @@ contains
 		b=tmp
 	end subroutine
 	subroutine srswap(a,b)
-		real(8) :: a,b,tmp
+		real(wp) :: a,b,tmp
 		tmp=a
 		a=b
 		b=tmp
 	end subroutine
 	subroutine vrswap(a,b)
-		real(8) :: a(:),b(:),tmp(size(a))
+		real(wp) :: a(:),b(:),tmp(size(a))
 		tmp=a
 		a=b
 		b=tmp
 	end subroutine
 	subroutine vcswap(a,b)
-		complex(8) :: a(:),b(:),tmp(size(a))
+		complex(wp) :: a(:),b(:),tmp(size(a))
 		tmp=a
 		a=b
 		b=tmp
@@ -258,12 +388,12 @@ contains
 		b=tmp
 	end subroutine
 	subroutine find_peak(a,ipeak)
-		real(8) :: a(:)
+		real(wp) :: a(:)
 		integer, allocatable :: ipeak(:)
 		integer :: ipeak_(10),n,i
 		n=0
 		do i=2,size(a)-1
-			if((a(i)-a(i-1))>0d0.and.(a(i)-a(i+1))>0d0) then
+			if((a(i)-a(i-1))>0._wp.and.(a(i)-a(i+1))>0._wp) then
 				n=n+1
 				if(n>10) then
 					n=n-1
@@ -276,77 +406,19 @@ contains
 		ipeak=ipeak_(:n)
 	end subroutine
 	subroutine is_cross(pa,a,sg)
-		real(8) :: pa,a
+		real(wp) :: pa,a
 		integer :: sg
 		sg=0
-		if(pa/=0d0) then
-			if(pa>0d0.and.a<0d0) then
+		if(pa/=0._wp) then
+			if(pa>0._wp.and.a<0._wp) then
 				sg=1
 			endif
-			if(pa<0d0.and.a>0d0) then
+			if(pa<0._wp.and.a>0._wp) then
 				sg=-1
 			endif
 		endif
 		pa=a
 	end subroutine
-	function carth(f,d,n)
-		integer :: n,i
-		complex(8) :: carth(1:n),f,d
-		carth(1)=f
-		if(n==1) then
-			return
-		endif
-		do i=2,n
-			carth(i)=carth(i-1)+d
-		enddo
-	end function
-	function rarth(f,d,n)
-		integer :: n,i
-		real(8) :: rarth(1:n),f,d
-		rarth(1)=f
-		if(n==1) then
-			return
-		endif
-		do i=2,n
-			rarth(i)=rarth(i-1)+d
-		enddo
-	end function
-	function iarth(f,n)
-		integer :: n,i
-		integer :: iarth(1:n),f
-		iarth(1)=f
-		if(n==1) then
-			return
-		endif
-		do i=2,n
-			iarth(i)=iarth(i-1)+1
-		enddo
-	end function
-	function openfile(unit,file,access,recl)
-		integer :: unit
-		character(*) :: file
-		character(100) :: nf
-		logical :: openfile,flag
-		character(*), optional :: access
-		integer, optional :: recl
-		!inquire(file=file, exist=flag) 
-		write(*,"(A$)")"Using default '",file,"' or enter a new name: " 
-		read(*,"(A)")nf
-		if(len(trim(adjustl(nf)))>0) then
-			if(present(access)) then
-				open(unit,file=file(1:scan(file,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat",access=access,recl=recl,form="formatted")
-			else
-				open(unit,file=file(1:scan(file,".",.true.)-1)//"_"//trim(adjustl(nf))//".dat")
-			endif
-		else
-			if(present(access)) then
-				open(unit,file=file,access=access,recl=recl,form="formatted")
-			else
-				open(unit,file=file)
-			endif
-		endif
-		openfile=.true.
-	end function
 	function to_char_single(i,l) result(to_char)
 		integer :: i
 		integer, optional :: l
@@ -422,11 +494,11 @@ contains
 	end function
 	recursive subroutine rqsort(self,ord)
 		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
-		real(8) :: self(:)
+		real(wp) :: self(:)
 		integer :: ord(:)
 		integer :: left,right,n
-		real(8) :: random
-		real(8) :: pivot
+		real(wp) :: random
+		real(wp) :: pivot
 		integer :: marker
 		n=size(ord)
 		if(n>1) then
@@ -460,13 +532,13 @@ contains
 		endif
 	end subroutine
 	subroutine rcollect(self,a)
-		real(8) :: self(:)
-		integer :: i,j,tmp(10000)
+		real(wp) :: self(:)
+		integer :: i,j,tmp(size(self))
 		integer, allocatable :: a(:)
 		tmp(1)=1
 		j=1
 		do i=2,size(self)
-			if((abs(self(i)-self(i-1))>1d-6)) then
+			if((abs(self(i)-self(i-1))>eps*100._wp)) then
 				j=j+1
 				tmp(j)=i
 			endif
@@ -478,11 +550,11 @@ contains
 	end subroutine
 	recursive subroutine rmqsort(self,ord)
 		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
-		real(8) :: self(:,:)
+		real(wp) :: self(:,:)
 		integer :: ord(:)
 		integer :: left,right,n
-		real(8) :: random
-		real(8) :: pivot(size(self,1))
+		real(wp) :: random
+		real(wp) :: pivot(size(self,1))
 		integer :: marker,i
 		logical :: is_large,is_small
 		n=size(ord)
@@ -497,10 +569,10 @@ contains
 				do
 					is_large=.false.
 					do i=1,size(self,1)
-						if((self(i,ord(right))-pivot(i))>1d-8) then
+						if((self(i,ord(right))-pivot(i))>eps*100._wp) then
 							is_large=.true.
 							exit
-						elseif((self(i,ord(right))-pivot(i))<-1d-8) then
+						elseif((self(i,ord(right))-pivot(i))<-eps*100._wp) then
 							exit
 						endif
 					enddo
@@ -511,10 +583,10 @@ contains
 				do
 					is_large=.true.
 					do i=1,size(self,1)
-						if((self(i,ord(left))-pivot(i))<-1d-8) then
+						if((self(i,ord(left))-pivot(i))<-eps*100._wp) then
 							is_large=.false.
 							exit
-						elseif((self(i,ord(left))-pivot(i))>1d-8) then
+						elseif((self(i,ord(left))-pivot(i))>eps*100._wp) then
 							exit
 						endif
 					enddo
@@ -537,13 +609,13 @@ contains
 		endif
 	end subroutine
 	subroutine rmcollect(self,a)
-		real(8) :: self(:,:)
+		real(wp) :: self(:,:)
 		integer :: i,j,tmp(size(self,2))
 		integer, allocatable :: a(:)
 		tmp(1)=1
 		j=1
 		do i=2,size(self,2)
-			if(any(abs(self(:,i)-self(:,i-1))>1d-8)) then
+			if(any(abs(self(:,i)-self(:,i-1))>eps*100._wp)) then
 				j=j+1
 				tmp(j)=i
 			endif
@@ -557,8 +629,8 @@ contains
 		!From: http://rosettacode.org/wiki/Sorting_algorithms/Quicksort#Fortran
 		class(t_sort) :: self(:)
 		integer :: left,right,n
-		real(8) :: random
-		real(8) :: pivot
+		real(wp) :: random
+		real(wp) :: pivot
 		integer :: marker
 		n=size(self)
 		if(n>1) then
@@ -617,8 +689,8 @@ contains
 		deallocate(tmp)
 	end subroutine
 	elemental function abs2(a)
-		complex(8), intent(in) :: a
-		real(8) :: abs2
+		complex(wp), intent(in) :: a
+		real(wp) :: abs2
 		abs2=real(a*conjg(a))
 	end function
 end module

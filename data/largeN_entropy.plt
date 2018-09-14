@@ -35,7 +35,7 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set cbtics scale 0.5 offset character -0.7, 0 font ",".(ticfontsize)
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
-set xrange [:1e-6]
+set xrange [1e-5:]
 set yrange [:]
 set zrange [:]
 set logscale x
@@ -49,7 +49,7 @@ set style line 2 dashtype 3
 set style line 3 dashtype 2
 
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-plot for[i=1:1] "-" index 0 u "T":(column(word("S Sa1 Sa2",i))) with lp pt 7 ps 0.5 title word("S Sa1 Sa2",i)
+plot for[i=1:1] "-" index 0 u "T":(column(word("Sn Sa",i))) with lp pt 7 ps 0.5 title word("Sn Sa",i)
 #plot "-" index 0 u "J":"T":"S" with p pt 7 palette notitle
 set key font ",".ticfontsize at graph 0.43,0.65,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 #opaque autotitle
 set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy

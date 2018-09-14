@@ -110,7 +110,7 @@ contains
 		if(present(V)) then
 			self%var(idx)%V=V
 		else
-			self%var(idx)%V=transfer([Z'00000000',Z'7FF80000'],1d0)
+			self%var(idx)%V=nan
 		endif
 		self%var(idx)%nb=abs(nb)
 		if(present(label)) then

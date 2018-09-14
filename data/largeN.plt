@@ -35,11 +35,11 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set cbtics scale 0.5 offset character -0.7, 0 font ",".(ticfontsize)
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
-set xrange [:]
+set xrange [-.1:.1]
 set yrange [:]
 set zrange [:]
-set logscale x
-set logscale y
+#set logscale x
+#set logscale y
 #a=0.229-1.
 #a=0.106-1.
 #a=0.03992865381623536-1.
@@ -51,11 +51,11 @@ set logscale y
 #a=0.06309878156026809-1.
 #a=0.543604996816506-1.
 #a=0.014569749254921006-1.
-a=0.41-1.
-#a=0.229-1
-b=0.00001/0.11
+#a=0.15-1.
+a=0.45
+b=0.000001/0.11
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-plot for[i=0:71] for[j=1:1] "-" index i u ((column("Tk")-1e-4)<1e-11?column("omega"):1/0):(-column(word("iGf rG2",j))) with l notitle, 10000.*b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,a)#,10000.*b*x**(-0.894) w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,-0.894)
+plot for[i=0:0] for[j=1:2] "-" index i u ((column("Tk")-1e-4)<1e-11?column("omega"):column("omega")):(-column(word("iGphi0 rhophi",j))) with l notitle#, 10000.*b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,a)#,10000.*b*x**(-0.894) w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b*10000.,-0.894)
 #plot "-" index 0 u 2:5 with l notitle
 set key font ",".(ticfontsize-2) at graph 0.84,0.95,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 autotitle #opaque
 set label "(b)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy

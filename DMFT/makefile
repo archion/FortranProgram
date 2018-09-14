@@ -1,6 +1,5 @@
-out = fk.out
+out = fk_matsubara.out
 AFLAG = -qopenmp
-#LFLAG = -lslatec
-#LFLAG = -lmath77
+LFLAG = -lslatec -lmath77
 DEBUG = 
 include ../makefile
