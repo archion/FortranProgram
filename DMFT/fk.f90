@@ -38,14 +38,6 @@ module M_DMFT
 		procedure :: export
 	end type
 contains
-	real(8) function ek(k) result(rt)
-		real(8) :: k(D)
-		integer :: ik
-		rt=0d0
-		do ik=1,D
-			rt=rt+2d0*t*cos(k(ik))
-		enddo
-	end function
 	subroutine export(self,ut,flag)
 		class(gfs(*,*,*)) :: self
 		integer :: ut(:),flag(:)
@@ -194,7 +186,7 @@ contains
 		real(8) :: rate,tol
 		integer :: flag
 		integer :: niter
-		integer :: i,j,ik,iw,nx
+		integer :: i(2),ik,iw,nx
 		real(8) :: x(self%n*nkD*2),x_(size(x))
 		complex(8) :: tmp(n)
 		mu=0.5d0*U
@@ -202,39 +194,40 @@ contains
 		if(.not.is_real) call self%set_Gfunction([set_omega])
 		!$OMP PARALLEL DO
 		do ik=1,size(self%k,2)
-			self%ek(ik)=ek(self%k(1:D,ik))
+			self%ek(ik)=0._wp
+			do i=1,D
+				self%ek(ik)=self%ek(ik)+2d0*t*cos(self%k(i,ik))
+			enddo
 		enddo
 		!$OMP END PARALLEL DO
-		select case(flag)
-		case(DMFT) 
+		do i(1)=1,niter
+		!case(DMFT) 
 			nx=self%n*merge(1,2,is_real)
 			call mbroyden(0,x(1:nx),x_(1:nx),rate,40)
-			do i=1,niter
 				if(is_real) call set_realpart(iomega%re,self%Delta)
 				call self%set_Gfunction([set_Gl])
 				x(1:nx)=[self%Delta%im,self%Delta%re]
 				call self%set_Gfunction([set_SEl,set_Gl+prime])
 				x_(1:nx)=[imag(iomega-1d0/self%Gl-self%SEl),real(iomega-1d0/self%Gl-self%SEl)]
 				!x_(1:self%n)=merge(x_(1:self%n),0d0,x_(1:self%n)<0d0)
-				write(*,*)i,maxval(abs(x(1:nx)-x_(1:nx)))
-				if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i==niter+1) then
-					self%conv=(i/=niter+1)
+				write(*,*)i(1),maxval(abs(x(1:nx)-x_(1:nx)))
+				if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i(1)==niter+1) then
+					self%conv=(i(1)/=niter+1)
 					exit
 				else
-					call mbroyden(i,x(1:nx),x_(1:nx))
+					call mbroyden(i(1),x(1:nx),x_(1:nx))
 				endif
 				!do j=1,n
 					!self%Delta%im(j)=x(j)
 				!enddo
 				self%Delta=cmplx(x(self%n+1:self%n*2),x(1:self%n),kind=8)
-			enddo
 			call mbroyden(huge(1),x(1:nx),x_(1:nx))
 			call self%set_Gfunction([set_Gl,set_Gk])
 			call self%export([10,30],[export_w,export_k])
-		case(DF)
+		!case(DF)
 			nx=self%n*nkD*merge(1,2,is_real)
 			call mbroyden(0,x(1:nx),x_(1:nx),rate,40)
-			call self%set_Gfunction([set_GM,set_dG0k+prime])
+			call self%set_Gfunction([set_GM,set_dG0k])
 			do ik=1,nkD
 				self%dG(:)%k(ik)=self%dG0(:)%k(ik)
 				x((ik-1)*n+1:ik*n)=imag(self%dG(:)%k(ik))
@@ -242,7 +235,7 @@ contains
 					x(nx/2+(ik-1)*n+1:nx/2+ik*n)=real(self%dG(:)%k(ik))
 				endif
 			enddo
-			do i=1,niter
+			do i(2)=1,niter
 				call self%export([50],[export_wk])
 				call self%set_Gfunction([set_dSusq,set_B,set_dVerq,set_dSEk])
 				!exit
@@ -262,13 +255,13 @@ contains
 						x_(nx/2+(ik-1)*n+1:nx/2+ik*n)=real(self%dG(:)%k(ik))
 					endif
 				enddo
-				write(*,"(i3,*(es14.4))")i,maxval(abs(x(1:nx)-x_(1:nx))),Tk,self%B(ipi)
-				if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i==niter+1) then
-					self%conv=(i/=niter+1)
+				write(*,"(i3,*(es14.4))")i(2),maxval(abs(x(1:nx)-x_(1:nx))),Tk,self%B(ipi)
+				if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i(2)==niter+1) then
+					self%conv=(i(2)/=niter+1)
 					exit
 				else
 					!x=x_*rate+x*(1._wp-rate)
-					call mbroyden(i,x(1:nx),x_(1:nx))
+					call mbroyden(i(2),x(1:nx),x_(1:nx))
 				endif
 				!do iw=1,n
 					!self%dG(iw)%k=cmplx(1._wp,x((iw-1)*nkD+1:iw*nkD),kind=wp)
@@ -288,7 +281,7 @@ contains
 				enddo
 			enddo
 			call mbroyden(huge(1),x(1:nx),x_(1:nx))
-		end select
+		enddo
 	end subroutine
 	subroutine set_realpart(omega,G)
 		real(8) :: omega(:)
@@ -404,33 +397,21 @@ program main
 		!read(20,"(2(e28.20))")phy%Delta(i)
 	!enddo
 	write(40,"(A)")"U T"
+	if(next(Tk,0d0,1d-1,1d-4)) then
+	endif
+	phy%Delta=0d0
 	do 
-		U=for_in([1.d0],id=1)
+		U=for_in([1d0],id=1)
 		if(isnan(U)) exit
 		Tk=2.1d-1
 		if(is_real) call phy%set_Gfunction([set_omega])
 
-		!phy%Delta%im=-exp(abs(omega(i)))
-		phy%Delta=cmplx(omega,exp(abs(omega)),kind=8)
-		call phy%self_consistent(0.1d0,3000,1d-6,DMFT)
-		if(.not.phy%conv) then
-			write(*,*)"not converge!!!!"
-		else
-			rewind(20)
-			do i=1,n
-				write(20,"(*(e29.20e3))")phy%Delta(i)
-			enddo
+		call phy%self_consistent(0.1d0,3000,1d-6)
+		write(*,*)Tk,phy%B(ipi)
+		!stop
+		if(next(Tk,phy%B(ipi)-1d0)) then
+			write(40,"(*(e29.20e3))")U,Tk
+			exit
 		endif
-		if(next(Tk,0d0,1d-1,1d-4)) then
-		endif
-		do
-			call phy%self_consistent(0.1d0,3000,1d-6,DF)
-			write(*,*)Tk,phy%B(ipi)
-			!stop
-			if(next(Tk,phy%B(ipi)-1d0)) then
-				write(40,"(*(e29.20e3))")U,Tk
-				exit
-			endif
-		enddo
 	enddo
 end program
