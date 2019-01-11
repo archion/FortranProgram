@@ -17,7 +17,7 @@ module M_utility
 		module procedure rset_grid,cset_grid
 	end interface
 	interface get
-		module procedure cget,rget,iget
+		module procedure cget,rget
 	end interface
 	interface find
 		module procedure rfind
@@ -37,7 +37,7 @@ module M_utility
 	interface collect
 		module procedure rcollect,scollect,rmcollect
 	end interface
-	real(dp) :: otime(0:6)=0d0
+	real(wp) :: otime(0:6)=0._wp
 contains
 	logical function next(x,y,dx,xtol,ytol) result(rt)
 		real(wp) :: x,y
@@ -181,7 +181,7 @@ contains
 		real(wp), intent(in) :: x
 		integer :: m
 		real(wp) :: f1,f2
-		if(abs(x)<1d-20) then
+		if(abs(x)<1e-20_wp) then
 			fb=-0.5_wp
 		elseif(x<0._wp) then
 			fb=1._wp/(exp(x)-1._wp)
@@ -302,24 +302,63 @@ contains
 	pure complex(wp) function cget(x,i) result(rt)
 		complex(wp), intent(in) :: x(:)
 		integer, intent(in) :: i
-		rt=x(i)
+		if(i<=size(x,1)) then
+			rt=x(i)
+		else
+			rt=nan
+		endif
 	end function
 	pure real(wp) function rget(x,i) result(rt)
 		real(wp), intent(in) :: x(:)
 		integer, intent(in) :: i
-		rt=x(i)
+		if(i<=size(x,1)) then
+			rt=x(i)
+		else
+			rt=nan
+		endif
 	end function
-	pure integer function iget(x,i) result(rt)
-		integer, intent(in) :: x(:)
-		integer, intent(in) :: i
-		rt=x(i)
+	real(wp) function for_in(x,i,id) result(rt)
+		real(wp), optional, intent(in) :: x(:)
+		integer, optional, intent(in) :: i
+		integer, intent(in) :: id
+		integer, save :: i_(20)=0
+		integer, save :: n_(20)=0
+		real(wp), save :: x_(200,20)
+		if(present(i)) then
+			if(i>0) then
+				if(i<=n_(id)) then
+					rt=x_(i,id)
+				else
+					rt=nan
+				endif
+			else
+				if(i+i_(id)>0) then
+					rt=x_(i+i_(id),id)
+				else
+					rt=nan
+				endif
+			endif
+		else
+			if(present(x)) then
+				n_(id)=size(x,1)
+				x_(1:n_(id),id)=x
+			else
+				i_(id)=0
+			endif
+			i_(id)=i_(id)+1
+			if(i_(id)<=n_(id)) then
+				rt=x_(i_(id),id)
+			else
+				rt=nan
+			endif
+		endif
 	end function
 	subroutine show_time()
 		integer :: i
 		write(*,"(A)")"The timing results is:"
 		do i=1,ubound(otime,1)
-			if(otime(i)>1d-6) then
-				write(*,"(i4,'m',f6.3,'s')")int(otime(i)/60d0),otime(i)-int(otime(i)/60d0)*60d0
+			if(otime(i)>1e-6_wp) then
+				write(*,"(i4,'m',f6.3,'s')")int(otime(i)/60._wp),otime(i)-int(otime(i)/60._wp)*60._wp
 			endif
 		enddo
 	end subroutine
@@ -449,7 +488,8 @@ contains
 		integer :: j,n
 		character(:), allocatable :: to_char(:)
 		character(:), allocatable :: c
-		to_char=[character::]
+		!ifort error
+		!to_char=[character::]
 		do n=1,size(i)
 			j=i(n)
 			c=''

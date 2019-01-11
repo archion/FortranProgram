@@ -1,14 +1,15 @@
 reset
-sx=4.3
+sx=2.
 sy=3.12
-x1lb="X"
-y1lb="Y"
+x1lb="{/Symbol p}T/sin({/Symbol p}{/Symbol t}T)"
+y1lb="G_f({/Symbol t})"
+flabel=""
 #x2lb="X"
 #y2lb="Y"
 #zlb="Z"
-lmg=8.5
-rmg=5.5
-umg=2.5
+lmg=5.5
+rmg=0.5
+umg=0.5
 dmg=2.5
 fontsize=15
 ticfontsize=floor(fontsize*0.7)
@@ -35,8 +36,8 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set cbtics scale 0.5 offset character -0.7, 0 font ",".(ticfontsize)
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
-set xrange [:]
-set yrange [:]
+set xrange [1e-7:100]
+set yrange [1e-6:1]
 set zrange [:]
 set logscale x
 set logscale y
@@ -45,13 +46,20 @@ a=0.41
 b=0.0001/1.1*tan(pi*(1.+a)/2.)
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
 array cl[2]=["Gc0t","GphiGf"]
-array fact[2]=[-1,-1]
-#plot for[k=1:40] for[i=k*1-1:k*1-1] "-" index i every :::1::1 u (pi*column("T")/sin(pi*column("tau")*column("T"))):(-column("GB")) with l notitle#,  1/((1.7*x)**(-0.6)+2.) w line dt 2 notitle#,  (x)**(a) w line dt 2 notitle
-plot for[k=1:1] for[j=1:1] for[i=0:1] "-" index i u (column("tau")*column("Tk")):(column(cl[1])*fact[j]) with l notitle
+array fact[4]=[1.,0.5,1.,1.]
+#array a[4]=[0.55,1.45,0.29,0.67]
+array a[4]=[0.77,0.15,0.41,0.03]
+#array b[4]=[0.38,0.13,0.53,0.15]
+array b[4]=[1.3,0.94,2.3,0.42]
+a2=1.
+a1=3.5
+#fit [x=0.0000001:100] 1./(a1*x**(-a[1])+2.)  "-" index 0 every :::60::60 u (pi*column("T")/sin(pi*column("tau")*column("T"))):(-column("Gc0t")) via a1
+plot for[i=1:3] for[j=60:1:-1] "-" index i-1 every :::j::j u (pi*column("T")/sin(pi*column("tau")*column("T"))):(-column("Gct")) with l lc j lw 1 title word("Numeric Modified Analytic",0)#, for[i=1:1] 1./(3.5*x**(-a[i])+1./0.7) w l lc i+1 dt 2 lw 2 title sprintf("%1.2f/(%1.2fx^{-%1.2f}+2)",a2,a1,a[i])
+#plot for[k=1:1] for[j=1:1] for[i=0:1] "-" index i u (column("tau")*column("Tk")):(column(cl[1])*fact[j]) with l notitle
 #plot for[i=1:1] "-" index i u 0:(pi*column("T")/sin(pi*column("tau")*column("T"))) with l notitle sprintf("J= %1.2f",(i+1)/72*0.05+1)#,  1./((x)**(-a)+2) w line dt 2 notitle,  (x)**(a) w line dt 2 notitle
 #plot "-" index 0 every 1:1:::574/2 u (pi*$1/sin(pi*$2*$1)):(pi*$1/sin(pi*$2*$1)) with p notitle
-set key font ",".ticfontsize at graph 0.43,0.65,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 #opaque autotitle
-set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
+set key font ",".ticfontsize at graph 0.9,0.10,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 #opaque autotitle
+set label flabel font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){
 	set key at screen 1,1,1
 }
@@ -69,7 +77,7 @@ if(exists("zlb")){
 if(exists("x1lb")) {
 	set xlabel x1lb offset character 0,1.2 
 	#set label x1lb center at graph 0.5,screen 0 front offset character 0, 0.7
-	set xtics out nomirror scale 0.7, 0.3 offset 0,0.5 font ",".(ticfontsize)
+	set xtics 1000 out nomirror scale 0.7, 0.3 offset 0,0.5 font ",".(ticfontsize)
 	if(exists("zlb")) {
 		set xlabel offset character 0,0
 		set xtics offset 0,0 

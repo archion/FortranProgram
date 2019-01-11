@@ -326,44 +326,46 @@ contains
 		enddo
 	end function
 	function outprod_c(A,B) result(rt)
-		complex(8) :: A(:),B(:)
-		complex(8) :: rt(size(A)*size(B))
+		complex(wp) :: A(:),B(:)
+		complex(wp) :: rt(size(A)*size(B))
 		integer :: i,n
 		n=size(A)
 		do i=1,size(B)
 			rt(n*(i-1)+1:n*i)=A*B(i)
 		enddo
 	end function
-	!subroutine mat_diag(H,E,info)
-		!complex(8) :: H(:,:),tmp(size(H,1),size(H,2))
-		!real(8) :: E(:)
-		!integer, optional :: info
-		!if(present(info)) then
-			!tmp=H
-		!endif
-		!select case(size(E))
-		!case(2)
-			!call diag2(H,E)
+	subroutine mat_diag(H,E,check)
+		complex(wp) :: H(:,:)
+		real(wp) :: E(:)
+		complex(min(dp,wp)) :: H_(size(H,1),size(H,2))
+		logical, optional :: check
+		if(present(check).or.(wp>dp)) then
+			H_=cmplx(H,kind=min(dp,wp))
+		endif
+		select case(size(E))
+		case(2)
+			call diag2(H,E)
 		!case(4)
 			!call diag4(H,E)
-		!case(100:)
-			!call heevd(H,E,"V")
-		!case default
-			!call heev(H,E,"V")
-		!end select
-		!if(present(info)) then
-			!if(.not.check_diag(tmp,H,E)) then
-				!write(*,*)"diag4 err, A is"
-				!write(*,*)"real part"
-				!write(*,"(4es12.4)")real(tmp)
-				!write(*,*)"imag part"
-				!write(*,"(4es12.4)")imag(tmp)
-				!write(*,*)"E is"
-				!write(*,"(4es12.4)")E
-				!write(*,*)"UAU is"
-				!write(*,"(4es12.4)")real(matmul(transpose(conjg(H)),matmul(tmp,H)))
-				!stop
-			!endif
-		!endif
-	!end subroutine
+		case(100:)
+			if(wp>dp) then
+				call heevd(H_,E,"V")
+				H=cmplx(H_,kind=wp)
+			else
+				call heevd(H,E,"V")
+			endif
+		case default
+			if(wp>dp) then
+				call heev(H_,E,"V")
+				H=cmplx(H_,kind=wp)
+			else
+				call heev(H,E,"V")
+			endif
+		end select
+		if(present(check)) then
+			if(.not.check_diag(H_,H,E)) then
+				write(*,*)"diag err"
+			endif
+		endif
+	end subroutine
 end module

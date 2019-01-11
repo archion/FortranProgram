@@ -1,14 +1,15 @@
 module mc_utility
 	use blas95, only : gemm, gemv, her, gerc
+	use M_const
 	implicit none
 contains
 	subroutine get_pb(k,m,pb,WA,WAl,WAr,iA,iAl,AW,WAW,AWr)
 		integer :: k(:),m(:)
-		complex(8) :: WA(:,:),pb
-		complex(8), optional :: WAl(:,:),WAr(:,:),iA(:,:),iAl(:,:),AW(:,:),WAW(:,:),AWr(:,:)
+		complex(wp) :: WA(:,:),pb
+		complex(wp), optional :: WAl(:,:),WAr(:,:),iA(:,:),iAl(:,:),AW(:,:),WAW(:,:),AWr(:,:)
 		integer :: i,j,n
 		integer :: k_(size(k)/2+size(m)/2),m_(size(k_))
-		complex(8) :: A(size(k_,1),size(k_,1))
+		complex(wp) :: A(size(k_,1),size(k_,1))
 		n=size(k)/2
 		k_=[k(1::2),m(1::2)]
 		m_=[k(2::2),m(2::2)]
@@ -47,7 +48,7 @@ contains
 		!A(n+1:,n+1:)=AW(k_(n+1:),m_(n+1:))
 		select case(size(k_))
 		case(0)
-			pb=1d0
+			pb=1._wp
 		case(1)
 			pb=A(1,1)
 		case(2)
@@ -66,12 +67,12 @@ contains
 	end subroutine
 	subroutine update(k,WA,WAl,WAr,iA,iAl,AW,WAW,AWr,cwf,wf,full)
 		integer :: k(:)
-		complex(8) :: WA(:,:),WAl(:,:),WAr(:,:)
-		complex(8), optional :: AW(:,:),WAW(:,:),iA(:,:),cwf(:,:),wf(:,:),iAl(:,:),AWr(:,:)
+		complex(wp) :: WA(:,:),WAl(:,:),WAr(:,:)
+		complex(wp), optional :: AW(:,:),WAW(:,:),iA(:,:),cwf(:,:),wf(:,:),iAl(:,:),AWr(:,:)
 		logical :: full
 		integer :: k_(size(k)/2),m_(size(k_))
 		integer :: n,i,j,l,ct=0
-		complex(8) :: A(size(k_),size(k_)),beta=1d0
+		complex(wp) :: A(size(k_),size(k_)),beta=1._wp
 		if(size(k)>0) then
 			n=size(WAl,2)-size(k_)
 			k_=[k(1::2)]
@@ -85,9 +86,9 @@ contains
 			case(0)
 				return
 			case(1)
-				A=-1d0/A
+				A=-1._wp/A
 			case(2)
-				A=-1d0/(A(1,1)*A(2,2)-A(2,1)*A(1,2))*reshape([A(2,2),-A(2,1),-A(1,2),A(1,1)],[2,2])
+				A=-1._wp/(A(1,1)*A(2,2)-A(2,1)*A(1,2))*reshape([A(2,2),-A(2,1),-A(1,2),A(1,1)],[2,2])
 			case default
 				write(*,*)"err"
 				stop
@@ -97,7 +98,7 @@ contains
 			do i=1,size(k_)
 				call gemv(WAl(:,:n),WAr(:n,k_(i)),WAl(:,n+i),beta=beta)
 				call gemv(WAr(:n,:),WAl(m_(i),:n),WAr(n+i,:),beta=beta,trans='T')
-				WAr(n+i,k_(i))=WAr(n+i,k_(i))-1d0
+				WAr(n+i,k_(i))=WAr(n+i,k_(i))-1._wp
 			enddo
 			WAr(n+1:,:)=matmul(A,WAr(n+1:,:))
 			if(present(iA)) then

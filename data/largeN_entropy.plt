@@ -1,14 +1,18 @@
 reset
-sx=4.3
-sy=3.12
-x1lb="T"
-y1lb="S"
+sx=2.5
+sy=3
+#x1lb="{/Symbol k}"
+#x1lb=""
+x1lb="J_k"
+#y1lb="Im[ln(-G_f^{-1})]"
+y1lb="0.6951-s_{imp}"
 #x2lb="X"
 #y2lb="Y"
 #zlb="Z"
-lmg=5.5
-rmg=2.5
-umg=2.5
+flabel=" "
+lmg=8.5
+rmg=1.0
+umg=0.5
 dmg=2.5
 fontsize=15
 ticfontsize=floor(fontsize*0.7)
@@ -28,14 +32,15 @@ set margin lmg,rmg,dmg,umg
 set pm3d corners2color c2
 set palette rgbformulae 22,13,-31
 #set logscale cb
-set cbrange [0.7:0.75]
 set cbrange [:]
 set cbtics scale 0.5 offset 0,character 2.1 font ",".(ticfontsize)
 set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set cbtics scale 0.5 offset character -0.7, 0 font ",".(ticfontsize)
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
-set xrange [1e-5:]
+#set xrange [:]
+set xrange [:]
+#set yrange [1:1e-5]
 set yrange [:]
 set zrange [:]
 set logscale x
@@ -44,15 +49,25 @@ a=-0.771
 b=0.0001/5
 #set style line 1 linetype dl
 
-
 set style line 2 dashtype 3
 set style line 3 dashtype 2
+#set label "MCK" at 2e-8,0.585 font ",".ticfontsize
+#set label "C'" at 2e-8,0.705 font ",".ticfontsize
+#set label "C" at 3e-8,0.688 font ",".ticfontsize
+#set label "LM" at 4e-5,0.685 font ",".ticfontsize
+#set label "LM'" at 2e-8,0.732 font ",".ticfontsize
+#set arrow from 5.5e-8,0.687 to 1e-6,0.675
+#set arrow from 3e-5,0.685 to 3e-6,0.675
+array fact[3]=[5,5,1]
+array id[5]=[1,2,3,4,6]
 
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-plot for[i=1:1] "-" index 0 u "T":(column(word("Sn Sa",i))) with lp pt 7 ps 0.5 title word("Sn Sa",i)
-#plot "-" index 0 u "J":"T":"S" with p pt 7 palette notitle
-set key font ",".ticfontsize at graph 0.43,0.65,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 #opaque autotitle
-set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
+plot for[i=1:5] "-" index 0 every :::id[i]-1::id[i]-1 u "T":(column(word("Sn Sa Snp",1))) with l lw 2 lc i title word("C MCK C' LM'",i), log(2) with l lw 2 title "LM"
+#plot for[i=1:*] for[j=1:1] "-" index 0 every :::i-1::i-1 u "T":(column(word("Sn Sa Snp",j))) with l lw j lc i dt j title word("LM C MCK MCK C' LM'",i)#, for[i=1:6] for[j=2:2] "-" index 0 every :::i-1::i-1 u "T":(column(word("Q gW Snp",j))) with l lw j lc i dt j notitle word("LM C MCK MCK C' LM'",i),
+#plot for[i=2:2] for[j=1:8] "-" index 0 every :::i-1::i-1 u "T":(column(word("Q gW GB g f B c phi",j))) with l lc j lw 2 dt j/5+1 title word("Q gW GB g f B c phi",j)
+#plot "-" index 0 u ((abs(column("T")-1e-5)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 0 u ((abs(column("T")-1e-7)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 1 u ((abs(column("T")-1e-7)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 1 u ((abs(column("T")-5e-10)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle
+set key font ",".ticfontsize at graph 0.45,0.85,1 horizontal maxcols 1 spacing 0.8 samplen 1.5 #opaque autotitle
+set label flabel font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){
 	set key at screen 1,1,1
 }
@@ -113,4 +128,3 @@ if(GPVAL_TERM eq "qt"){
 	pause -1
 }
 #data
-

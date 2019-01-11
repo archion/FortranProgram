@@ -230,24 +230,24 @@ contains
 	end function
 	subroutine get_phy2(var,cfg,WA)
 		type(t_var) :: var
-		complex(8) :: WA(:,:)
+		complex(wp) :: WA(:,:)
 		integer :: cfg(:)
-		complex(8) :: pb,bd1,bd2,expq
+		complex(wp) :: pb,bd1,bd2,expq
 		integer :: n1,n2,sg,ic,jc1,jc2,nb,iextdat
 		integer :: k(0:4),dcfg_all(0:4)
 		integer :: Pr(0:1)
 		character :: flag1,flag2
-		real(8) :: q(3),r1
+		real(wp) :: q(3),r1
 		Pr(0:1)=[1,1]
 		if(.not.is_project) then
 			Pr(0)=0
 		endif
-		var%val=0d0
+		var%val=0._wp
 		nb=var%nb
 		dcfg_all(0)=size(var%c,1)*2
 		iextdat=1
-		q=0d0
-		r1=0d0
+		q=0._wp
+		r1=0._wp
 		if(allocated(var%extdat)) then
 			if(var%extdat(iextdat)==real(ichar("q"),8)) then
 				q=var%extdat(2:4)
@@ -315,9 +315,9 @@ contains
 	end subroutine
 	subroutine get_phy1(var,cfg,WA)
 		type(t_var) :: var
-		complex(8) :: WA(:,:)
+		complex(wp) :: WA(:,:)
 		integer :: cfg(:)
-		complex(8) :: pb,bdc
+		complex(wp) :: pb,bdc
 		integer :: i,j,n,l,p,sg,ic,jc,sb(2)
 		integer :: k(0:4),dcfg_all(0:4)
 		integer :: Pr(0:1)
@@ -326,7 +326,7 @@ contains
 		if(.not.is_project) then
 			Pr(0)=0
 		endif
-		var%val=0d0
+		var%val=0._wp
 		l=var%nb
 		dcfg_all(0)=size(var%c,1)
 		do n=1,size(latt%nb(l)%bd)
@@ -362,12 +362,12 @@ contains
 			var%val=var%val*var%V
 		endif
 	end subroutine
-	complex(8) function get_energy(cfg,WA,dcfg,m,iA,AW,WAW)
-		complex(8) :: WA(:,:)
+	complex(wp) function get_energy(cfg,WA,dcfg,m,iA,AW,WAW)
+		complex(wp) :: WA(:,:)
 		integer :: cfg(:)
 		integer, optional :: dcfg(:),m(:)
-		complex(8), optional :: AW(:,:),WAW(:,:),iA(:,:)
-		complex(8) :: pb,bdc,val,tmp
+		complex(wp), optional :: AW(:,:),WAW(:,:),iA(:,:)
+		complex(wp) :: pb,bdc,val,tmp
 		integer :: i,j,n,l,p,sg,ic,jc,sb(2)
 		integer :: k(0:4),dcfg_(0:2),dcfg_all(0:4)
 		integer :: Pr(0:2)
@@ -382,9 +382,9 @@ contains
 		if(.not.is_project) then
 			Pr(0)=0
 		endif
-		get_energy=0d0
+		get_energy=0._wp
 		do p=Ham%rg(1),Ham%rg(2)
-			tmp=0d0
+			tmp=0._wp
 			l=Ham%var(p)%nb
 			if(size(Ham%var(p)%c,1)==0) then
 				if(present(m)) then
@@ -441,12 +441,12 @@ contains
 		enddo
 	end function
 	subroutine get_O(icfg,iEcfg,WA,iA,dwf,O,opt)
-		complex(8) :: WA(:,:),iA(:,:),dwf(:,:,:),O(:)
-		complex(8) :: beta,tmp
+		complex(wp) :: WA(:,:),iA(:,:),dwf(:,:,:),O(:)
+		complex(wp) :: beta,tmp
 		integer :: icfg(:),iEcfg(:),opt
 		integer :: l,i,j,lp
-		O=0d0
-		beta=1d0
+		O=0._wp
+		beta=1._wp
 		select case(opt)
 		case(1)
 			!$omp parallel do reduction(+:O)
@@ -464,9 +464,9 @@ contains
 	end subroutine
 	subroutine get_Spb(cfg,dcfg,Ecfg,nn,pb,WA,iA,AW,WAW)
 		integer :: cfg(:),dcfg(:),Ecfg(:),nn(0:,:)
-		complex(8) :: WA(:,:),AW(:,:),WAW(:,:),iA(:,:)
-		complex(8) :: pb
-		complex(8) :: pb2(2),pbs(2)
+		complex(wp) :: WA(:,:),AW(:,:),WAW(:,:),iA(:,:)
+		complex(wp) :: pb
+		complex(wp) :: pb2(2),pbs(2)
 		integer :: i,l,sg,ct=0
 		integer :: k(0:4),m(0:4)
 		if(.not.get_row(dcfg,cfg,k,sg,pack([1],[is_project]))) then
@@ -477,7 +477,7 @@ contains
 			write(*,"(*(i5))")k(1:k(0))
 			error stop "err get_Spb"
 		endif
-		pbs=0d0
+		pbs=0._wp
 		!$omp parallel do private(pb2,sg,m) reduction(+:pbs)
 		do i=1,ubound(nn,1)
 			if(get_row([nn(i,:),-nn(0,:)],Ecfg,m,sg,[integer::])) then
@@ -493,8 +493,8 @@ contains
 	end subroutine
 	subroutine get_overlap(cfg,Ecfg,nn,WA,iA,AW,WAW,Ok,Ek)
 		integer :: cfg(:),Ecfg(:),nn(0:,:)
-		complex(8) :: WA(:,:),AW(:,:),WAW(:,:),iA(:,:),Ek(:),Ok(:)
-		complex(8) :: pb
+		complex(wp) :: WA(:,:),AW(:,:),WAW(:,:),iA(:,:),Ek(:),Ok(:)
+		complex(wp) :: pb
 		integer :: i,sg,j
 		integer :: m(0:4)
 		!$omp parallel do private(pb,sg,m)
@@ -507,19 +507,19 @@ contains
 		enddo
 		!$omp end parallel do
 	end subroutine
-	real(8) function jast(cfg,dcfg,Oja)
+	real(wp) function jast(cfg,dcfg,Oja)
 		integer :: cfg(:),dcfg(:)
-		complex(8), optional :: Oja(:)
+		complex(wp), optional :: Oja(:)
 		integer :: i(0:size(dcfg)),j,plv,lv,ibd,l,l1,l2,ic,jc,nb,k(0:size(dcfg)),sg,sb(2)
-		real(8) :: n
+		real(wp) :: n
 		character :: flag
-		jast=0d0
+		jast=0._wp
 		if(sum(Hja%var(:)%n)==0) then
 			return
 		endif
 		if(present(Oja)) then
 			if(sum(Hja%var(1:)%n)==0) return
-			Oja=0d0
+			Oja=0._wp
 		endif
 		! the index of jastrew facter
 		plv=0
@@ -535,7 +535,7 @@ contains
 			nb=Hja%var(l)%nb
 			do l1=1,i(0)
 				do l2=1,size(latt%nb(nb)%st(i(l1))%j)
-					n=0d0
+					n=0._wp
 					j=latt%nb(nb)%st(i(l1))%j(l2)
 					if(any(i(1:l1-1)==j)) cycle
 					sb=latt%nb(0)%bd([i(l1),j])%sb(1)

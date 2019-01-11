@@ -5,8 +5,8 @@ module M_lattice_final
 	private
 	type, extends(t_sort) :: t_mysort
 		integer :: i(2)
-		real(8) :: dr(3)
-		complex(8) :: bdc
+		real(wp) :: dr(3)
+		complex(wp) :: bdc
 	contains
 		procedure :: swap_sort => myswap
 	end type
@@ -14,9 +14,9 @@ module M_lattice_final
 		integer :: sb(2)
 		integer :: sbc(2)
 		integer :: i(2)
-		real(8) :: r(3)
-		real(8) :: dr(3)
-		complex(8) :: bdc
+		real(wp) :: r(3)
+		real(wp) :: dr(3)
+		complex(wp) :: bdc
 	end type
 	type ::  t_st
 		integer, allocatable :: j(:)
@@ -27,14 +27,14 @@ module M_lattice_final
 		type(t_bd), allocatable :: bd(:)
 		type(t_st), allocatable :: st(:)
 	end type
-	real(8) :: err=1d-6
+	real(wp) :: err=1e-6_wp
 	type t_latt
 		logical :: is_all=.false.
-		real(8) :: T1(3),T2(3),a1(3),a2(3),a3(3),c1(3),c2(3),c3(3)
+		real(wp) :: T1(3),T2(3),a1(3),a2(3),a3(3),c1(3),c2(3),c3(3)
 		integer :: Ns,Nc,Ni,sb,layer=1
-		complex(8) :: bdc(3)=(/1d0,1d0,0d0/)
+		complex(wp) :: bdc(3)=(/1._wp,1._wp,0._wp/)
 		type(t_nb), allocatable :: nb(:)
-		real(8), allocatable :: rsb(:,:)
+		real(wp), allocatable :: rsb(:,:)
 		integer, allocatable :: i2isb(:,:),isb2i(:,:)
 	contains
 		procedure gen_latt
@@ -42,13 +42,13 @@ module M_lattice_final
 	end type
 	type t_brizon
 		integer :: nk,nq
-		real(8) :: a1(3),a2(3)
-		real(8) :: c1(3),c2(3)
-		real(8) :: k0(3)
-		real(8), allocatable :: Ta(:,:)
-		real(8), allocatable :: Tc(:,:)
-		real(8), allocatable :: q(:,:)
-		real(8), allocatable :: k(:,:)
+		real(wp) :: a1(3),a2(3)
+		real(wp) :: c1(3),c2(3)
+		real(wp) :: k0(3)
+		real(wp), allocatable :: Ta(:,:)
+		real(wp), allocatable :: Tc(:,:)
+		real(wp), allocatable :: q(:,:)
+		real(wp), allocatable :: k(:,:)
 	end type
 	type(t_latt), public :: latt
 	type(t_brizon), public, target :: brizon
@@ -79,19 +79,19 @@ contains
 	end subroutine
 	recursive function is_in(r,T,dr)
 		logical :: is_in
-		real(8) :: r(3),T(:,:)
-		real(8), optional :: dr(:)
-		real(8) :: tr(2),EG(3),DT(3),tf(2,2),rerr(3),r_(3)
+		real(wp) :: r(3),T(:,:)
+		real(wp), optional :: dr(:)
+		real(wp) :: tr(2),EG(3),DT(3),tf(2,2),rerr(3),r_(3)
 		integer :: i,j,n
 		r_=r
 		if(present(dr)) then
-			dr=0d0
+			dr=0._wp
 		endif
 		is_in=.true.
-		rerr=0d0
+		rerr=0._wp
 		n=size(T,1)
 		do i=1,n/2
-			rerr=rerr+(T(i+1,:)-T(i,:))*err*i/1.34d0
+			rerr=rerr+(T(i+1,:)-T(i,:))*err*i/1.34_wp
 		enddo
 		do 
 			do i=1,size(T,1)
@@ -99,8 +99,8 @@ contains
 				EG=T(j,:)-T(i,:)
 				DT=(T(mod(j-1+n/2,n)+1,:)-T(j,:))+EG
 				tf=reshape((/EG(2),-DT(2),-EG(1),DT(1)/)/(DT(1)*EG(2)-DT(2)*EG(1)),(/2,2/))
-				tr=matmul(tf,r_(:2)-(T(j,:)+T(i,:))/2d0+rerr(:2))
-				if(tr(1)<0d0) then
+				tr=matmul(tf,r_(:2)-(T(j,:)+T(i,:))/2._wp+rerr(:2))
+				if(tr(1)<0._wp) then
 					is_in=.false.
 					if(present(dr)) then
 						r_=r_-floor(tr(1))*DT
@@ -120,9 +120,9 @@ contains
 		enddo
 	end function
 	subroutine gen_grid(a1,a2,r0,T,grid)
-		real(8), allocatable :: grid(:,:)
-		real(8) :: r0(:),a1(:),a2(:),T(:,:)
-		real(8) :: r(3),x(size(T,1)),y(size(T,1)),tf(2,2),tmp(10000000,3)
+		real(wp), allocatable :: grid(:,:)
+		real(wp) :: r0(:),a1(:),a2(:),T(:,:)
+		real(wp) :: r(3),x(size(T,1)),y(size(T,1)),tf(2,2),tmp(10000000,3)
 		integer :: i,j,n
 		n=1
 		tf=reshape((/a2(2),-a1(2),-a2(1),a1(1)/)/(a1(1)*a2(2)-a1(2)*a2(1)),(/2,2/))
@@ -151,8 +151,8 @@ contains
 		class(t_latt) :: self
 		integer :: nb
 		integer :: i,j,l,l1,l2,n1,n2,m1,m2,n,m,p,k,Ns_
-		real(8) :: r(3),tf(2,2),T(4,3,3),dr(3),dr2,rnb(0:nb)
-		real(8), allocatable :: tmp(:,:),DT(:,:)
+		real(wp) :: r(3),tf(2,2),T(4,3,3),dr(3),dr2,rnb(0:nb)
+		real(wp), allocatable :: tmp(:,:),DT(:,:)
 		type(t_mysort) :: sort(100)
 		type(t_bd), allocatable ::  bd(:,:,:)
 		integer, allocatable ::  st(:,:,:)
@@ -162,15 +162,15 @@ contains
 
 			allocate(self%nb(0:nb))
 
-			T(1,:,1)=0d0
+			T(1,:,1)=0._wp
 			T(2,:,1)=a1
 			T(3,:,1)=a1+a2
 			T(4,:,1)=a2
-			T(1,:,2)=0d0
+			T(1,:,2)=0._wp
 			T(2,:,2)=c1
 			T(3,:,2)=c1+c2
 			T(4,:,2)=c2
-			T(1,:,3)=0d0
+			T(1,:,3)=0._wp
 			T(2,:,3)=T1
 			T(3,:,3)=T1+T2
 			T(4,:,3)=T2
@@ -195,7 +195,7 @@ contains
 							sort(k)%val=sum(dr**2)
 							sort(k)%i=(/i,j/)
 							sort(k)%dr=dr
-							sort(k)%bdc=1d0
+							sort(k)%bdc=1._wp
 						enddo
 					enddo
 				enddo
@@ -216,7 +216,7 @@ contains
 						bd(m1,i,bd(m1,i,0)%sb(1))%sbc=sort(m2)%i
 						bd(m1,i,bd(m1,i,0)%sb(1))%i=sort(m2)%i
 						bd(m1,i,bd(m1,i,0)%sb(1))%bdc=sort(m2)%bdc
-						bd(m1,i,bd(m1,i,0)%sb(1))%r=self%rsb(i,:)+sort(m2)%dr/2d0
+						bd(m1,i,bd(m1,i,0)%sb(1))%r=self%rsb(i,:)+sort(m2)%dr/2._wp
 					enddo o
 				enddo
 				deallocate(c)
@@ -242,7 +242,7 @@ contains
 							bd(n,l,k)%dr=bd(n,j,k)%dr
 							bd(n,l,k)%sb=bd(n,j,k)%sb
 							bd(n,l,k)%sbc(2)=bd(n,j,k)%sb(2)
-							bd(n,l,k)%bdc=1d0
+							bd(n,l,k)%bdc=1._wp
 							if(n==0) then
 								if(k==1) then
 									bd(n,l,k)%r=bd(n,j,k)%r+DT(i,:)
@@ -258,7 +258,7 @@ contains
 									r=r+dr
 								endif
 							else
-								bd(n,l,k)%r=bd(0,l,1)%r+bd(n,j,k)%dr/2d0
+								bd(n,l,k)%r=bd(0,l,1)%r+bd(n,j,k)%dr/2._wp
 								r=bd(0,l,1)%r+bd(n,j,k)%dr+bd(0,1,1)%r-bd(0,bd(n,l,k)%sb(2),1)%r
 								if(.not.is_in(r,T(:,:,2),dr)) then
 									r=r+dr
@@ -327,7 +327,7 @@ contains
 				Nc=1
 				if(allocated(DT)) deallocate(DT)
 				allocate(DT(1,3))
-				DT=0d0
+				DT=0._wp
 				Ns=Ni*nint(abs((T1(1)*T2(2)-T1(2)*T2(1))/(c1(1)*c2(2)-c1(2)*c2(1))))
 			endif
 
@@ -344,7 +344,7 @@ contains
 							bd(n,l,k)%sbc=bd(n,j,k)%sbc
 							bd(n,l,k)%i(1)=l
 							bd(n,l,k)%i(2)=bd(n,j,k)%sbc(2)
-							bd(n,l,k)%bdc=1d0
+							bd(n,l,k)%bdc=1._wp
 							if(n==0) then
 								if(k==1) then
 									bd(n,l,k)%r=bd(n,j,k)%r+DT(i,:)
@@ -356,7 +356,7 @@ contains
 								endif
 								bd(n,l,k)%i(2)=bd(n,j,k)%i(2)+(i-1)*Ni
 							else
-								bd(n,l,k)%r=bd(0,l,1)%r+bd(n,j,k)%dr/2d0
+								bd(n,l,k)%r=bd(0,l,1)%r+bd(n,j,k)%dr/2._wp
 								r=bd(0,l,1)%r+bd(n,j,k)%dr
 								if(.not.is_in(r,T(:,:,3),dr)) then
 									r=r+dr
@@ -426,9 +426,9 @@ contains
 		end associate
 	end subroutine
 	subroutine get_brizon(b1,b2,bT)
-		real(8) :: b1(:),b2(:)
-		real(8), allocatable :: bT(:,:)
-		real(8) :: tf(2,2),T(0:24,3),th,dr1(2),dr2(2)
+		real(wp) :: b1(:),b2(:)
+		real(wp), allocatable :: bT(:,:)
+		real(wp) :: tf(2,2),T(0:24,3),th,dr1(2),dr2(2)
 		type(t_mysort) :: st(24)
 		integer :: n,i,j
 		integer, allocatable :: ist(:)
@@ -439,7 +439,7 @@ contains
 					cycle
 				endif
 				n=n+1
-				st(n)%dr=(b1*i+b2*j)/2d0
+				st(n)%dr=(b1*i+b2*j)/2._wp
 				st(n)%val=theta(st(n)%dr)
 			enddo
 		enddo
@@ -459,10 +459,10 @@ contains
 			dr1=T(n,:2)
 			dr2=st(i)%dr(:2)
 			th=theta(matmul(reshape((/dr2(2),-dr2(1),-dr1(2),dr1(1)/),(/2,2/)),(/sum(dr1**2),sum(dr2**2)/))/(dr1(1)*dr2(2)-dr1(2)*dr2(1)))
-			if(sin(th-theta(dr1)-err)<0d0) then
+			if(sin(th-theta(dr1)-err)<0._wp) then
 				n=n-1
 			endif
-			if(sin(th-theta(dr2)+err)<0d0) then
+			if(sin(th-theta(dr2)+err)<0._wp) then
 				n=n+1
 				T(n,:2)=dr2
 			endif
@@ -476,42 +476,42 @@ contains
 			dr1=T(i,:2)
 			dr2=T(j,:2)
 			bT(i,:2)=matmul(reshape((/dr2(2),-dr2(1),-dr1(2),dr1(1)/),(/2,2/)),(/sum(dr1**2),sum(dr2**2)/))/(dr1(1)*dr2(2)-dr1(2)*dr2(1))
-			bT(i,3)=0d0
+			bT(i,3)=0._wp
 		enddo
 	end subroutine
 	subroutine gen_brizon(self,brizon)
 		class(t_latt) :: self
 		type(t_brizon) :: brizon
-		real(8) :: p1(3),p2(3),dr(3)
-		real(8), allocatable :: tmp(:,:)
+		real(wp) :: p1(3),p2(3),dr(3)
+		real(wp), allocatable :: tmp(:,:)
 		integer :: n,i,j
 		associate(ba1=>brizon%a1,ba2=>brizon%a2,bc1=>brizon%c1,bc2=>brizon%c2,c1=>self%c1,c2=>self%c2,T1=>self%T1,T2=>self%T2,a1=>self%a1,a2=>self%a2,bdc=>self%bdc,k0=>brizon%k0)
-			p1=(/-T2(2),T2(1),0d0/)
-			p2=(/T1(2),-T1(1),0d0/)
-			p1=2d0*pi*p1/sum(T1*p1)
-			p2=2d0*pi*p2/sum(T2*p2)
+			p1=(/-T2(2),T2(1),0._wp/)
+			p2=(/T1(2),-T1(1),0._wp/)
+			p1=2._wp*pi*p1/sum(T1*p1)
+			p2=2._wp*pi*p2/sum(T2*p2)
 
-			ba1=(/-a2(2),a2(1),0d0/)
-			ba2=(/a1(2),-a1(1),0d0/)
-			ba1=2d0*pi*ba1/sum(ba1*a1)
-			ba2=2d0*pi*ba2/sum(ba2*a2)
+			ba1=(/-a2(2),a2(1),0._wp/)
+			ba2=(/a1(2),-a1(1),0._wp/)
+			ba1=2._wp*pi*ba1/sum(ba1*a1)
+			ba2=2._wp*pi*ba2/sum(ba2*a2)
 			call get_brizon(ba1,ba2,brizon%Ta)
 
-			bc1=(/-c2(2),c2(1),0d0/)
-			bc2=(/c1(2),-c1(1),0d0/)
-			bc1=2d0*pi*bc1/sum(bc1*c1)
-			bc2=2d0*pi*bc2/sum(bc2*c2)
+			bc1=(/-c2(2),c2(1),0._wp/)
+			bc2=(/c1(2),-c1(1),0._wp/)
+			bc1=2._wp*pi*bc1/sum(bc1*c1)
+			bc2=2._wp*pi*bc2/sum(bc2*c2)
 			call get_brizon(bc1,bc2,brizon%Tc)
 
 
-			k0=0d0
+			k0=0._wp
 			if(all(abs(bdc(:2))>err)) then
 				k0(:2)=matmul(reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/)),(/theta((/real(bdc(1)),imag(bdc(1))/)),theta((/real(bdc(2)),imag(bdc(2))/))/))
 			elseif(all(abs(bdc(:2))<err)) then
 				allocate(brizon%k(1,3))
 				allocate(brizon%q(1,3))
-				brizon%k=0d0
-				brizon%q=0d0
+				brizon%k=0._wp
+				brizon%q=0._wp
 				brizon%nk=1
 				brizon%nq=1
 				return
@@ -528,10 +528,10 @@ contains
 
 			if(any(abs(bdc(:2))<err)) then
 				allocate(brizon%q(1,3))
-				brizon%q=0d0
+				brizon%q=0._wp
 				brizon%nq=1
 			else
-				call gen_grid(bc1,bc2,(/0d0,0d0,0d0/),brizon%Ta,brizon%q)
+				call gen_grid(bc1,bc2,(/0._wp,0._wp,0._wp/),brizon%Ta,brizon%q)
 				brizon%nq=size(brizon%q,1)
 			endif
 			allocate(brizon%k(brizon%nk*brizon%nq,3))
@@ -548,22 +548,22 @@ contains
 		end associate
 	end subroutine
 	function theta(r)
-		real(8) :: r(:),theta,d
+		real(wp) :: r(:),theta,d
 		d=sqrt(sum(r**2))
-		if(d<1d-10) then
-			theta=0d0
+		if(d<1e-10_wp) then
+			theta=0._wp
 			return
 		endif
 		theta=acos(r(1)/d)
-		if(r(2)<0d0) then
-			theta=2d0*pi-theta
+		if(r(2)<0._wp) then
+			theta=2._wp*pi-theta
 		endif
 	end function
 	subroutine check_lattice(ut)
 		integer :: ut,k,l,m,n
 
-		write(ut,"(*(es13.2))")0d0,0d0,0d0,brizon%a1
-		write(ut,"(*(es13.2))")0d0,0d0,0d0,brizon%a2
+		write(ut,"(*(es13.2))")0._wp,0._wp,0._wp,brizon%a1
+		write(ut,"(*(es13.2))")0._wp,0._wp,0._wp,brizon%a2
 		write(ut,"(x)")
 
 		do k=1,size(brizon%Ta,1)+1
@@ -571,8 +571,8 @@ contains
 		enddo
 		write(ut,"(x)")
 
-		write(ut,"(*(es13.2))")0d0,0d0,0d0,brizon%c1
-		write(ut,"(*(es13.2))")0d0,0d0,0d0,brizon%c2
+		write(ut,"(*(es13.2))")0._wp,0._wp,0._wp,brizon%c1
+		write(ut,"(*(es13.2))")0._wp,0._wp,0._wp,brizon%c2
 		write(ut,"(x)")
 
 		do k=1,size(brizon%Tc,1)+1
@@ -590,26 +590,26 @@ contains
 		enddo
 		write(ut,"(x)")
 
-		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%a1
-		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%a2
+		write(ut,"(6es13.2)")0._wp,0._wp,0._wp,latt%a1
+		write(ut,"(6es13.2)")0._wp,0._wp,0._wp,latt%a2
 		write(ut,"(x)")
 
-		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%c1
-		write(ut,"(6es13.2)")0d0,0d0,0d0,latt%c2
+		write(ut,"(6es13.2)")0._wp,0._wp,0._wp,latt%c1
+		write(ut,"(6es13.2)")0._wp,0._wp,0._wp,latt%c2
 		write(ut,"(x)")
 
 		if(latt%is_all) then
-			write(ut,"(6es13.2)")0d0,0d0,0d0,latt%T1
-			write(ut,"(6es13.2)")0d0,0d0,0d0,latt%T2
+			write(ut,"(6es13.2)")0._wp,0._wp,0._wp,latt%T1
+			write(ut,"(6es13.2)")0._wp,0._wp,0._wp,latt%T2
 			write(ut,"(x)")
 		else
-			write(ut,"(6es13.2)")0d0,0d0,0d0,0d0,0d0,0d0
-			write(ut,"(6es13.2)")0d0,0d0,0d0,0d0,0d0,0d0
+			write(ut,"(6es13.2)")0._wp,0._wp,0._wp,0._wp,0._wp,0._wp
+			write(ut,"(6es13.2)")0._wp,0._wp,0._wp,0._wp,0._wp,0._wp
 			write(ut,"(x)")
 		endif
 
 		do k=1,size(latt%nb(0)%bd)
-			write(ut,"(es13.2$)")latt%nb(0)%bd(k)%r-latt%nb(0)%bd(k)%dr/2d0,latt%nb(0)%bd(k)%dr
+			write(ut,"(es13.2$)")latt%nb(0)%bd(k)%r-latt%nb(0)%bd(k)%dr/2._wp,latt%nb(0)%bd(k)%dr
 			write(ut,"(i7$)")latt%nb(0)%bd(k)%sbc(1)
 			write(ut,"(x)")
 			if(latt%is_all) then
@@ -624,7 +624,7 @@ contains
 
 		do l=1,ubound(latt%nb,1)
 			do k=1,size(latt%nb(l)%bd)
-				write(ut,"(es13.2$)")latt%nb(l)%bd(k)%r-latt%nb(l)%bd(k)%dr/2d0,latt%nb(l)%bd(k)%dr,abs(latt%nb(l)%bd(k)%bdc-1d0)
+				write(ut,"(es13.2$)")latt%nb(l)%bd(k)%r-latt%nb(l)%bd(k)%dr/2._wp,latt%nb(l)%bd(k)%dr,abs(latt%nb(l)%bd(k)%bdc-1._wp)
 				write(ut,"(i7$)")k
 				write(ut,"(x)")
 			enddo
@@ -634,7 +634,7 @@ contains
 		!do k=1,size(latt%nb(l)%st)
 		!do i=1,size(latt%nb(l)%st(k)%bd)
 		!if(abs(latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%bdc)>err) then
-		!write(ut,"(es13.2$)")latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%r-latt%nb(l)%st(k)%dir(i)*latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%dr/2d0,latt%nb(l)%st(k)%dir(i)*latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%dr
+		!write(ut,"(es13.2$)")latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%r-latt%nb(l)%st(k)%dir(i)*latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%dr/2._wp,latt%nb(l)%st(k)%dir(i)*latt%nb(l)%bd(latt%nb(l)%st(k)%bd(i))%dr
 		!write(ut,"(i7$)")k
 		!write(ut,"(x)")
 		!endif
