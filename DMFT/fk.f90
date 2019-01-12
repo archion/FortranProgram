@@ -13,7 +13,7 @@ module M_DMFT
 	integer, parameter :: nadd(3)=[600,100,100],n=(sum(nadd))*2,nk=256/8,D=2,nkD=nk**D
 	real(8) :: U=nan,t=1d0,bcut=20d0,omega(n),Tk,beta,et=1d-1,mu
 	complex(8) :: iomega(n)
-	integer, parameter :: export_w=1,export_k=2,export_wk=3,set_omega=0,set_Ver=1,set_dSEk=2,set_dVerq=3,set_dSusq=4,set_GM=5,set_B=6,set_dG0k=7,set_Gk=8,set_Gi=9,set_Gl=10,set_SEl=11,prime=20,DMFT=1,DF=2
+	integer, parameter :: export_w=1,export_k=2,export_wk=3,set_omega=0,set_Ver=1,set_dSEk=2,set_dVerq=3,set_dSusq=4,set_GM=5,set_B=6,set_dGk0=7,set_Gk=8,set_Gi=9,set_Gl=10,set_SEl=11,set_Gkl=12,set_dGkl=13,set_ek=14,prime=20
 	integer :: ipi
 	logical, parameter :: is_real=.false.
 	type(t_serde(D)) :: map
@@ -28,8 +28,8 @@ module M_DMFT
 		real(8), allocatable :: uk(:,:)
 		integer, allocatable :: uk2k(:,:)
 		real(8) :: rhoc(n),B(nk**D),ek(nk**D)
-		complex(8) :: Gl(n),Delta(n),SEl(n),GM(n),Ver(n,n)
-		type(gf(D,nk)) :: dVer(n),G(n),dG(n),dG0(n),dSE(n),dSus(n)
+		complex(8) :: Gl(n),Gkl(n),dGl(n),Delta(n),SEl(n),GM(n),Ver(n,n)
+		type(gf(D,nk)) :: dVer(n),Gk(n),dGk(n),dG0(n),dSE(n),dSus(n)
 		!complex(8) :: Sus(n,nk**D),dSus(n,nk**D),Gck(n,nk**D),Gci(n,nk**D),dSEc(n,nk**D),dGck(n,nk**D)
 		logical :: conv
 	contains
@@ -47,13 +47,13 @@ contains
 			case(export_w)
 				write(ut(k),"(A)")"Tk omega rGl iGl rDelta iDelta rSEl iSEl rG iG"
 				do iw=1,n
-					write(ut(k),"(*(e29.20e3))")Tk,omega(iw),self%Gl(iw),self%Delta(iw),self%SEl(iw),sum(self%G(iw)%k)/nkD
+					write(ut(k),"(*(e29.20e3))")Tk,omega(iw),self%Gl(iw),self%Delta(iw),self%SEl(iw),sum(self%Gk(iw)%k)/nkD
 				enddo
 				write(ut(k),"(x/)")
 			case(export_wk)
 				write(ut(k),"(A)")"Tk omega rdG idG rG iG rdVer idVer"
 				do iw=1,n
-					write(ut(k),"(*(e29.20e3))")Tk,omega(iw),self%dG(iw)%k(ipi),self%G(iw)%k(ipi),self%dVer(iw)%k(ipi)
+					write(ut(k),"(*(e29.20e3))")Tk,omega(iw),self%dGk(iw)%k(ipi),self%Gk(iw)%k(ipi),self%dVer(iw)%k(ipi)
 				enddo
 				write(ut(k),"(x/)")
 			case(export_k)
@@ -67,7 +67,7 @@ contains
 	end subroutine
 	subroutine set_Gfunction(self,flag)
 		class(gfs(*,*,*)) :: self
-		integer :: flag(:),iw,jw,ik,l
+		integer :: flag(:),iw,jw,ik,l,i
 		complex(wp) :: phi(n,nkD)
 		do l=1,size(flag)
 			select case(flag(l))
@@ -104,13 +104,20 @@ contains
 				enddo
 				!$OMP END PARALLEL DO
 			case(set_dSusq)
+				!$OMP PARALLEL DO
+				do ik=1,size(self%uk,2)
+					do i=2,self%uk2k(ik,0)
+						self%dGk(:)%k(self%uk2k(ik,i))=self%dGk(:)%k(self%uk2k(ik,1))
+					enddo
+				enddo
+				!$OMP END PARALLEL DO
 
 				!$OMP PARALLEL DO
 				do iw=1,n
-					call mfft(self%dG(iw)%k(1:nkD),1,map%shap,self%dG(iw)%r(1:nkD),1d0/product(map%shap))
-					!self%dSus(iw)%r=-self%dG(iw)%r**2
-					call mfft(self%dG(iw)%k(1:nkD),-1,map%shap,self%dSus(iw)%r(1:nkD),1d0/product(map%shap))
-					self%dSus(iw)%r=-self%dG(iw)%r*self%dSus(iw)%r
+					call mfft(self%dGk(iw)%k(1:nkD),1,map%shap,self%dGk(iw)%r(1:nkD),1d0/product(map%shap))
+					!self%dSus(iw)%r=-self%dGk(iw)%r**2
+					call mfft(self%dGk(iw)%k(1:nkD),-1,map%shap,self%dSus(iw)%r(1:nkD),1d0/product(map%shap))
+					self%dSus(iw)%r=-self%dGk(iw)%r*self%dSus(iw)%r
 					call mfft(self%dSus(iw)%r(1:nkD),-1,map%shap,self%dSus(iw)%k(1:nkD))
 				enddo
 				!$OMP END PARALLEL DO
@@ -131,157 +138,133 @@ contains
 				do iw=1,n
 					!call mfft(self%dVer(iw)%k(1:nkD),1,map%shap,self%dVer(iw)%r(1:nkD),1d0/product(map%shap))
 					call mfft(self%dVer(iw)%k(1:nkD),-1,map%shap,self%dSE(iw)%r(1:nkD),1d0/product(map%shap))
-					call mfft(self%dG(iw)%k(1:nkD),1,map%shap,self%dG(iw)%r(1:nkD),1d0/product(map%shap))
-					!self%dSE(iw)%r=self%dVer(iw)%r*self%dG(iw)%r
-					self%dSE(iw)%r=self%dSE(iw)%r*self%dG(iw)%r
+					call mfft(self%dGk(iw)%k(1:nkD),1,map%shap,self%dGk(iw)%r(1:nkD),1d0/product(map%shap))
+					!self%dSE(iw)%r=self%dVer(iw)%r*self%dGk(iw)%r
+					self%dSE(iw)%r=self%dSE(iw)%r*self%dGk(iw)%r
 					call mfft(self%dSE(iw)%r(1:nkD),-1,map%shap,self%dSE(iw)%k(1:nkD))
 				enddo
-			case(set_dG0k)
-				do ik=1,nkD
-					self%dG0(:)%k(ik)=(self%G(:)%k(ik)-self%Gl(:))
+			case(set_dGk0)
+				do ik=1,size(self%uk,2)
+					self%dG0(:)%k(self%uk2k(ik,1))=(self%Gk(:)%k(self%uk2k(ik,1))-self%Gl(:))
 				enddo
-			case(set_dG0k+prime)
-				do ik=1,nkD
-					self%dG0(:)%k(ik)=-1._wp/(1._wp/(self%Gl(:)**2*(self%Delta(:)-self%ek(ik)))+1._wp/self%Gl(:))
+			case(set_dGk0+prime)
+				do ik=1,size(self%uk,2)
+					self%dG0(:)%k(self%uk2k(ik,1))=-1._wp/(1._wp/(self%Gl(:)**2*(self%Delta(:)-self%ek(self%uk2k(ik,1))))+1._wp/self%Gl(:))
 				enddo
 			case(set_Gk)
 				!$OMP PARALLEL DO
-				do ik=1,size(self%k,2)
-					self%G(:)%k(ik)=1d0/(iomega(:)-self%ek(ik)-self%SEl(:))
-					!write(*,*)self%G(iw)%k(ik)-(1d0/(self%Delta(iw)-self%ek(ik))+1d0/((self%Delta(iw)-self%ek(ik))*self%Gl(iw))**2*(self%G(iw)%k(ik)-self%Gl(iw)))
-					!if(abs(self%G(iw)%k(ik)-(1d0/(self%Delta(iw)-self%ek(ik))+1d0/((self%Delta(iw)-self%ek(ik))*self%Gl(iw))**2*(self%G(iw)%k(ik)-self%Gl(iw))))>1d-8) then
-					!read(*,*)
-					!endif
+				do ik=1,size(self%uk,2)
+					self%Gk(:)%k(self%uk2k(ik,1))=1d0/(iomega(:)-self%ek(self%uk2k(ik,1))-self%SEl(:))
 				enddo
 				!$OMP END PARALLEL DO
 			case(set_Gk+prime)
 				!$OMP PARALLEL DO
-				do ik=1,size(self%k,2)
-					self%G(:)%k(ik)=1d0/(self%Delta(:)-self%ek(ik))+1d0/((self%Delta(:)-self%ek(ik))*self%Gl(:))**2*self%dG(:)%k(ik)
+				do ik=1,size(self%uk,2)
+					self%Gk(:)%k(self%uk2k(ik,1))=1d0/(self%Delta(:)-self%ek(self%uk2k(ik,1)))+1d0/((self%Delta(:)-self%ek(self%uk2k(ik,1)))*self%Gl(:))**2*self%dGk(:)%k(self%uk2k(ik,1))
 				enddo
 				!$OMP END PARALLEL DO
 			case(set_Gl)
-				!self%Gl=0.5d0/(iomega%re-self%Delta+mu)+0.5d0/(iomega%re-self%Delta+mu-U)
 				self%Gl=0.5d0/(iomega-self%Delta+mu)+0.5d0/(iomega-self%Delta+mu-U)
 			case(set_SEl)
 				self%SEl=iomega-self%Delta-1d0/self%Gl
-			case(set_Gl+prime)
+			case(set_Gkl)
 				!$OMP PARALLEL DO
 				do iw=1,n
-					self%Gl(iw)=0d0
+					self%Gkl(iw)=0d0
+					do ik=1,size(self%uk,2)
+						self%Gkl(iw)=self%Gkl(iw)+self%uk2k(ik,0)*self%Gk(iw)%k(self%uk2k(ik,1))
+					enddo
+				enddo
+				!$OMP END PARALLEL DO
+				self%Gkl=self%Gkl/real(nkD,kind=8)
+			case(set_dGkl)
+				!$OMP PARALLEL DO
+				do iw=1,n
+					self%dGl(iw)=0d0
 					!do ik=1,nkD
 					!self%Gl(j)=self%Gl(j)+(1d0/(iomega(j)%re-ek(ik)-self%SEl(j)))
 					!enddo
 					do ik=1,size(self%uk,2)
-						self%Gl(iw)=self%Gl(iw)+self%uk(0,ik)/(iomega(iw)-self%ek(self%uk2k(ik,1))-self%SEl(iw))
+						self%dGl(iw)=self%dGl(iw)+self%uk2k(ik,0)*self%dGk(iw)%k(self%uk2k(ik,1))
 					enddo
 				enddo
 				!$OMP END PARALLEL DO
-				self%Gl=self%Gl/real(nkD,kind=8)
+				self%dGl=self%dGl/real(nkD,kind=8)
+			case(set_ek)
+				!$OMP PARALLEL DO
+				do ik=1,size(self%k,2)
+					self%ek(ik)=0._wp
+					do i=1,D
+						self%ek(ik)=self%ek(ik)+2d0*t*cos(self%k(i,ik))
+					enddo
+				enddo
+				!$OMP END PARALLEL DO
 			end select
 		enddo
 	end subroutine
-	subroutine self_consistent(self,rate,niter,tol,flag)
+	subroutine self_consistent(self,rate,niter,tol)
 		class(gfs(*,*,*)) :: self
 		real(8) :: rate,tol
-		integer :: flag
-		integer :: niter
-		integer :: i(2),ik,iw,nx
-		real(8) :: x(self%n*nkD*2),x_(size(x))
+		integer :: niter(2)
+		integer :: i,i1,i2,ik,iw,nx
+		complex(8) :: x(self%n*nkD),x_(size(x))
 		complex(8) :: tmp(n)
 		mu=0.5d0*U
-		beta=1._wp/Tk
 		if(.not.is_real) call self%set_Gfunction([set_omega])
-		!$OMP PARALLEL DO
-		do ik=1,size(self%k,2)
-			self%ek(ik)=0._wp
-			do i=1,D
-				self%ek(ik)=self%ek(ik)+2d0*t*cos(self%k(i,ik))
-			enddo
-		enddo
-		!$OMP END PARALLEL DO
-		do i(1)=1,niter
-		!case(DMFT) 
-			nx=self%n*merge(1,2,is_real)
-			call mbroyden(0,x(1:nx),x_(1:nx),rate,40)
-				if(is_real) call set_realpart(iomega%re,self%Delta)
-				call self%set_Gfunction([set_Gl])
-				x(1:nx)=[self%Delta%im,self%Delta%re]
-				call self%set_Gfunction([set_SEl,set_Gl+prime])
-				x_(1:nx)=[imag(iomega-1d0/self%Gl-self%SEl),real(iomega-1d0/self%Gl-self%SEl)]
-				!x_(1:self%n)=merge(x_(1:self%n),0d0,x_(1:self%n)<0d0)
-				write(*,*)i(1),maxval(abs(x(1:nx)-x_(1:nx)))
-				if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i(1)==niter+1) then
-					self%conv=(i(1)/=niter+1)
-					exit
-				else
-					call mbroyden(i(1),x(1:nx),x_(1:nx))
-				endif
-				!do j=1,n
-					!self%Delta%im(j)=x(j)
-				!enddo
-				self%Delta=cmplx(x(self%n+1:self%n*2),x(1:self%n),kind=8)
-			call mbroyden(huge(1),x(1:nx),x_(1:nx))
-			call self%set_Gfunction([set_Gl,set_Gk])
-			call self%export([10,30],[export_w,export_k])
-		!case(DF)
-			nx=self%n*nkD*merge(1,2,is_real)
-			call mbroyden(0,x(1:nx),x_(1:nx),rate,40)
-			call self%set_Gfunction([set_GM,set_dG0k])
+		call mbroyden(0,x,x_,rate,40,id=2)
+		do i1=1,niter(1)
+			if(is_real) call set_realpart(iomega%re,self%Delta)
+			call self%set_Gfunction([set_Gl,set_GM,set_dGk0])
+
+			!dual fermion
+			nx=self%n*nkD
 			do ik=1,nkD
-				self%dG(:)%k(ik)=self%dG0(:)%k(ik)
-				x((ik-1)*n+1:ik*n)=imag(self%dG(:)%k(ik))
-				if(is_real) then
-					x(nx/2+(ik-1)*n+1:nx/2+ik*n)=real(self%dG(:)%k(ik))
-				endif
+				self%dGk(:)%k(ik)=self%dG0(:)%k(ik)
+				x((ik-1)*n+1:ik*n)=self%dGk(:)%k(ik)
 			enddo
-			do i(2)=1,niter
-				call self%export([50],[export_wk])
-				call self%set_Gfunction([set_dSusq,set_B,set_dVerq,set_dSEk])
-				!exit
-				do ik=1,nkD
-					!call set_realpart(iomega%re,self%dSE(:)%k(ik))
-					self%dG(:)%k(ik)=1._wp/(1._wp/self%dG0(:)%k(ik)-self%dSE(:)%k(ik))
-				enddo
-				!tmp=self%dG(:)%k(ipi)
-				!call set_realpart(iomega%re,tmp)
-				!self%dG(:)%k(ipi)=tmp
+			!do i2=1,niter(2)
 				!call self%export([50],[export_wk])
-				!read(*,*)
-				!exit
-				do ik=1,nkD
-					x_((ik-1)*n+1:ik*n)=imag(self%dG(:)%k(ik))
-					if(is_real) then
-						x_(nx/2+(ik-1)*n+1:nx/2+ik*n)=real(self%dG(:)%k(ik))
-					endif
-				enddo
-				write(*,"(i3,*(es14.4))")i(2),maxval(abs(x(1:nx)-x_(1:nx))),Tk,self%B(ipi)
-				if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i(2)==niter+1) then
-					self%conv=(i(2)/=niter+1)
-					exit
-				else
-					!x=x_*rate+x*(1._wp-rate)
-					call mbroyden(i(2),x(1:nx),x_(1:nx))
-				endif
-				!do iw=1,n
-					!self%dG(iw)%k=cmplx(1._wp,x((iw-1)*nkD+1:iw*nkD),kind=wp)
+				!call self%set_Gfunction([set_dSusq,set_B,set_dVerq,set_dSEk])
+				!!exit
+				!do ik=1,nkD
+					!x_((ik-1)*n+1:ik*n)=1._wp/(1._wp/self%dG0(:)%k(ik)-self%dSE(:)%k(ik))
 				!enddo
-				do ik=1,nkD
-					if(is_real) then
-						tmp%im=x((ik-1)*n+1:ik*n)
-						call set_realpart(iomega%re,tmp)
-						self%dG(:)%k(ik)=tmp
-						!call set_realpart(iomega%re,self%dG(1:n)%k(ik))
-						!write(*,*)self%dG(n/2)%k(ik)
-						!read(*,*)
-						!self%dG(:)%k(ik)=1._wp/(1._wp/self%dG0(:)%k(ik)-self%dSE(:)%k(ik))
-					else
-						self%dG(:)%k(ik)=cmplx(x(nx/2+(ik-1)*n+1:nx/2+ik*n),x((ik-1)*n+1:ik*n),kind=8)
-					endif
-				enddo
-			enddo
-			call mbroyden(huge(1),x(1:nx),x_(1:nx))
+				!write(*,"(i3,*(es14.4))")i2,maxval(abs(x(1:nx)-x_(1:nx))),Tk,self%B(ipi)
+				!if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i2==niter(2)) then
+					!exit
+				!else
+					!!x=x_*rate+x*(1._wp-rate)
+					!call mbroyden(i2,x(1:nx),x_(1:nx),id=2)
+				!endif
+				!do ik=1,nkD
+					!if(is_real) call set_realpart(iomega%re,x((ik-1)*n+1:ik*n))
+					!self%dGk(:)%k(ik)=x((ik-1)*n+1:ik*n)
+				!enddo
+			!enddo
+
+			call self%set_Gfunction([set_Gk+prime,set_Gkl,set_dGkl])
+			!call self%set_Gfunction([set_SEl,set_Gk,set_Gkl])
+			nx=self%n
+			x(1:nx)=self%Delta
+			!x_(1:nx)=iomega-1d0/self%Gkl-self%SEl
+			x_(1:nx)=self%Delta+rate*self%dGl/(self%Gkl*self%Gl)
+			if(is_real) then
+				x(1:nx)%re=0._wp
+				x_(1:nx)%re=0._wp
+			endif
+			write(*,"(i3,*(es14.4))")i1,maxval(abs(x(1:nx)-x_(1:nx)))
+			if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i1==niter(1)) then
+				self%conv=(i1/=niter(1))
+				exit
+			else
+				!x(1:nx)=(1._wp-rate)*x(1:nx)+rate*x_(1:nx)
+				!call mbroyden(i1,x(1:nx),x_(1:nx),id=1)
+			endif
+			self%Delta=x(1:nx)
+			call self%export([10],[export_w])
 		enddo
+		call self%set_Gfunction([set_dSusq,set_B])
+		call mbroyden(huge(1),x,x_)
 	end subroutine
 	subroutine set_realpart(omega,G)
 		real(8) :: omega(:)
@@ -338,15 +321,16 @@ contains
 		call qsort(tmp(:,:),ord)
 		tmp(:,:)=tmp(:,ord)
 		call collect(tmp,c)
-		allocate(uk(0:D,size(c)-1))
+		allocate(uk(1:D,size(c)-1))
 		uk(1:D,:)=tmp(:,c(1:size(c)-1))
-		uk(0,:)=real(c(2:)-c(1:size(c)-1),kind=8)
-		allocate(uk2k(size(uk,2),maxval(c(2:)-c(1:size(c)-1))))
+		!uk(0,:)=real(c(2:)-c(1:size(c)-1),kind=8)
+		allocate(uk2k(size(uk,2),0:maxval(c(2:)-c(1:size(c)-1))))
+		uk2k(:,0)=c(2:)-c(1:size(c)-1)
 		do i=1,size(uk,2)
 			uk2k(i,1:c(i+1)-c(i))=ord(c(i):c(i+1)-1)
 		enddo
 		
-		write(*,*)nint(sum(uk(0,:)))==nkD
+		write(*,*)sum(uk2k(:,0))==nkD
 	end subroutine
 end module
 include "../lib/serde.f90"
@@ -400,18 +384,24 @@ program main
 	if(next(Tk,0d0,1d-1,1d-4)) then
 	endif
 	phy%Delta=0d0
+	call phy%set_Gfunction([set_ek])
 	do 
-		U=for_in([1d0],id=1)
+		U=for_in([5d0],id=1)
 		if(isnan(U)) exit
 		Tk=2.1d-1
-		if(is_real) call phy%set_Gfunction([set_omega])
-
-		call phy%self_consistent(0.1d0,3000,1d-6)
-		write(*,*)Tk,phy%B(ipi)
-		!stop
-		if(next(Tk,phy%B(ipi)-1d0)) then
-			write(40,"(*(e29.20e3))")U,Tk
-			exit
+		if(is_real) then
+			call phy%set_Gfunction([set_omega])
 		endif
+		do 
+			beta=1._wp/Tk
+
+			call phy%self_consistent(0.1d0,[3000,1],1d-6)
+			write(*,*)Tk,phy%B(ipi)
+			!stop
+			if(next(Tk,phy%B(ipi)-1d0)) then
+				write(40,"(*(e29.20e3))")U,Tk
+				exit
+			endif
+		enddo
 	enddo
 end program
