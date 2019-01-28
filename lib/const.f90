@@ -12,4 +12,6 @@ module M_const
 	real(wp), parameter :: eps=epsilon(1._wp)
 	integer, parameter :: reset=0,add_log_linear=1,add_linear=2
 	logical :: underscore
+	character(17), parameter :: delstart="echo -en '\033[s'"
+	character(23), parameter :: delend="echo -en '\033[u\033[K'"
 end module

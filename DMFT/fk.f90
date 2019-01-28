@@ -1,6 +1,7 @@
 !include "../lib/utility.f90"
 include "../largeN/mbroyden.f90"
 module M_DMFT
+	use lapack95, only : gesv
 	use M_const
 	use M_solution
 	use M_matrix
@@ -10,11 +11,11 @@ module M_DMFT
 	use M_fft
 	implicit none
 	real(8), parameter :: onepi=1d0/pi,halfpi=onepi*0.5d0,w0w1=0.25_wp
-	integer, parameter :: nadd(3)=[600,100,100],n=(sum(nadd))*2,nk=256/8,D=2,nkD=nk**D
+	integer, parameter :: nadd(3)=[200,0,0],n=(sum(nadd))*2,nk=256/32,D=1,nkD=nk**D
 	real(8) :: U=nan,t=1d0,bcut=20d0,omega(n),Tk,beta,et=1d-1,mu
 	complex(8) :: iomega(n)
-	integer, parameter :: export_w=1,export_k=2,export_wk=3,set_omega=0,set_Ver=1,set_dSEk=2,set_dVerq=3,set_dSusq=4,set_GM=5,set_B=6,set_dGk0=7,set_Gk=8,set_Gi=9,set_Gl=10,set_SEl=11,set_Gkl=12,set_dGkl=13,set_ek=14,prime=20
-	integer :: ipi
+	integer, parameter :: export_w=1,export_k=2,export_wk=3,set_omega=0,set_Ver=1,set_dSEk=2,set_dVer=3,set_dSus=4,set_GM=5,set_B=6,set_dGk0=7,set_Gk=8,set_Gi=9,set_Gl=10,set_SEl=11,set_Gkl=12,set_dGkl=13,set_ek=14,set_dVer_D=15,prime=20
+	integer :: ipi,i0
 	logical, parameter :: is_real=.false.
 	type(t_serde(D)) :: map
 	type gf(D,nk)
@@ -29,7 +30,7 @@ module M_DMFT
 		integer, allocatable :: uk2k(:,:)
 		real(8) :: rhoc(n),B(nk**D),ek(nk**D)
 		complex(8) :: Gl(n),Gkl(n),dGl(n),Delta(n),SEl(n),GM(n),Ver(n,n)
-		type(gf(D,nk)) :: dVer(n),Gk(n),dGk(n),dG0(n),dSE(n),dSus(n)
+		type(gf(D,nk)) :: dVer(n,n),dVer_D(n,n),Gk(n),dGk(n),dG0(n),dSE(n),dSus(n,n)
 		!complex(8) :: Sus(n,nk**D),dSus(n,nk**D),Gck(n,nk**D),Gci(n,nk**D),dSEc(n,nk**D),dGck(n,nk**D)
 		logical :: conv
 	contains
@@ -53,7 +54,7 @@ contains
 			case(export_wk)
 				write(ut(k),"(A)")"Tk omega rdG idG rG iG rdVer idVer"
 				do iw=1,n
-					write(ut(k),"(*(e29.20e3))")Tk,omega(iw),self%dGk(iw)%k(ipi),self%Gk(iw)%k(ipi),self%dVer(iw)%k(ipi)
+					write(ut(k),"(*(e29.20e3))")Tk,omega(iw),self%dGk(iw)%k(ipi),self%Gk(iw)%k(ipi),self%dVer(iw,iw)%k(ipi)
 				enddo
 				write(ut(k),"(x/)")
 			case(export_k)
@@ -68,7 +69,8 @@ contains
 	subroutine set_Gfunction(self,flag)
 		class(gfs(*,*,*)) :: self
 		integer :: flag(:),iw,jw,ik,l,i
-		complex(wp) :: phi(n,nkD)
+		complex(wp), save :: phi(n,nkD),tmp(n,nkD)
+		complex(wp) :: x(n**2),x_(size(x)),A(n,n),B(n,n)
 		do l=1,size(flag)
 			select case(flag(l))
 			case(set_omega)
@@ -85,25 +87,22 @@ contains
 					omega=omega-pi*Tk
 					iomega=cmplx(0d0,omega,kind=8)
 				endif
-			case(set_Ver)
-				do iw=1,n
-					do jw=1,n
-						if(iw==jw) then
-							self%Ver(iw,jw)=0d0
-						else
-							self%Ver(iw,jw)=w0w1*U**2*self%GM(iw)*self%GM(jw)
-						endif
-					enddo
-				enddo
-			case(set_dVerq)
+			case(set_GM)
+				!self%GM=1d0/(self%Gl**2*(iomega%re-self%Delta+mu)*(iomega%re-self%Delta+mu-U))
+				self%GM=1d0/(self%Gl**2*(iomega-self%Delta+mu)*(iomega-self%Delta+mu-U))
+			case(set_B)
+				!ik=ipi
 				!$OMP PARALLEL DO
-				do ik=1,size(self%k,2)
-					phi(:,ik)=w0w1*U**2*self%GM(:)/(1d0+w0w1*U**2*self%GM(:)**2*self%dSus(:)%k(ik))
-					self%dVer(:)%k(ik)=phi(:,ik)*(self%B(ik)*self%GM(:)-phi(:,ik)*self%GM(:)**2*self%dSus(:)%k(ik))/(1._wp-self%B(ik))
-					!self%dVer(:)%k(ik)=phi(:,ik)*(self%B(ik)*self%GM(:)-phi(:,ik)*self%GM(:)**2*self%dSus(:)%k(ik))/(sign(1._wp,1._wp-self%B(ik))*max(abs(1._wp-self%B(ik)),1e-6_wp))
+				do ik=1,size(self%uk,2)
+					phi(:,self%uk2k(ik,1))=w0w1*U**2*self%GM(:)/(1d0+w0w1*U**2*self%GM(:)**2*[(self%dSus(iw,iw)%k(self%uk2k(ik,1)),iw=1,n)])
+					if(is_real) then
+						self%B(self%uk2k(ik,1))=integrate(omega,A=-imag(phi(:,self%uk2k(ik,1))*self%GM*[(self%dSus(iw,iw)%k(self%uk2k(ik,1)),iw=1,n)])*ff(beta*iomega%re)/pi)/Tk
+					else
+						self%B(self%uk2k(ik,1))=sum(phi(:,self%uk2k(ik,1))*self%GM*[(self%dSus(iw,iw)%k(self%uk2k(ik,1)),iw=1,n)])
+					endif
 				enddo
 				!$OMP END PARALLEL DO
-			case(set_dSusq)
+			case(set_dSus)
 				!$OMP PARALLEL DO
 				do ik=1,size(self%uk,2)
 					do i=2,self%uk2k(ik,0)
@@ -116,37 +115,156 @@ contains
 				do iw=1,n
 					call mfft(self%dGk(iw)%k(1:nkD),1,map%shap,self%dGk(iw)%r(1:nkD),1d0/product(map%shap))
 					!self%dSus(iw)%r=-self%dGk(iw)%r**2
-					call mfft(self%dGk(iw)%k(1:nkD),-1,map%shap,self%dSus(iw)%r(1:nkD),1d0/product(map%shap))
-					self%dSus(iw)%r=-self%dGk(iw)%r*self%dSus(iw)%r
-					call mfft(self%dSus(iw)%r(1:nkD),-1,map%shap,self%dSus(iw)%k(1:nkD))
+					call mfft(self%dGk(iw)%k(1:nkD),-1,map%shap,tmp(iw,:),1d0/product(map%shap))
+					self%dSus(iw,iw)%r=-self%dGk(iw)%r*tmp(iw,:)
+					call mfft(self%dSus(iw,iw)%r(1:nkD),-1,map%shap,self%dSus(iw,iw)%k(1:nkD))
+					!self%dSus(iw)%k(1:nkD)=self%dSus(iw)%k(1:nkD)*Tk
 				enddo
 				!$OMP END PARALLEL DO
-			case(set_GM)
-				!self%GM=1d0/(self%Gl**2*(iomega%re-self%Delta+mu)*(iomega%re-self%Delta+mu-U))
-				self%GM=1d0/(self%Gl**2*(iomega-self%Delta+mu)*(iomega-self%Delta+mu-U))
-			case(set_B)
-				!ik=ipi
-				do ik=1,size(self%k,2)
-					phi(:,ik)=w0w1*U**2*self%GM(:)/(1d0+w0w1*U**2*self%GM(:)**2*self%dSus(:)%k(ik))
-					if(is_real) then
-						self%B(ik)=integrate(omega,A=-imag(phi(:,ik)*self%GM*self%dSus(:)%k(ik))*ff(beta*iomega%re)/pi)/Tk
-					else
-						self%B(ik)=sum(phi(:,ik)*self%GM*self%dSus(:)%k(ik))
-					endif
-				enddo
-			case(set_dSEk)
+			case(set_dSus+prime)
+				!$OMP PARALLEL DO
 				do iw=1,n
-					!call mfft(self%dVer(iw)%k(1:nkD),1,map%shap,self%dVer(iw)%r(1:nkD),1d0/product(map%shap))
-					call mfft(self%dVer(iw)%k(1:nkD),-1,map%shap,self%dSE(iw)%r(1:nkD),1d0/product(map%shap))
+					do jw=1,n
+						if(iw/=jw) then
+							self%dSus(iw,jw)%r=-self%dGk(iw)%r*tmp(jw,:)
+							call mfft(self%dSus(iw,jw)%r(1:nkD),-1,map%shap,self%dSus(iw,jw)%k(1:nkD))
+						endif
+					enddo
+				enddo
+				!$OMP END PARALLEL DO
+			case(set_Ver)
+				do iw=1,n
+					do jw=1,n
+						self%Ver(iw,jw)=w0w1*U**2*self%GM(iw)*self%GM(jw)
+					enddo
+					self%Ver(iw,iw)=0d0
+				enddo
+			case(set_dVer)
+				!$OMP PARALLEL DO
+				do ik=1,size(self%uk,2)
+					!if(self%B(self%uk2k(ik,1))>1._wp) then
+						!do jw=1,n
+							!x(1+(jw-1)*n:jw*n)=self%Ver(:,jw)
+						!enddo
+						!do i=1,1000
+							!do jw=1,n
+								!self%dVer(:,jw)%k(self%uk2k(ik,1))=x(1+(jw-1)*n:jw*n)
+								!x_(1+(jw-1)*n:jw*n)=self%Ver(:,jw)
+								!do iw=1,n
+									!x_(1+(jw-1)*n:jw*n)=x_(1+(jw-1)*n:jw*n)+self%Ver(:,iw)*self%dSus(iw,iw)%k(self%uk2k(ik,1))*self%dVer(iw,jw)%k(self%uk2k(ik,1))
+								!enddo
+							!enddo
+							!!call execute_command_line(delend)
+							!!call execute_command_line(delstart)
+							!!write(*,"(i3,(es14.4)$)")i,maxval(abs(x(1:n**2)-x_(1:n**2)))
+							!if(all(abs(x(1:n**2)-x_(1:n**2))<1d-6).or.i==1000) then
+								!exit
+							!else
+								!call mbroyden(i,x(1:n**2),x_(1:n**2),id=3)
+							!endif
+						!enddo
+					!else
+						do iw=1,n
+							self%dVer(iw,iw)%k(self%uk2k(ik,1))=phi(iw,self%uk2k(ik,1))*(self%B(self%uk2k(ik,1))*self%GM(iw)-phi(iw,self%uk2k(ik,1))*self%GM(iw)**2*self%dSus(iw,iw)%k(self%uk2k(ik,1)))/(1._wp-self%B(self%uk2k(ik,1)))
+						enddo
+					!endif
+				enddo
+				!$OMP END PARALLEL DO
+			case(set_dVer+3*prime)
+				!!$OMP PARALLEL DO PRIVATE(A,B)
+				do ik=1,size(self%uk,2)
+					!self%dVer(:,:)%k(self%uk2k(ik,1))=self%Ver(:,:)
+					B=self%Ver(:,:)
+					do iw=1,n
+						do jw=1,n
+							A(iw,jw)=-self%Ver(iw,jw)*self%dSus(jw,jw)%k(self%uk2k(ik,1))
+						enddo
+						A(iw,iw)=A(iw,iw)+1._wp
+					enddo
+					call gesv(A,B)
+					self%dVer(:,:)%k(self%uk2k(ik,1))=B
+				enddo
+				!!$OMP END PARALLEL DO
+			case(set_dVer_D)
+				!$OMP PARALLEL DO
+				do ik=1,size(self%uk,2)
+					do iw=1,n
+						do jw=1,n
+							!if(real(self%dSus(iw,jw)%k(self%uk2k(ik,1))*self%Ver(iw,jw))>-1._wp) then
+								self%dVer_D(iw,jw)%k(self%uk2k(ik,1))=self%Ver(iw,jw)*self%dSus(iw,jw)%k(self%uk2k(ik,1))*self%Ver(iw,jw)/(1._wp+self%dSus(iw,jw)%k(self%uk2k(ik,1))*self%Ver(iw,jw))
+							!else
+								!x(1)=self%Ver(iw,jw)*self%dSus(iw,jw)%k(self%uk2k(ik,1))*self%Ver(iw,jw)
+								!do i=1,1000
+									!self%dVer_D(iw,jw)%k(self%uk2k(ik,1))=x(1)
+									!x_(1)=self%Ver(iw,jw)*self%dSus(iw,jw)%k(self%uk2k(ik,1))*self%Ver(iw,jw)
+									!x_(1)=x_(1)+self%Ver(iw,jw)*self%dSus(iw,jw)%k(self%uk2k(ik,1))*self%dVer_D(iw,jw)%k(self%uk2k(ik,1))
+									!if(all(abs(x(1:1)-x_(1:1))<1d-6).or.i==1000) then
+										!exit
+									!else
+										!!x(1:1)=x_(1:1)*0.05_wp+x(1:1)*(1._wp-0.05_wp)
+										!call mbroyden(i,x(1:1),x_(1:1),id=4)
+									!endif
+								!enddo
+							!endif
+						enddo
+					enddo
+				enddo
+				!$OMP END PARALLEL DO
+			case(set_dSEk)
+				!$OMP PARALLEL DO
+				do ik=1,size(self%uk,2)
+					do i=2,self%uk2k(ik,0)
+						do iw=1,n
+							self%dVer(iw,iw)%k(self%uk2k(ik,i))=self%dVer(iw,iw)%k(self%uk2k(ik,1))
+						enddo
+					enddo
+				enddo
+				!$OMP END PARALLEL DO
+				!$OMP PARALLEL DO
+				do iw=1,n
+					!call mfft(self%dVer(iw,iw)%k(1:nkD),1,map%shap,self%dVer(iw,iw)%r(1:nkD),1d0/product(map%shap))
+					call mfft(self%dVer(iw,iw)%k(1:nkD),-1,map%shap,self%dVer(iw,iw)%r(1:nkD),1d0/product(map%shap))
+					!call mfft(self%dVer(iw,iw)%k(1:nkD),-1,map%shap,self%dSE(iw)%r(1:nkD),1d0/product(map%shap))
 					call mfft(self%dGk(iw)%k(1:nkD),1,map%shap,self%dGk(iw)%r(1:nkD),1d0/product(map%shap))
 					!self%dSE(iw)%r=self%dVer(iw)%r*self%dGk(iw)%r
-					self%dSE(iw)%r=self%dSE(iw)%r*self%dGk(iw)%r
+					!self%dSE(iw)%r=Tk*self%dVer(iw,iw)%r*self%dGk(iw)%r
+					!self%dSE(iw)%r=self%dSE(iw)%r*self%dGk(iw)%r
+					self%dSE(iw)%r=self%dVer(iw,iw)%r*self%dGk(iw)%r
 					call mfft(self%dSE(iw)%r(1:nkD),-1,map%shap,self%dSE(iw)%k(1:nkD))
 				enddo
+				!$OMP END PARALLEL DO
+			case(set_dSEk+prime)
+				!$OMP PARALLEL DO
+				do ik=1,size(self%uk,2)
+					do i=2,self%uk2k(ik,0)
+						do iw=1,n
+							do jw=1,n
+								self%dVer_D(iw,jw)%k(self%uk2k(ik,i))=self%dVer_D(iw,jw)%k(self%uk2k(ik,1))
+							enddo
+						enddo
+					enddo
+				enddo
+				!$OMP END PARALLEL DO
+
+				!$OMP PARALLEL DO
+				do iw=1,n
+					do jw=1,n
+						!if(iw/=jw) then
+							call mfft(self%dVer_D(iw,jw)%k(1:nkD),-1,map%shap,self%dVer_D(iw,jw)%r(1:nkD),1d0/product(map%shap))
+							!self%dSE(iw)%r=self%dSE(iw)%r+Tk*self%dVer(iw,jw)%r*self%dGk(jw)%r
+							!self%dSE(iw)%r=self%dSE(iw)%r+self%dVer(iw,jw)%r*self%dGk(jw)%r
+							self%dSE(iw)%r=self%dSE(iw)%r+self%dVer_D(iw,jw)%r*self%dGk(jw)%r
+						!endif
+					enddo
+					call mfft(self%dSE(iw)%r(1:nkD),-1,map%shap,self%dSE(iw)%k(1:nkD))
+				enddo
+				!$OMP END PARALLEL DO
 			case(set_dGk0)
+				!$OMP PARALLEL DO
 				do ik=1,size(self%uk,2)
 					self%dG0(:)%k(self%uk2k(ik,1))=(self%Gk(:)%k(self%uk2k(ik,1))-self%Gl(:))
 				enddo
+				!$OMP END PARALLEL DO
 			case(set_dGk0+prime)
 				do ik=1,size(self%uk,2)
 					self%dG0(:)%k(self%uk2k(ik,1))=-1._wp/(1._wp/(self%Gl(:)**2*(self%Delta(:)-self%ek(self%uk2k(ik,1))))+1._wp/self%Gl(:))
@@ -199,6 +317,8 @@ contains
 					enddo
 				enddo
 				!$OMP END PARALLEL DO
+			case default
+				stop "the case is not implimented"
 			end select
 		enddo
 	end subroutine
@@ -206,64 +326,80 @@ contains
 		class(gfs(*,*,*)) :: self
 		real(8) :: rate,tol
 		integer :: niter(2)
-		integer :: i,i1,i2,ik,iw,nx
-		complex(8) :: x(self%n*nkD),x_(size(x))
+		integer :: i,i1,i2,ik,iw,nx,nuk
+		complex(8) :: x(self%n*max(size(self%uk,2),self%n)),x_(size(x))
 		complex(8) :: tmp(n)
 		mu=0.5d0*U
 		if(.not.is_real) call self%set_Gfunction([set_omega])
-		call mbroyden(0,x,x_,rate,40,id=2)
-		do i1=1,niter(1)
+		call mbroyden(0,x,x_,rate,20,id=4)
+		do i=1,iw
+			self%dSE(iw)%k=0._wp
+		enddo
+		do i1=1,abs(niter(1))
 			if(is_real) call set_realpart(iomega%re,self%Delta)
-			call self%set_Gfunction([set_Gl,set_GM,set_dGk0])
+			call self%set_Gfunction([set_Gl,set_GM,set_dGk0+prime])
 
 			!dual fermion
-			nx=self%n*nkD
-			do ik=1,nkD
-				self%dGk(:)%k(ik)=self%dG0(:)%k(ik)
-				x((ik-1)*n+1:ik*n)=self%dGk(:)%k(ik)
+			nx=self%n*size(self%uk,2)
+			do ik=1,size(self%uk,2)
+				self%dGk(:)%k(self%uk2k(ik,1))=1._wp/(1._wp/self%dG0(:)%k(self%uk2k(ik,1))-self%dSE(:)%k(self%uk2k(ik,1)))
+				x((ik-1)*n+1:ik*n)=self%dGk(:)%k(self%uk2k(ik,1))
 			enddo
-			!do i2=1,niter(2)
-				!call self%export([50],[export_wk])
-				!call self%set_Gfunction([set_dSusq,set_B,set_dVerq,set_dSEk])
-				!!exit
-				!do ik=1,nkD
-					!x_((ik-1)*n+1:ik*n)=1._wp/(1._wp/self%dG0(:)%k(ik)-self%dSE(:)%k(ik))
-				!enddo
-				!write(*,"(i3,*(es14.4))")i2,maxval(abs(x(1:nx)-x_(1:nx))),Tk,self%B(ipi)
-				!if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i2==niter(2)) then
-					!exit
-				!else
-					!!x=x_*rate+x*(1._wp-rate)
-					!call mbroyden(i2,x(1:nx),x_(1:nx),id=2)
-				!endif
-				!do ik=1,nkD
-					!if(is_real) call set_realpart(iomega%re,x((ik-1)*n+1:ik*n))
-					!self%dGk(:)%k(ik)=x((ik-1)*n+1:ik*n)
-				!enddo
-			!enddo
+			do i2=1,abs(niter(2))
+				call self%export([50],[export_wk])
+				!call self%set_Gfunction([set_dSus,set_B,set_Ver,set_dVer,set_dSEk])
+				call self%set_Gfunction([set_dSus,set_B,set_Ver,set_dVer,set_dSus+prime,set_dVer_D,set_dSEk,set_dSEk+prime])
+				!exit
+				!$OMP PARALLEL DO
+				do ik=1,size(self%uk,2)
+					x_((ik-1)*n+1:ik*n)=1._wp/(1._wp/self%dG0(:)%k(self%uk2k(ik,1))-self%dSE(:)%k(self%uk2k(ik,1)))
+				enddo
+				!$OMP END PARALLEL DO
+				if(i2/=1) call execute_command_line(delend)
+				call execute_command_line(delstart)
+				write(*,"(i3,3(es14.4)$)")i2,maxval(abs(x(1:nx)-x_(1:nx))),Tk,self%B(ipi)
+				if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i2==abs(niter(2))) then
+					exit
+				else
+					if(niter(2)<0) then
+						x(1:nx)=x_(1:nx)*rate+x(1:nx)*(1._wp-rate)
+					else
+						call mbroyden(i2,x(1:nx),x_(1:nx),id=2)
+					endif
+				endif
+				!$OMP PARALLEL DO
+				do ik=1,size(self%uk,2)
+					if(is_real) call set_realpart(iomega%re,x((ik-1)*n+1:ik*n))
+					self%dGk(:)%k(self%uk2k(ik,1))=x((ik-1)*n+1:ik*n)
+				enddo
+				!$OMP END PARALLEL DO
+			enddo
 
 			call self%set_Gfunction([set_Gk+prime,set_Gkl,set_dGkl])
-			!call self%set_Gfunction([set_SEl,set_Gk,set_Gkl])
+			!call self%set_Gfunction([set_SEl,set_Gk,set_Gkl,set_dGkl])
 			nx=self%n
 			x(1:nx)=self%Delta
 			!x_(1:nx)=iomega-1d0/self%Gkl-self%SEl
-			x_(1:nx)=self%Delta+rate*self%dGl/(self%Gkl*self%Gl)
+			x_(1:nx)=self%Delta+self%dGl/(self%Gkl*self%Gl)
 			if(is_real) then
 				x(1:nx)%re=0._wp
 				x_(1:nx)%re=0._wp
 			endif
-			write(*,"(i3,*(es14.4))")i1,maxval(abs(x(1:nx)-x_(1:nx)))
-			if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i1==niter(1)) then
-				self%conv=(i1/=niter(1))
+			write(*,"(i3,*(es14.4))")i1,maxval(abs(x(1:nx)-x_(1:nx))),self%B(ipi)
+			if(all(abs(x(1:nx)-x_(1:nx))<tol).or.i1==abs(niter(1))) then
+				self%conv=(i1/=abs(niter(1)))
 				exit
 			else
-				!x(1:nx)=(1._wp-rate)*x(1:nx)+rate*x_(1:nx)
-				!call mbroyden(i1,x(1:nx),x_(1:nx),id=1)
+				if(niter(1)<0) then
+					x(1:nx)=x_(1:nx)*rate+x(1:nx)*(1._wp-rate)
+				else
+					call mbroyden(i1,x(1:nx),x_(1:nx),id=1)
+				endif
 			endif
 			self%Delta=x(1:nx)
 			call self%export([10],[export_w])
 		enddo
-		call self%set_Gfunction([set_dSusq,set_B])
+		call self%set_Gfunction([set_dSus,set_B])
 		call mbroyden(huge(1),x,x_)
 	end subroutine
 	subroutine set_realpart(omega,G)
@@ -358,12 +494,19 @@ program main
 	!call add_omega(omega(1:nl*nlog*2+sum(nadd(1:2))*4),4d0,0.5d0,nadd(2))
 	map%shap=[(nk,i=1,D)]
 	ipi=0
+	i0=0
 	!!$OMP PARALLEL DO
 	do ik=1,size(phy%k,2)
 		phy%k(:,ik)=2d0*pi*(map%get_idx(ik,[1:D])-1)/nk
 		if(sum(abs(phy%k(:,ik)-pi))<1d-8) then
 			if(ipi==0) then
 				ipi=ik
+			else
+				stop "err"
+			endif
+		elseif(sum(abs(phy%k(:,ik)))<1d-8) then
+			if(i0==0) then
+				i0=ik
 			else
 				stop "err"
 			endif
@@ -381,23 +524,42 @@ program main
 		!read(20,"(2(e28.20))")phy%Delta(i)
 	!enddo
 	write(40,"(A)")"U T"
-	if(next(Tk,0d0,1d-1,1d-4)) then
-	endif
-	phy%Delta=0d0
 	call phy%set_Gfunction([set_ek])
+	!phy%Delta=1d-1
+	phy%Delta=cmplx(1d-1,1d-1)
+	Tk=0.207046875000000d0
+	!5.00000000000000       0.125046875000000       0.991754771775755
+	!5.00000000000000       0.124546875000000        1.15946531278591
+
 	do 
-		U=for_in([5d0],id=1)
+		U=for_in([8]*1d0,id=1)
 		if(isnan(U)) exit
-		Tk=2.1d-1
+		if(next(Tk,0d0,1d-1,1d-4)) then
+		endif
 		if(is_real) then
 			call phy%set_Gfunction([set_omega])
 		endif
 		do 
 			beta=1._wp/Tk
 
-			call phy%self_consistent(0.1d0,[3000,1],1d-6)
-			write(*,*)Tk,phy%B(ipi)
+			call phy%self_consistent(0.2d0,[300,0],1d-6)
+			!call phy%self_consistent(0.05d0,[300,1000],1d-6)
 			!stop
+			if(next(Tk,phy%B(ipi)-1d0)) then
+				write(*,*)U,Tk,phy%B(ipi)
+				write(40,"(*(e29.20e3))")U,Tk
+				exit
+			endif
+		enddo
+		!cycle
+		if(next(Tk,0d0,1d-3,1d-4)) then
+		endif
+		do 
+			beta=1._wp/Tk
+
+			!call phy%self_consistent(0.05d0,[300,0],1d-6)
+			call phy%self_consistent(0.05d0,[100,100],1d-6)
+			write(*,*)U,Tk,phy%B(ipi)
 			if(next(Tk,phy%B(ipi)-1d0)) then
 				write(40,"(*(e29.20e3))")U,Tk
 				exit

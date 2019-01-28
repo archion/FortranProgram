@@ -3,7 +3,7 @@ sx=2.5
 sy=3
 x1lb="{/Symbol w}"
 #y1lb="Im[ln(-G_f^{-1})]"
-y1lb="Im(G_B)"
+y1lb="Im(G_f)"
 flabel=""
 #x2lb="X"
 #y2lb="Y"
@@ -37,10 +37,10 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set cbtics scale 0.5 offset character -0.7, 0 font ",".(ticfontsize)
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
-set xrange [:]
+set xrange [:1e-6]
 #set xrange [-2e-1:2e-1]
 #set yrange [-10:10]
-#set yrange [1e-3:2000]
+set yrange [1e-8:]
 set zrange [:]
 set logscale x
 #set logscale y
@@ -59,13 +59,13 @@ set logscale x
 #a=-1
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
 array y[6]=[120,174,176,176,176,176]
-array am[6]=[1,0.85,1,1,1,1]
+array am[6]=[1,1,1,1,1,1]
 array id[5]=[1,2,3,5,6]
 #array a[3]=[0.-1.,0.03-1.,0.41-1.]
 array a[3]=[0.25-1.,0.15-1.,0.41-1.]
 array b[3]=[1.5,0.5,1.0]
 
-plot for[i=117:120:1] "-" index 0 every :::i-1::i-1 u (am[i%2+3]*column("omega")):(-column("iGB")*am[i%2+1]) with l lw 2 dt 2-i%2 lc i%2*2 notitle word("T1 T2 LM C MCK C' LM'",i%4+1)#,x**(0.3+0.15)
+plot for[i=247:252:1] "-" index 0 every :::i-1::i-1 u (am[i%2+3]*column("omega")):(-column("iGf")*am[i%2+1]) with l lw 2 dt 2-i%2 lc i%2*2 notitle word("T1 T2 LM C MCK C' LM'",i%4+1)#,x**(0.3+0.15)
 #plot for[i=1:80:2] "-" index 0 every :::i-1::i-1 u (column("omega")):(-column("iGf")) with l lw 2 lc i notitle word("LM C MCK C' LM'",i)#,for[i=0:80:2] "-" index 0 every :::i-1::i-1 u (column("omega")/column("T")):(-0.048*column("T")**0.23*column("iGf")) with l lw 2 lc i title word("LM C MCK C' LM'",i)
 #plot for[i=1:1] "-" index id[i]-1 every :::y[i]::y[i] u (abs(column("omega"))<2e11?column("omega")*am[i]:1/0):(-column("rSEf")) with l lw 2 lc i title word("LM C MCK C' LM'",i), for[i=1:1] "-" index id[i]-1 every :::y[i]+1::y[i]+1 u (abs(column("omega"))<2e11?column("omega")*am[i]:1/0):(-column("rSEf")) with l lw 2 dt 2 lc i+1 notitle
 #plot "-" index 0 u 2:5 with l notitle
@@ -105,7 +105,7 @@ if(exists("x2lb")) {
 	}
 }
 if(exists("y1lb")) {
-	set ylabel y1lb offset character 4.5,0 
+	set ylabel y1lb offset character 1.5,0 
 	#set label y1lb center at screen 0,graph 0.5 front offset character 1,0 rotate by 90
 	set ytics out mirror scale 0.7, 0.3 offset 0.7,0 font ",".(ticfontsize)
 	if(exists("zlb")) {

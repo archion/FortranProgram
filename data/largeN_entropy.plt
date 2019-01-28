@@ -62,7 +62,7 @@ array fact[3]=[5,5,1]
 array id[5]=[1,2,3,4,6]
 
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-plot for[i=1:5] "-" index 0 every :::id[i]-1::id[i]-1 u "T":(column(word("Sn Sa Snp",1))) with l lw 2 lc i title word("C MCK C' LM'",i), log(2) with l lw 2 title "LM"
+plot for[i=2:2] "-" index 0 every :::0::0 u "T":(column(word("Sn Sa Snp",i))) with l lw 2 lc i title word("C MCK C' LM'",i)
 #plot for[i=1:*] for[j=1:1] "-" index 0 every :::i-1::i-1 u "T":(column(word("Sn Sa Snp",j))) with l lw j lc i dt j title word("LM C MCK MCK C' LM'",i)#, for[i=1:6] for[j=2:2] "-" index 0 every :::i-1::i-1 u "T":(column(word("Q gW Snp",j))) with l lw j lc i dt j notitle word("LM C MCK MCK C' LM'",i),
 #plot for[i=2:2] for[j=1:8] "-" index 0 every :::i-1::i-1 u "T":(column(word("Q gW GB g f B c phi",j))) with l lc j lw 2 dt j/5+1 title word("Q gW GB g f B c phi",j)
 #plot "-" index 0 u ((abs(column("T")-1e-5)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 0 u ((abs(column("T")-1e-7)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 1 u ((abs(column("T")-1e-7)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 1 u ((abs(column("T")-5e-10)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle

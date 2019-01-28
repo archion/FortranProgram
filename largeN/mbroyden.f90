@@ -137,7 +137,7 @@ contains
 				do j=1,m
 					tmp=tmp+w(j,id_)*sum(dF(:s,j,id_)*Fm)*beta(j,i)
 				enddo
-				do l=1,s
+				do l=1,s/2
 					vo(l)%re=vo(l)%re-w(i,id_)*tmp*(alpha_*dF(l,i,id_)+dV(l,i,id_))
 					vo(l)%im=vo(l)%im-w(i,id_)*tmp*(alpha_*dF(size(v)/2+l,i,id_)+dV(size(v)/2+l,i,id_))
 				enddo

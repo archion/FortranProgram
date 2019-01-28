@@ -1,4 +1,4 @@
-out = Gc.out
+out = largeN.out
 AFLAG = -qopenmp
 #LFLAG = -lslatec
 LFLAG = -lmath77 -lslatec

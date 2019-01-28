@@ -53,6 +53,7 @@ contains
 		norm_Ac=1._wp/integrate(omega,A=self%rhoc)
 		norm_Aphi=1._wp/integrate(omega(n/2+1:),A=self%rhoc(n/2+1:))
 		self%rhoc=self%rhoc*norm_Ac
+		self%rhophi=self%rhophi*norm_Aphi
 		self%Gc0%im=-self%rhoc*pi
 		self%Gphi0%im=-self%rhophi*pi
 
@@ -788,11 +789,12 @@ contains
 				!)
 
 			! B-S functional
-			rt=(integrate(omega,A=&
-				ff(beta*omega)*(imag(log(-1._wp/self%Gf)+self%Gf*(omega-1._wp/self%Gf))+0.5_wp*(1._wp+sign(1._wp,omega))*pi)&
-				+kp*fb(beta*omega)*imag(log(-1._wp/self%GB)+(self%GB+Jk)*(-1._wp/Jk-1._wp/self%GB))&
-				)/pi&
-				-1._wp/beta*log(2._wp)&
+			rt=(&
+				!integrate(omega,A=&
+				!ff(beta*omega)*(imag(log(-1._wp/self%Gf)+self%Gf*(omega-1._wp/self%Gf))+0.5_wp*(1._wp+sign(1._wp,omega))*pi)&
+				!+kp*fb(beta*omega)*imag(log(-1._wp/self%GB)+(self%GB+Jk)*(-1._wp/Jk-1._wp/self%GB))&
+				!)/pi&
+				!-1._wp/beta*log(2._wp)&
 				-integrate(omega,A=ff(beta*omega)*imag(self%Gc0*self%SEc)/pi*kp)&
 				-integrate(omega,A=fb(beta*omega)*imag(g**2*self%Gphi0*self%SEphi)/pi)&
 				)
@@ -850,10 +852,10 @@ contains
 	subroutine analytic(self,a_f,a_b)
 		class(gfs(*)) :: self
 		real(wp) :: a_f,a_b
-		real(wp) :: M_f,M_B,M_c,M_phi,t,sh,ch,lsh,lch,lgam_a,lgam_b,lgam_sa(2),lgam_sb,SEB0,w
+		real(wp) :: M_f,M_B,M_c,M_phi,t,sh,ch,lsh,lch,lgam_a,lgam_b,lgam_sa(2),lgam_sb,lgam_c,lgam_phi,SEB0,w
 		integer :: i,j
 		!M_f=0.724_wp
-		M_f=3.7_wp
+		M_f=0.59_wp
 		M_B=1._wp
 		M_c=1._wp
 		!M_phi=0.85_wp
@@ -880,6 +882,8 @@ contains
 				lgam_sa(1)=log(2._wp*pi)-beta*abs(w)/2._wp+(r+a_B)*(log(beta*abs(w))-log(2._wp*pi))
 				lgam_sa(2)=log(2._wp*pi)-beta*abs(w)/2._wp+(1._wp-s+a_f)*(log(beta*abs(w))-log(2._wp*pi))
 				lgam_sb=log(2._wp*pi)-beta*abs(w)/2._wp+(r+a_f)*(log(beta*abs(w))-log(2._wp*pi))
+				lgam_c=log(2._wp*pi)-beta*abs(w)/2._wp+r*(log(beta*abs(w))-log(2._wp*pi))
+				lgam_phi=log(2._wp*pi)-beta*abs(w)/2._wp+(1._wp-s)*(log(beta*abs(w))-log(2._wp*pi))
 			else
 				lsh=log(sinh(beta*abs(w)/2._wp))
 				lch=log(cosh(beta*abs(w)/2._wp))
@@ -888,13 +892,21 @@ contains
 				lgam_sa(1)=real(lgamma((1._wp+r+a_B)/2._wp+img*beta*w/(2._wp*pi))+lgamma((1._wp+r+a_B)/2._wp-img*beta*w/(2._wp*pi)))
 				lgam_sa(2)=real(lgamma((2._wp-s+a_f)/2._wp+img*beta*w/(2._wp*pi))+lgamma((2._wp-s+a_f)/2._wp-img*beta*w/(2._wp*pi)))
 				lgam_sb=real(lgamma((1._wp+r+a_f)/2._wp+img*beta*w/(2._wp*pi))+lgamma((1._wp+r+a_f)/2._wp-img*beta*w/(2._wp*pi)))
+				lgam_c=real(lgamma((r+1._wp)/2._wp+img*beta*w/(2._wp*pi))+lgamma((r+1._wp)/2._wp-img*beta*w/(2._wp*pi)))
+				lgam_phi=real(lgamma((2._wp-s)/2._wp+img*beta*w/(2._wp*pi))+lgamma((2._wp-s)/2._wp-img*beta*w/(2._wp*pi)))
 			endif
 			sh=real(exp((a_f-1._wp)*(log(2._wp*pi)-log(beta))+lgam_a+lsh))*sign(1._wp,w)
 			ch=real(exp((a_f-1._wp)*(log(2._wp*pi)-log(beta))+lgam_a+lch))
 			self%Gf(i)=-M_f*t**a_f/gamma(a_f)*cmplx(-1d0/tan(pi*a_f/2._wp)*sh,ch,kind=wp)
+			sh=real(exp(r*(log(2._wp*pi)-log(beta))+lgam_c+lsh))*sign(1._wp,w)
+			ch=real(exp(r*(log(2._wp*pi)-log(beta))+lgam_c+lch))
+			self%Gc0(i)=-M_c*cmplx(-1d0/tan(pi*(r+1._wp)/2._wp)*sh,ch,kind=wp)
 			sh=real(exp((a_b-1._wp)*(log(2._wp*pi)-log(beta))+lgam_b+lsh))*sign(1._wp,w)
 			ch=real(exp((a_b-1._wp)*(log(2._wp*pi)-log(beta))+lgam_b+lch))
 			self%GB(i)=-M_B*t**a_b/gamma(a_b)*cmplx(tan(pi*a_b/2._wp)*ch,sh,kind=wp)-Jk
+			sh=real(exp((1._wp-s)*(log(2._wp*pi)-log(beta))+lgam_phi+lsh))*sign(1._wp,w)
+			ch=real(exp((1._wp-s)*(log(2._wp*pi)-log(beta))+lgam_phi+lch))
+			self%Gphi0(i)=-M_phi*cmplx(tan(pi*(2._wp-s)/2._wp)*ch,sh,kind=wp)
 			sh=real(exp((r+a_B)*(log(2._wp*pi)-log(beta))+lgam_sa(1)+lsh))*sign(1._wp,w)
 			ch=real(exp((r+a_B)*(log(2._wp*pi)-log(beta))+lgam_sa(1)+lch))
 			self%SEf(i)=0._wp
@@ -906,16 +918,16 @@ contains
 			ch=real(exp((r+a_f)*(log(2._wp*pi)-log(beta))+lgam_sb+lch))
 			self%SEB(i)=-M_c*M_f*gamma(1._wp+r)*t**a_f/gamma(1._wp+r+a_f)*cmplx(tan(pi*(1._wp+r+a_f)/2._wp)*ch,sh,kind=wp)+SEB0
 			if(abs(w)<fcut) then
-				self%Gc0(i)%im=-pi*M_c*(abs(w)/fcut)**r
+				!self%Gc0(i)%im=-pi*M_c*(abs(w)/fcut)**r
 			elseif(abs(w)<=(-omega(1))) then
 				self%Gc0(i)%im=-pi*M_c*exp(-(w**2-fcut**2)/pi*fbeta)
 			else
 				self%Gc0(i)%im=0._wp
 			endif
 			if(abs(w)<eps) then
-				self%Gphi0(i)%im=0._wp
+				!self%Gphi0(i)%im=0._wp
 			elseif(abs(w)<phicut) then
-				self%Gphi0(i)%im=-pi*M_phi*abs(w)**(1._wp-s)*sign(1._wp,w)
+				!self%Gphi0(i)%im=-pi*M_phi*abs(w)**(1._wp-s)*sign(1._wp,w)
 			else
 				self%Gphi0(i)%im=-pi*M_phi*phicut**(1._wp-s)*sign(1._wp,w)*1._wp/((exp(phibeta*(w-phicut-4._wp/phibeta))+1._wp)*(exp(phibeta*(-w-phicut-4._wp/phibeta))+1._wp))
 			endif
@@ -1029,9 +1041,9 @@ program main
 
 	write(25,"(A)")"T J g r s kappa Sn Sa GB g f B c phi"
 	Jk=1.8_wp
-	g=0.2_wp
-	!r=0.3_wp
-	r=-0.23_wp
+	g=0.0_wp
+	r=0.3_wp
+	!r=-0.23_wp
 	s=0.3_wp
 	kp=0.3_wp
 	do 
@@ -1039,10 +1051,10 @@ program main
 		!g=for_in(x=[0._wp,0._wp,0._wp,0.2_wp,0.2_wp,0.2_wp],id=2)
 		!Jk=for_in(x=[0.978_wp,1.8_wp,1.153_wp,0.5_wp],id=1)
 		!g=for_in(x=[0._wp,0._wp,0.2_wp,0.2_wp],id=2)
-		Jk=for_in(x=[0.01_wp,0.5_wp],id=1)
+		!Jk=for_in(x=[1.8_wp,0.5_wp],id=1)
+		!g=for_in(x=[0._wp],id=2)
+		Jk=for_in(x=[1.8_wp],id=1)
 		g=for_in(x=[0._wp],id=2)
-		!Jk=for_in(x=[0.1_wp],id=1)
-		!g=for_in(x=[0.2_wp],id=2)
 		!Jk=for_in(x=[1._wp],id=1)
 		!Jk=for_in(x=[&
 			![0.5_wp,0.6_wp,0.7_wp,0.8_wp,0.9_wp,0.93_wp,0.96_wp,0.97_wp,0.98_wp,0.99_wp,1._wp,1.05_wp,1.2_wp,1.3_wp,1.4_wp,1.5_wp,1.6_wp,1.7_wp,1.8_wp,1.9_wp,2._wp]&
@@ -1057,14 +1069,16 @@ program main
 		!g=for_in(x=[0.2_wp],id=2)
 		!a_f=for_in([0.001_wp,0.04_wp,0.41_wp,0.41_wp,0.5_wp*s,0.5_wp*s],id=4)
 		!a_b=for_in([1._wp-r-0.001_wp,1._wp-r-0.04_wp,1._wp-r-0.41_wp,1._wp-r-0.41_wp,1._wp-r-0.5_wp*s,1._wp+r+0.5_wp*s],id=5)
-		a_f=for_in([0.04_wp,0.41_wp,0.5_wp*s,0.5_wp*s],id=4)
-		a_b=for_in([1._wp-r-0.04_wp,1._wp-r-0.41_wp,1._wp-r-0.5_wp*s,1._wp+r+0.5_wp*s],id=5)
+		!a_f=for_in([0.04_wp,0.41_wp,0.5_wp*s,0.5_wp*s],id=4)
+		!a_b=for_in([1._wp-r-0.04_wp,1._wp-r-0.41_wp,1._wp-r-0.5_wp*s,1._wp+r+0.5_wp*s],id=5)
 		!a_f=for_in([0.5_wp*s],id=4)
 		!a_b=for_in([1._wp+r+0.5_wp*s],id=5)
 		!a_f=for_in([1._wp/(1._wp+kp)],id=4)
 		!a_b=for_in([1._wp-1._wp/(1._wp+kp)],id=5)
-		!a_f=for_in([0.41_wp],id=4)
-		!a_b=for_in([1._wp-r-0.41_wp],id=5)
+		a_f=for_in([0.413_wp],id=4)
+		a_b=for_in([1._wp-r-0.413_wp],id=5)
+		!a_f=for_in([0.04_wp],id=4)
+		!a_b=for_in([1._wp-r-0.04_wp],id=5)
 		!Jk=for_in(x=[0.5_wp,0.978_wp],id=1)
 		!g=for_in(x=[0.0_wp,0.0_wp],id=2)
 		!kp=for_in(x=[(i*0.1_wp,i=15,1,-1)],id=1)
@@ -1074,20 +1088,20 @@ program main
 		call phy%init(10)
 
 		!write(26,"(A)")"T Fn Fa pT pFn pFa"
-		write(26,"(A)")"T F1 F2 F3 pT pF1 pF2 pF3"! F2 F3 F4 F5 F6 pT pF1 pF2 pF3 pF4 pF5 pF6"
+		write(26,"(A)")"T F1 F2 pT pF1 pF2"! F2 F3 F4 F5 F6 pT pF1 pF2 pF3 pF4 pF5 pF6"
 		flag=.true.
 		Tk=for_in(id=3)
 		do
 			if(flag) then
 				Tk=for_in(x=[&
-					 [90:10:-10]*1e-3_wp&
-					,[90:10:-10]*1e-4_wp&
-					,[90:10:-10]*1e-5_wp&
-					,[90:10:-10]*1e-6_wp&
-					,[90:10:-10]*1e-7_wp&
-					,[90:10:-10]*1e-8_wp&
-					,[90:10:-10]*1e-9_wp&
-					,[90:10:-10]*1e-10_wp&
+					 [90:10:-5]*1e-3_wp&
+					,[90:10:-5]*1e-4_wp&
+					,[90:10:-5]*1e-5_wp&
+					,[90:10:-5]*1e-6_wp&
+					,[90:10:-5]*1e-7_wp&
+					,[90:10:-5]*1e-8_wp&
+					,[90:10:-5]*1e-9_wp&
+					,[90:10:-5]*1e-10_wp&
 					!,[96:10:-2]*1e-7_wp&
 					!,[96:10:-2]*1e-8_wp&
 					!,[96:10:-2]*1e-9_wp&
@@ -1124,28 +1138,31 @@ program main
 
 
 			write(*,"(*(A4,es9.2))")"T:  ",Tk," Jk:",Jk," kp:",kp," r: ",r," g: ",g
-			call phy%set_Gfunction([set_Gt])
-			call phy%export([23],[export_Gt])
+			!call phy%set_Gfunction([set_Gt])
+			!call phy%export([22],[export_Gw])
 
+			call aphy%analytic(a_f=a_f,a_b=a_b)
+			phy%Gc0=aphy%Gc0
+			phy%Gphi0=aphy%Gphi0
 
-			!call phy%self_consistent(1e-5_wp,[500,1],3e-3_wp)
-			!if(.not.phy%conv) then
-				!write(*,*)"not converge!"
-				!exit
-			!else
-				!!rewind(23)
-				!!rewind(22)
-			!endif
-			!call phy%set_Gfunction([set_SE,set_rSE,set_Gt,set_rG])
-			!call phy%export([22,23],[export_Gw,export_Gt])
-			!if(is_expinit) then
-				!call phy%export([10],[export_SE])
-				!is_expinit=.false.
-			!endif
+			call phy%self_consistent(1e-5_wp,[500,1],3e-3_wp)
+			if(.not.phy%conv) then
+				write(*,*)"not converge!"
+				exit
+			else
+				!rewind(23)
+				!rewind(22)
+			endif
+			call phy%set_Gfunction([set_SE,set_rSE,set_Gt,set_rG])
+			call phy%export([22,23],[export_Gw,export_Gt])
+			if(is_expinit) then
+				call phy%export([10],[export_SE])
+				is_expinit=.false.
+			endif
 
-			!call aphy%analytic(a_f=a_f,a_b=a_b)
-			!call aphy%set_Gfunction([set_SE])
-			!call aphy%export([22,23],[export_Gw])
+			call aphy%analytic(a_f=a_f,a_b=a_b)
+			call aphy%set_Gfunction([set_SE])
+			call aphy%export([22],[export_Gw])
 
 			!mphy=aphy
 			!call xscale(mphy%Gf(n/2+1:),omega(n/2+1:),0.555_wp)
