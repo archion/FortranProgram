@@ -1,18 +1,19 @@
 reset
-sx=2.5
+sx=3
 sy=3
 #x1lb="{/Symbol k}"
 #x1lb=""
-x1lb="J_k"
+x1lb="T"
 #y1lb="Im[ln(-G_f^{-1})]"
-y1lb="0.6951-s_{imp}"
+#y1lb="0.6951-s_{imp}"
+y1lb="s_{imp}"
 #x2lb="X"
-#y2lb="Y"
+#y2lb="entropy"
 #zlb="Z"
 flabel=" "
 lmg=8.5
 rmg=1.0
-umg=0.5
+umg=1.5
 dmg=2.5
 fontsize=15
 ticfontsize=floor(fontsize*0.7)
@@ -33,20 +34,21 @@ set pm3d corners2color c2
 set palette rgbformulae 22,13,-31
 #set logscale cb
 set cbrange [:]
-set cbtics scale 0.5 offset 0,character 2.1 font ",".(ticfontsize)
+set cbtics scale 0.1 offset 0,character 2.1 font ",".(ticfontsize)
 set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set cbtics scale 0.5 offset character -0.7, 0 font ",".(ticfontsize)
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
 #set xrange [:]
-set xrange [:]
-#set yrange [1:1e-5]
+set xrange [:1e-1]
 set yrange [:]
+#set yrange [1:1e-5]
+#set yrange [:0.156]
 set zrange [:]
 set logscale x
-#set logscale y
-a=-0.771
-b=0.0001/5
+set logscale y
+#a=-0.771
+#b=0.0001/5
 #set style line 1 linetype dl
 
 set style line 2 dashtype 3
@@ -60,13 +62,34 @@ set style line 3 dashtype 2
 #set arrow from 3e-5,0.685 to 3e-6,0.675
 array fact[3]=[5,5,1]
 array id[5]=[1,2,3,4,6]
+n=5
+array a[n]
+array b[n]
+array c[n]
+a_=0.066
+b_=0.1
+c_=0.70345
+do for[i=n:n] {
+	#fit [x=1e-9:1e-5] b_*x**a_+c_  "-" index 0 every :::i-1::i-1 u "T":"Sn"  via a_,b_,c_
+		a[i]=a_
+		b[i]=b_
+		c[i]=c_
+}
+unset logscale y
+#unset logscale x
+array fact[5]=[1.,0.65,0.6,0.6,0.5]
+plot for[j=1:5] for[i=1:1] "-" index j-1 every :::i-1::i-1 u "T":(fact[1]*(column(word("Sn Sa Snp",1))-0*0.7441)) with l lw 2 lc j dt 1 title word("beta=0.1 beta=1  beta=2 beta=5 beta=10",j)#, for[i=n:n] b_[i]*x**a[i] 
+#plot for[i=1:1] for[j=1:1] "-" index 0  every :::j-1::j-1 u "T":(column(word("Sn Sa Snp",i))-0.62455) with l lw 2 lc i title word("Sn Sa C' LM'",i),"-" u "r":(column("Sn")-column("Sa")) with l lw 2 lc 0 dt 2 title "Sn-Sa"
+#plot for[i=n:n] b[i]*x**a[i] w l lc i dt 2 title sprintf("#x^{%1.4f}+%1.4f",a[i],c[i]), for[i=n:n] "-" index 0 every :::i-1::i-1 u "T":((column(word("Sn Sa Snp",1))-c[i])) with l lw 2 lc i title word("k=0.5 1 1.5",i)
 
-#fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-plot for[i=2:2] "-" index 0 every :::0::0 u "T":(column(word("Sn Sa Snp",i))) with l lw 2 lc i title word("C MCK C' LM'",i)
+#unset logscale y
+#unset logscale x
+#array e[8]=[1.,1.,1.,1.,1.2,1.5,1.8,2.0]
+#plot a u (($0)+1):($2) w lp pt 7 title "exponents", c u (($0)):($2) w lp pt 7 axis x1y2 title "entropy", e u ($0+1):(2./(1.+$2)) w lp pt 7
 #plot for[i=1:*] for[j=1:1] "-" index 0 every :::i-1::i-1 u "T":(column(word("Sn Sa Snp",j))) with l lw j lc i dt j title word("LM C MCK MCK C' LM'",i)#, for[i=1:6] for[j=2:2] "-" index 0 every :::i-1::i-1 u "T":(column(word("Q gW Snp",j))) with l lw j lc i dt j notitle word("LM C MCK MCK C' LM'",i),
 #plot for[i=2:2] for[j=1:8] "-" index 0 every :::i-1::i-1 u "T":(column(word("Q gW GB g f B c phi",j))) with l lc j lw 2 dt j/5+1 title word("Q gW GB g f B c phi",j)
 #plot "-" index 0 u ((abs(column("T")-1e-5)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 0 u ((abs(column("T")-1e-7)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 1 u ((abs(column("T")-1e-7)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 1 u ((abs(column("T")-5e-10)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle
-set key font ",".ticfontsize at graph 0.45,0.85,1 horizontal maxcols 1 spacing 0.8 samplen 1.5 #opaque autotitle
+set key font ",".ticfontsize at graph 0.65,0.95,1 horizontal maxcols 1 spacing 0.8 samplen 1.5 #opaque autotitle
 set label flabel font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){
 	set key at screen 1,1,1
@@ -85,7 +108,7 @@ if(exists("zlb")){
 if(exists("x1lb")) {
 	set xlabel x1lb offset character 0,1.2 
 	#set label x1lb center at graph 0.5,screen 0 front offset character 0, 0.7
-	set xtics out nomirror scale 0.7, 0.3 offset 0,0.5 font ",".(ticfontsize)
+	set xtics 1000 out nomirror scale 0.7, 0.3 offset 0,0.5 font ",".(ticfontsize)
 	if(exists("zlb")) {
 		set xlabel offset character 0,0
 		set xtics offset 0,0 
@@ -102,9 +125,9 @@ if(exists("x2lb")) {
 	}
 }
 if(exists("y1lb")) {
-	set ylabel y1lb offset character 3,0 
+	set ylabel y1lb offset character 1,0 
 	#set label y1lb center at screen 0,graph 0.5 front offset character 1,0 rotate by 90
-	set ytics out mirror scale 0.7, 0.3 offset 0.7,0 font ",".(ticfontsize)
+	set ytics out nomirror scale 0.7, 0.3 offset 0.7,0 font ",".(ticfontsize)
 	if(exists("zlb")) {
 		set ylabel offset character 0,0
 		set ytics offset 0,0
@@ -113,8 +136,8 @@ if(exists("y1lb")) {
 if(exists("y2lb")) {
 	set y2label y2lb offset character -3,0 rotate by -90
 	#set label y2lb center at screen 1,graph 0.5 front offset character -1,0 rotate by -90
-	set y2range [GPVAL_Y_MIN:GPVAL_Y_MAX]
-	set y2tics out mirror scale 0.7, 0.3 offset -0.7,0 font ",".(ticfontsize)
+	set y2range [GPVAL_Y2_MIN:GPVAL_Y2_MAX]
+	set y2tics out nomirror scale 0.7, 0.3 offset -0.7,0 font ",".(ticfontsize)
 	if(exists("zlb")) {
 		set y2label offset character 0,0
 		set y2tics offset 0,0

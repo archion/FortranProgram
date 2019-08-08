@@ -11,20 +11,21 @@ module global
 	use mkl_service
 	use M_pade
 	implicit none
-	real(wp) :: s=nan,r=nan,kp=nan,fcut=1._wp,fbeta=1._wp,phicut=5e-2_wp,phibeta=200._wp,Jk=nan,g=nan
-	real(wp) :: Tk,beta,norm_Ac=1._wp,norm_Aphi=1._wp,bcut=10._wp,min_omega=1e-11_wp!7e-11_wp!1e-11_wp!1e-12_wp
-	integer, parameter :: nlog=31,nl=7,nadd(3)=[5,10,25]
+	real(wp) :: s=nan,r=nan,kp=nan,fcut=1.0_wp,fbeta=1._wp,phicut=1e0_wp,phibeta=1._wp,Jk=nan,g=nan,nf=0.5_wp
+	real(wp) :: Tk,beta,norm_Ac=1._wp,norm_Aphi=1._wp,bcut=10._wp,min_omega=1e-12_wp!7e-11_wp!1e-11_wp!1e-12_wp
+	integer, parameter :: nlog=33,nl=14,nadd(4)=[5,10,10,5]
+	!integer, parameter :: nlog=31,nl=34,nadd(4)=[5,10,20,25]
 	!integer, parameter :: nlog=31,nl=14,nadd(3)=[5,10,20]
 	!integer, parameter :: nlog=35,nl=14,nadd(3)=[5,10,25]
 	!integer, parameter :: nlog=35,nl=40,nadd(3)=[25,25,75]
 	!integer, parameter :: nlog=35,nl=34,nadd(2)=[5,10]
 	integer, parameter :: n=(nl*nlog+sum(nadd))*2
-	integer, parameter :: set_rGB=1,set_Gt=2,set_rG=3,set_rSE=4,set_SE=5,export_Gw=1,export_Gt=2,export_fe=3,export_entropy=4,export_SE=5
+	integer, parameter :: set_omega=0,set_rGB=1,set_Gt=2,set_rG=3,set_rSE=4,set_SE=5,export_Gw=1,export_Gt=2,export_fe=3,export_entropy=4,export_init=5,export_0=6
 	real(wp) :: omega(n),tau(n)
 	logical :: is_expinit=.true.
 	type gfs(n)
 		integer, len :: n
-		real(wp) :: rhoc(n),rhophi(n),lambda
+		real(wp) :: rhoc(n),rhophi(n),lambda,nf(1)
 		complex(wp) :: Gf(n),GB(n),Gc(n),Gphi(n),Gc0(n),Gphi0(n)
 		complex(wp) :: SEf(n),SEB(n),SEc(n),SEphi(n)
 		real(wp) :: Gft(n),GBt(n),Gc0t(n),Gphi0t(n),Gct(n),Gphit(n),SEft(n),SEBt(n),SEct(n),SEphit(n)
@@ -45,13 +46,16 @@ contains
 
 		is_expinit=.true.
 		norm_Ac=1._wp
+		norm_Aphi=1._wp
 		do i=1,n
 			self%rhoc(i)=A_c(omega(i))
 			self%rhophi(i)=A_phi(omega(i))
 		enddo
 		!norm_Ac=1._wp/integrate(omega,A=merge(self%rhoc,0._wp,abs(omega)<10._wp))
-		norm_Ac=1._wp/integrate(omega,A=self%rhoc)
-		norm_Aphi=1._wp/integrate(omega(n/2+1:),A=self%rhoc(n/2+1:))
+		norm_Ac=4._wp/integrate(omega,A=self%rhoc)
+		!norm_Ac=0.260716240125499
+		norm_Aphi=abs(1._wp/integrate(omega(n/2+1:),A=self%rhoc(n/2+1:)))
+		!norm_Aphi=abs(1._wp/integrate(omega(n/2+1:),A=self%rhophi(n/2+1:)))
 		self%rhoc=self%rhoc*norm_Ac
 		self%rhophi=self%rhophi*norm_Aphi
 		self%Gc0%im=-self%rhoc*pi
@@ -59,6 +63,7 @@ contains
 
 		i=1
 		rewind(ut)
+		read(ut,"(*(e29.20e3))")self%lambda
 		read(ut,"(*(e29.20e3))")omg(1),dat(1,:)
 		o:	do 
 			read(ut,"(*(e29.20e3))",iostat=e)omg(2),dat(2,:)
@@ -95,21 +100,24 @@ contains
 		do k=1,size(flag)
 			select case(flag(k))
 			case(export_Gw)
-				write(ut(k),"(A)")"T omega rGf iGf rGB iGB rSEf iSEf rSEB iSEB rGc iGc rGphi iGphi rhoc rhophi rSEc iSEc rSEphi iSEphi rGc0 iGc0 rGphi0 iGphi0 lgGf lgGB lgSEf iSEfGf"
+				write(ut(k),"(A)")"T omega J rGf iGf rGB iGB rSEf iSEf rSEB iSEB rGc iGc rGphi iGphi rhoc rhophi rSEc iSEc rSEphi iSEphi rGc0 iGc0 rGphi0 iGphi0 lgGf lgGB lgSEf rSEfGf iSEfGf rSEBGB iSEBGB"
 				do i=1,n
-					write(ut(k),"(*(e29.20e3))")Tk,omega(i),self%Gf(i),self%GB(i),self%SEf(i),self%SEB(i),self%Gc(i),self%Gphi(i),self%rhoc(i),self%rhophi(i),self%SEc(i),self%SEphi(i),self%Gc0(i),self%Gphi0(i),imag(log(-1d0/self%Gf(i))),imag(log(-1d0/self%GB(i))),imag(log(self%SEf(i))),imag(self%Gf(i)*self%SEf(i))
+					write(ut(k),"(*(e29.20e3))")Tk,omega(i),Jk,self%Gf(i),self%GB(i),self%SEf(i),self%SEB(i),self%Gc(i),self%Gphi(i),self%rhoc(i),self%rhophi(i),self%SEc(i),self%SEphi(i),self%Gc0(i),self%Gphi0(i),imag(log(-1d0/self%Gf(i))),imag(log(-1d0/self%GB(i))),imag(log(self%SEf(i))),self%Gf(i)*self%SEf(i),self%GB(i)*self%SEB(i)
 				enddo
 				write(ut(k),"(x)")
+			case(export_0)
+				write(ut(k),"(*(e29.20e3))")Tk,Jk,(self%Gf(n/2+1)+self%Gf(n/2))/2.,(self%GB(n/2+1)+self%GB(n/2))/2.,(self%SEf(n/2+1)+self%SEf(n/2))/2.,(self%SEB(n/2+1)+self%SEB(n/2))/2.,(self%SEc(n/2+1)+self%SEc(n/2))/2.,(self%SEphi(n/2+1)+self%SEphi(n/2))/2.,(self%SEf(n/2+50)*self%Gf(n/2+50))
 			case(export_Gt)
 				write(ut(k),"(A)")"T tau Gft GBt SEft SEBt Gct Gphit SEct SEphit Gc0t Gphi0t"
-				do i=1,n
+				do i=1,n/2
 					write(ut(k),"(*(e29.20e3))")Tk,tau(i),self%Gft(i),self%GBt(i),self%SEft(i),self%SEBt(i),self%Gct(i),self%Gphit(i),self%SEct(i),self%SEphit(i),self%Gc0t(i),self%Gphi0t(i)
 				enddo
 				write(ut(k),"(x)")
-			case(export_SE)
+			case(export_init)
 				write(*,*)"export initial...."
 				rewind(ut(k))
 				is_expinit=.false.
+				write(ut(k),"(*(e29.20e3))")self%lambda
 				do i=1,n
 					write(ut(k),"(*(e29.20e3))")omega(i),self%SEf(i),self%SEB(i)
 				enddo
@@ -121,6 +129,10 @@ contains
 		integer :: flag(:),i
 		do i=1,size(flag)
 			select case(flag(i))
+			case(set_omega)
+				call set_grid(omega(n/2+1:),[reset,add_log_linear,(add_linear,i=1,size(nadd))],from=[min_omega,max(fcut-0.1_wp,0.05_wp),max(phicut-0.01_wp,0.005_wp),1.2_wp,bcut/2._wp],to=[bcut-1e-6,max(fcut+0.7_wp/fbeta,0.1_wp),max(phicut+0.7_wp/phibeta,0.01_wp),bcut/2._wp,bcut],n=[nlog,nl, nadd])
+				omega(1:n/2)=-omega(n:n/2+1:-1)
+				write(*,"('n: ',i4,', max freq: ',es10.2,', min freq: ',es10.2)")n,maxval(abs(omega)),minval(abs(omega))
 			case(set_rG)
 				! make GB a usual Green's function that satisfy kk relation
 				call set_realpart(omega,self%GB)
@@ -143,9 +155,9 @@ contains
 				call set_realpart(omega,self%SEf)
 				call set_realpart(omega,self%SEB)
 			case(set_SE)
-				call get_convolution_new(omega,A=-self%Gf,B=self%GB+Jk,tau=[1,-1],eta=[-1,1],rt=self%SEc)
+				call get_convolution(omega,A=-self%Gf,B=self%GB+Jk,tau=[1,-1],eta=[-1,1],rt=self%SEc)
 				call set_realpart(omega,self%SEc)
-				call get_convolution_new(omega,A=self%Gf,B=self%Gf,tau=[1,-1],eta=[-1,-1],rt=self%SEphi)
+				call get_convolution(omega,A=self%Gf,B=self%Gf,tau=[1,-1],eta=[-1,-1],rt=self%SEphi)
 				call set_realpart(omega,self%SEphi)
 			end select
 		enddo
@@ -157,16 +169,21 @@ contains
 		elseif(abs(x)<phicut) then
 			A_phi=norm_Aphi*abs(x)**(1._wp-s)*sign(1._wp,x)
 		else
-			A_phi=norm_Aphi*phicut**(1._wp-s)*sign(1._wp,x)*1._wp/((exp(phibeta*(x-phicut-4._wp/phibeta))+1._wp)*(exp(phibeta*(-x-phicut-4._wp/phibeta))+1._wp))
+			!A_phi=norm_Aphi*phicut**(1._wp-s)*sign(1._wp,x)*1._wp/((exp(phibeta*(x-phicut-4._wp/phibeta))+1._wp)*(exp(phibeta*(-x-phicut-4._wp/phibeta))+1._wp))
+			A_phi=norm_Aphi*phicut**(1._wp-s)*sign(1._wp,x)*exp(-phibeta*(abs(x)-phicut))
 		endif
 	end function
 	real(wp) elemental function A_c(x)
 		real(wp), intent(in) :: x
 		if(abs(x)<fcut) then
-			!A_c=norm_Ac*(abs(x)/fcut)**r*exp(-fcut**2/pi*fbeta)
-			A_c=norm_Ac*(abs(x)/fcut)**r
-			!A_c=norm_Ac*abs(x)**r
-			!A_c=norm_Ac*abs(x)**r
+			!if(abs(x)>fcut*1e-5_wp) then
+				!A_c=norm_Ac*(abs(x)/fcut)**r*exp(-fcut**2/pi*fbeta)
+				A_c=norm_Ac*(abs(x)/fcut)**r
+				!A_c=norm_Ac*abs(x)**r
+				!A_c=norm_Ac*abs(x)**r
+			!else
+				!A_c=norm_Ac*(abs(fcut*1e-5_wp)/fcut)**r
+			!endif
 		elseif(abs(x)<=(-omega(1))) then
 			!A_c=norm_Ac*exp(-x**2/pi*fbeta)
 			A_c=norm_Ac*exp(-(x**2-fcut**2)/pi*fbeta)
@@ -316,6 +333,7 @@ contains
 			enddo
 			rt(k)=rt(k)-eta(1)*rt_/pi
 			!rt(n+1-k)=rt(n+1-k)+cmplx(-eta(2)*rt_%re,eta(2)*rt_%im,kind=8)/pi
+
 			!rt(k)=rt(k)-eta(1)*(integrate(f,[-inf,e0],1e-5_wp)+integrate(f,[e2,inf],1e-5_wp))/pi
 			!rt(k)=rt(k)-eta(1)*(integrate(f,[-50._wp,e0],1e-5_wp)+integrate(f,[e2,50._wp],1e-5_wp))/pi
 		enddo
@@ -407,8 +425,8 @@ contains
 		if(.not.present(noreset)) rt=0._wp
 		n=size(omega)
 		!$OMP PARALLEL DO PRIVATE(omg,ibw,iwb,A1,B1,A2,B2,e1,e2,m,rt_)
-		!do k=1,n/2
-			do k=1,n
+		do k=1,n/2
+			!do k=1,n
 			omg=omega(k)
 			do i=1,n
 				ibw(i)=find(omega,tau(1)*(omg-tau(2)*omega(i)))
@@ -448,7 +466,7 @@ contains
 				enddo
 			enddo
 			rt(k)=rt(k)-eta(1)*rt_/pi
-			!rt(n+1-k)=rt(n+1-k)+cmplx(-eta(2)*rt_%re,eta(2)*rt_%im,kind=8)/pi
+			rt(n+1-k)=rt(n+1-k)+cmplx(-eta(2)*rt_%re,eta(2)*rt_%im,kind=8)/pi
 		enddo
 		!$OMP END PARALLEL DO
 	contains
@@ -499,63 +517,73 @@ contains
 		class(gfs(*)) :: self
 		real(wp) :: tol,rate
 		integer :: niter(:)
-		real(wp) :: x(n*2*2),x_(n*2*2),nf(1),tmp(1),fe
+		real(wp) :: x(n*2*2),x_(n*2*2),tmp(1),fe
 		logical :: flag
-		integer :: i1,i2,k,i,j,ei
+		integer :: i1,i2,k,i,j,ei,nx,icut
 		fe=0d0
 		self%conv=.false.
 		self%Gf=0._wp
 		self%GB=0._wp
 		self%Gc=0._wp
 		self%Gphi=0._wp
-		call mbroyden(0,x(:n*2),x_(:n*2),rate,nsave=40,id=2)
-		self%lambda=0._wp
-		do i2=1,niter(2)
+		call mbroyden(0,x(:n*2),x_(:n*2),rate,nsave=40*2,id=2)
+		do i2=1,abs(niter(2))
 			flag=.false.
 			ei=0
 			call set_realpart(omega,self%Gc0)
 			call set_realpart(omega,self%Gphi0)
-			!call get_Gtau(omega,G=self%Gc0,eta=-1,time=[eps],rt=tmp)
-			do i1=1,niter(1)
+			do i1=1,abs(niter(1))
 				call set_realpart(omega,self%SEf)
-				call set_realpart(omega,self%SEB)
+				if(abs(Jk)>eps) then
+					call set_realpart(omega,self%SEB)
+				endif
+				!self%SEB=self%SEB+1._wp/Jk
 
 				!self%lambda=-(self%SEf(1)%re+self%SEf(n)%re)/2d0
-				!underscore=next(0._wp,0._wp,0.1_wp,ytol=1e-5_wp)
-				!do 
-					self%Gf=1._wp/(omega-self%lambda-self%SEf)
-					call get_Gtau(omega,G=self%Gf,eta=-1,time=[-eps],rt=nf)
-					!if(next(self%lambda,nf(1)-0.5_wp)) then
-						!exit
-					!endif
-				!enddo
-				self%GB=Jk/(-1._wp-Jk*self%SEB)
+				self%Gf=1._wp/(omega+self%lambda-self%SEf)
+				if(abs(Jk)>eps) then
+					self%GB=Jk/(-1._wp-Jk*self%SEB)
+				endif
 				!self%GB=1d0/(-1d0/Jk-self%SEB)+Jk
 				!call self%export([233],[export_Gw])
 				!call set_realpart(omega,self%GB)
 				!call self%export([233],[export_Gw])
 				!self%Gc=1._wp/(omega+img*0.0001_wp)
-				!call get_convolution_new(omega,A=self%Gc,B=self%Gf,tau=[1,1],eta=[-1,-1],rt=self%SEB)
+				!call get_convolution(omega,A=self%Gc,B=self%Gf,tau=[1,1],eta=[-1,-1],rt=self%SEB)
 				!call self%export([233],[export_Gw])
-				!call get_convolution_new(omega,A=self%SEB,B=1._wp/self%Gc,tau=[-1,-1],eta=[1,-1],rt=self%Gf)
+				!call get_convolution(omega,A=self%SEB,B=1._wp/self%Gc,tau=[-1,-1],eta=[1,-1],rt=self%Gf)
 				!call self%export([233],[export_Gw])
 				!stop "debug"
+				!do i=1,n/2
+					!self%Gf(n+1-i)%im=-abs(self%Gf(n+1-i)%im)
+					!self%GB(n+1-i)%im=-abs(self%GB(n+1-i)%im)
+					!self%Gf(i)%im=self%Gf(n+1-i)%im
+					!self%GB(i)%im=-self%GB(n+1-i)%im
+				!enddo
 
 
+				if(abs(Jk)>eps) then
+					nx=n*2
+				else
+					nx=n
+				endif
 				x=[self%SEf%im,self%SEB%im,self%SEf%re,self%SEB%re]
 
 				self%SEf=0._wp
-				call get_convolution_new(omega,A=-kp*self%Gc0,B=self%GB,tau=[1,1],eta=[-1,1],rt=self%SEf,noreset=underscore)
-				call get_convolution_new(omega,A=self%Gc0,B=self%Gf,tau=[1,-1],eta=[-1,-1],rt=self%SEB)
+				if(abs(Jk)>eps) then
+					call get_convolution(omega,A=-kp*self%Gc0,B=self%GB,tau=[1,1],eta=[-1,1],rt=self%SEf,noreset=underscore)
+					call get_convolution(omega,A=self%Gc0,B=self%Gf,tau=[1,-1],eta=[-1,-1],rt=self%SEB)
+				endif
 				if(abs(g)>0._wp) then
-					call get_convolution_new(omega,A=-2d0*g**2*self%Gphi0,B=self%Gf,tau=[1,1],eta=[1,-1],rt=self%SEf,noreset=underscore)
+					call get_convolution(omega,A=-2d0*g**2*self%Gphi0,B=self%Gf,tau=[1,1],eta=[1,-1],rt=self%SEf,noreset=underscore)
 				endif
 
 
-				x_=[self%SEf%im,self%SEB%im,self%SEf%re,self%SEB%re]
+				x_=[self%SEf%im,self%SEB%im,self%SEf%re,self%SEB%re]-x
 
 				!call self%set_Gfunction([set_SE,set_rSE,set_rG])
-				!write(*,*)i1,maxval(abs(x(:n*2)-x_(:n*2))/(abs(x_(:n*2))+eps)),self%fenergy()
+				!write(*,*)i1,nx/n,maxval(abs(x_(:nx))/(abs(x(:nx))+eps))!,self%fenergy()
+				!write(*,*)i1,nx/n,maxval(merge(abs(x_(:nx)),0._wp,abs([omega(1:n),omega(1:nx-n)])<3.*fcut)/(abs(x(:nx))+tol))!,self%fenergy()
 				!if(self%fenergy()>fe) then
 					!write(*,*)"check"
 					!read(*,*)
@@ -563,7 +591,10 @@ contains
 					!fe=self%fenergy()
 				!endif
 
-				if(all(abs(x(:n*2)-x_(:n*2))/(abs(x_(:n*2))+eps)<tol)) then
+				call get_Gtau(omega,G=self%Gf,eta=-1,time=[-eps*1e3_wp],rt=self%nf)
+				!if(all(merge(abs(x_(:nx)),0._wp,abs([omega(1:n),omega(1:nx-n)])<3.*fcut)/(abs(x(:nx))+tol)<tol)) then
+				if(all(abs(x_(:nx))/merge(abs(x(:nx))+1e-8_wp,1._wp,abs([omega(1:n),omega(1:nx-n)])<2.*fcut.and.abs(x(:nx))<1e-4_wp)<tol)) then
+				!if(all(abs(x_(:nx))/((max(abs(x(:nx))+eps,tol)))<tol)) then
 				!if(all(abs(x(:n*2)-x_(:n*2))<tol)) then
 				!if(all(abs(x(:n*2)-x_(:n*2))/(min(abs(x_(:n*2))+eps,1._wp))<tol)) then
 					!if(ei==0) ei=1
@@ -571,23 +602,26 @@ contains
 						write(*,*)"converged"
 
 
-						if(abs(0.5_wp-nf(1))>1e-2_wp) then
+						if(abs(nf-self%nf(1))>1e-2_wp) then
 							is_expinit=.false.
-							write(*,*)"nf is not correct****************************",nf(1)
+							write(*,*)"nf is not correct****************************",self%nf(1)
 							exit
 						else
-							call set_realpart(omega,self%SEB)
-							if(self%SEB(n/2)%re<-1._wp/Jk) then
-								write(*,*)"warning from SEB", -1._wp/Jk,self%SEB(n/2)%re
+							if(abs(Jk)>eps) then
+								call set_realpart(omega,self%SEB)
+								if(self%SEB(n/2)%re<-1._wp/Jk) then
+									write(*,*)"warning from SEB", -1._wp/Jk,self%SEB(n/2)%re
+									!stop
+								endif
+								write(*,"(i6,es12.4,',nf: ',es12.4,',SEB0: ',es12.4)")i1,maxval(abs(x_(:nx))/(abs(x(:nx))+eps)),self%nf,-1._wp/Jk-self%SEB(n/2)%re
 							endif
-							write(*,"(i6,es12.4,',nf: ',es12.4,',SEB0: ',es12.4)")i1,maxval(abs(x-x_)/(abs(x_)+eps)),nf*2._wp,-1._wp/Jk-self%SEB(n/2)%re
 							self%conv=.true.
 						endif
 						exit
 					!endif
 				endif
-				if(i1==niter(1)) then
-					write(*,*)"not converged",maxval(abs(x-x_)/(abs(x_)+eps)),"***************"
+				if(i1==abs(niter(1))) then
+					write(*,*)"not converged",maxval(abs(x_(:nx))/(abs(x(:nx))+eps)),self%nf,"***************"
 					is_expinit=.false.
 					exit
 				endif
@@ -604,20 +638,27 @@ contains
 					!ei=30
 					!x=x_
 				!else
-					call mbroyden(i1,x(:n*2),x_(:n*2),id=1)
+				if(niter(1)<0) then
+					x(:nx)=x(:nx)+rate*x_(:nx)
+				else
+					call mbroyden(i1,x(:nx),x_(:nx),id=1)
+				endif
 				!endif
 				!x=x_
 
 
 				self%SEf%im=x(1:n)
-				self%SEB%im=x(n+1:2*n)
+				if(abs(Jk)>eps) then
+					self%SEB%im=x(n+1:2*n)
+				endif
 				!self%SEf%re=x(2*n+1:3*n)
 				!self%SEB%re=x(3*n+1:4*n)
 			enddo
+			cycle
 
 			x=[self%Gc0%im,self%Gphi0%im]
 
-			if(niter(2)>1) then
+			if(abs(niter(2))>1) then
 				!call get_convolution(omega,A=-self%Gf,B=self%GB,tau=[1,-1],eta=[-1,1],rt=self%SEc)
 
 				self%Gc=self%Gc0+self%Gc0*self%SEc*self%Gc0
@@ -629,14 +670,14 @@ contains
 
 				self%Gc0=1._wp/(1._wp/self%Gc+self%SEc)
 			endif
-			x_=[self%Gc0%im,self%Gphi0%im]
+			x_=[self%Gc0%im,self%Gphi0%im]-x
 
-			if(all(abs(x-x_)/(abs(x_)+eps)<tol)) then
+			if(all(abs(x_)/(abs(x)+eps)<tol)) then
 				write(*,*)"converged"
 				exit
 			else
-				write(*,*)"|___",i2,maxval(abs(x-x_)/(abs(x_)+eps))
-				if(i2==niter(2)) then
+				write(*,*)"|___",i2,maxval(abs(x_)/(abs(x)+eps))
+				if(i2==abs(niter(2))) then
 					write(*,*)"not converged"
 				endif
 			endif
@@ -647,11 +688,12 @@ contains
 			self%Gc0%im=x(1:n)
 			self%Gphi0%im=x(n+1:)
 		enddo
-		write(*,*)i2,maxval(abs(x-x_)/(abs(x_)+eps))
+		!write(*,*)i2,maxval(abs(x-x_)/(abs(x_)+eps))
 		call mbroyden(huge(1),x,x_)
 	end subroutine
-	real(wp) function entropy(self) result(rt)
+	real(wp) function entropy(self,cs) result(rt)
 		class(gfs(*)) :: self
+		integer :: cs
 		real(wp) :: df(n),db(n),kp_
 		complex(wp) :: ctmp1(n),ctmp2(n),ctmp3(n),ctmp4(n)
 		integer :: i
@@ -666,19 +708,34 @@ contains
 				!)
 			rt=-(integrate(omega,A=&
 				df*(imag(log(-1d0/self%Gf))+self%Gf%re*imag(omega-1d0/self%Gf)+0.5d0*(1d0+sign(1d0,omega))*pi)&
-				+kp*db*(imag(log(-1d0/self%GB))+(self%GB%re)*imag(-1d0/Jk-1d0/self%GB))&
+				+merge(kp*db*(imag(log(-1d0/self%GB))+(self%GB%re)*imag(-1d0/Jk-1d0/self%GB)),0._wp,abs(Jk)>eps)&
 				)/pi&
 				-log(2d0)&
 				)
 		else
-			rt=-(integrate(omega,A=&
-				df*(imag(log(-1d0/self%Gf))+self%Gf%re*imag(omega-1d0/self%Gf)+0.5d0*(1d0+sign(1d0,omega))*pi)&
-				+kp*db*(imag(log(-1d0/self%GB))+(self%GB%re)*imag(-1d0/Jk-1d0/self%GB))&
-				-kp*df*(self%Gc0%im*(self%SEc%re-Jk/2d0))&
-				-db*(g**2*self%Gphi0%im*self%SEphi%re)&
-				)/pi&
-				-log(2d0)&
-				)
+			select case(cs)
+			case(0)
+				rt=-(integrate(omega,A=&
+					df*(imag(log(-1d0/self%Gf))+self%Gf%re*imag(omega-1d0/self%Gf)+0.5d0*(1d0+sign(1d0,omega))*pi)&
+					+merge(kp*db*(imag(log(-1d0/self%GB))+(self%GB%re)*imag(-1d0/Jk-1d0/self%GB))&
+					-kp*df*(self%Gc0%im*(self%SEc%re-Jk/2d0)),0._wp,abs(Jk)>eps)&
+					-db*(g**2*self%Gphi0%im*self%SEphi%re)&
+					)/pi&
+					-log(2d0)&
+					)
+			case(1)
+				do i=1,n/2
+					if(omega(i)/Tk>-1000_wp) then
+						exit
+					endif
+				enddo
+				rt=-1._wp/pi*integrate(omega(i:n/2),&
+					merge(+kp*atan(self%GB(i:n/2)%im/(self%GB(i:n/2)%re))-kp*atan(self%GB(i)%im/(self%GB(i)%re))&
+					+2._wp*kp*fb(-omega(i:n/2)/Tk)*atan(self%GB(i:n/2)%im/(self%GB(i:n/2)%re)),0._wp,abs(Jk)>eps)&
+					+atan(self%Gf(i:n/2)%re/self%Gf(i:n/2)%im)-atan(self%Gf(i)%re/self%Gf(i)%im)&
+					-2._wp*ff(-omega(i:n/2)/Tk)*atan(self%Gf(i:n/2)%re/self%Gf(i:n/2)%im)&
+					)/Tk
+			end select
 		endif
 
 		!call get_convolution_new(omega,A=-self%Gf,B=self%GB+Jk,tau=[1,-1],eta=[-1,1],rt=ctmp1,d=underscore)
@@ -765,38 +822,39 @@ contains
 		!integrate(omega,A=-db*(g**2*self%Gphi0%im*self%SEphi%re))
 			
 	end function
-	real(wp) function fenergy(self) result(rt)
+	real(wp) function fenergy(self,cs) result(rt)
 		class(gfs(*)) :: self
-		integer :: i
 		integer :: cs
+		integer :: i
 
 		if(self%label=="a") then
 			! lnG
 			rt=(integrate(omega,A=&
 				ff(beta*omega)*(imag(log(-1._wp/self%Gf))+0.5_wp*(1._wp+sign(1._wp,omega))*pi)&
-				+kp*fb(beta*omega)*imag(log(-1._wp/self%GB))&
+				!+kp*fb(beta*omega)*imag(log(-1._wp/self%GB))&
 				)/pi&
 				-1._wp/beta*log(2._wp)&
 				)
 		else
-			!! large-N
+			! large-N
 			!rt=(integrate(omega,A=&
-				!ff(beta*omega)*(imag(log(-1._wp/self%Gf))+0.5_wp*(1._wp+sign(1._wp,omega))*pi)&
-				!+kp*fb(beta*omega)*imag(log(-1._wp/self%GB)+(self%GB+Jk)*(-1._wp/Jk-1._wp/self%GB))&
+				!!ff(beta*omega)*(merge(imag(log(-1._wp/self%Gf)),0._wp,cs==0.or.cs==1)+0.5_wp*(1._wp+sign(1._wp,omega))*pi)&
+				!ff(beta*omega)*(merge(imag(log(-1._wp/self%Gf)),0._wp,cs==0.or.cs==1))&
+				!!+kp*fb(beta*omega)*imag(log(-1._wp/self%GB)+(self%GB+Jk)*(-1._wp/Jk-1._wp/self%GB))&
 				!)/pi&
-				!-1._wp/beta*log(2._wp)&
-				!+integrate(omega,A=fb(beta*omega)*imag(g**2*self%Gphi0*self%SEphi)/pi)&
+				!!-1._wp/beta*log(2._wp)&
+				!+merge(integrate(omega,A=fb(beta*omega)*imag(g**2*self%Gphi0*self%SEphi)/pi),0._wp,cs==0.or.cs==2)&
 				!)
 
 			! B-S functional
 			rt=(&
-				!integrate(omega,A=&
-				!ff(beta*omega)*(imag(log(-1._wp/self%Gf)+self%Gf*(omega-1._wp/self%Gf))+0.5_wp*(1._wp+sign(1._wp,omega))*pi)&
-				!+kp*fb(beta*omega)*imag(log(-1._wp/self%GB)+(self%GB+Jk)*(-1._wp/Jk-1._wp/self%GB))&
-				!)/pi&
-				!-1._wp/beta*log(2._wp)&
-				-integrate(omega,A=ff(beta*omega)*imag(self%Gc0*self%SEc)/pi*kp)&
-				-integrate(omega,A=fb(beta*omega)*imag(g**2*self%Gphi0*self%SEphi)/pi)&
+				integrate(omega,A=&
+				ff(beta*omega)*(merge(imag(log(-1._wp/self%Gf)),0._wp,cs==0.or.cs==1.or.cs==2)+merge(imag(self%Gf*(omega-1._wp/self%Gf)),0._wp,cs==0.or.cs==2)+0.5_wp*(1._wp+sign(1._wp,omega))*pi)&
+				+merge(kp*fb(beta*omega)*imag(log(-1._wp/self%GB)+(self%GB+Jk)*(-1._wp/Jk-1._wp/self%GB)),0._wp,abs(Jk)>eps)&
+				)/pi&
+				-1._wp/beta*log(2._wp)&
+				-merge(integrate(omega,A=ff(beta*omega)*imag(self%Gc0*self%SEc)/pi*kp),0._wp,abs(Jk)>eps)&
+				-merge(integrate(omega,A=fb(beta*omega)*imag(g**2*self%Gphi0*self%SEphi)/pi),0._wp,cs==0)&
 				)
 		endif
 
@@ -855,7 +913,7 @@ contains
 		real(wp) :: M_f,M_B,M_c,M_phi,t,sh,ch,lsh,lch,lgam_a,lgam_b,lgam_sa(2),lgam_sb,lgam_c,lgam_phi,SEB0,w
 		integer :: i,j
 		!M_f=0.724_wp
-		M_f=0.59_wp
+		M_f=1._wp
 		M_B=1._wp
 		M_c=1._wp
 		!M_phi=0.85_wp
@@ -1004,191 +1062,3 @@ contains
 		rt=rt/N
 	end function
 end module
-program main
-	use global
-	implicit none
-	type(gfs(n)) :: phy,aphy,mphy
-	integer :: i,j,e
-	complex(wp) :: p(10)
-	logical :: flag,last
-	real(wp) :: a_f,a_b,tmp(1)
-	phy%label="n"
-	aphy%label="a"
-	mphy%label="m"
-
-	call omp_set_nested(.false.)
-	!call omp_set_max_active_levels(1)
-	call omp_set_dynamic(.false.)
-	call mkl_set_dynamic(0)
-	!call omp_set_schedule(omp_sched_static,0)
-
-	call mkl_set_num_threads(4)
-	call omp_set_num_threads(mkl_get_max_threads())
-	
-	open(10,file="../data/init.dat")
-	open(11,file="../data/t=0.dat")
-	open(22,File="../data/largeN_omega_my.dat")
-	open(23,File="../data/largeN_tau_my.dat")
-	open(24,File="../data/largeN_T.dat")
-	open(25,File="../data/largeN_entropy.dat")
-	open(26,File="../data/largeN_fenergy.dat")
-	open(27,File="../data/largeN_A0.dat")
-	open(233,File="../data/check.dat")
-
-	call set_grid(omega(n/2+1:),[reset,add_log_linear,(add_linear,i=1,size(nadd))],from=[min_omega,fcut-0.1_wp,phicut-0.01_wp,bcut/2],to=[bcut,fcut+0.7_wp/fbeta,phicut+0.7_wp/phibeta,bcut],n=[nlog,nl, nadd])
-	omega(1:n/2)=-omega(n:n/2+1:-1)
-	write(*,"('n: ',i4,', max freq: ',es10.2,', min freq: ',es10.2)")n,maxval(abs(omega)),minval(abs(omega))
-
-	write(25,"(A)")"T J g r s kappa Sn Sa GB g f B c phi"
-	Jk=1.8_wp
-	g=0.0_wp
-	r=0.3_wp
-	!r=-0.23_wp
-	s=0.3_wp
-	kp=0.3_wp
-	do 
-		!Jk=for_in(x=[0.5_wp,0.978_wp,1.8_wp,1.8_wp,1.153_wp,0.5_wp],id=1)
-		!g=for_in(x=[0._wp,0._wp,0._wp,0.2_wp,0.2_wp,0.2_wp],id=2)
-		!Jk=for_in(x=[0.978_wp,1.8_wp,1.153_wp,0.5_wp],id=1)
-		!g=for_in(x=[0._wp,0._wp,0.2_wp,0.2_wp],id=2)
-		!Jk=for_in(x=[1.8_wp,0.5_wp],id=1)
-		!g=for_in(x=[0._wp],id=2)
-		Jk=for_in(x=[1.8_wp],id=1)
-		g=for_in(x=[0._wp],id=2)
-		!Jk=for_in(x=[1._wp],id=1)
-		!Jk=for_in(x=[&
-			![0.5_wp,0.6_wp,0.7_wp,0.8_wp,0.9_wp,0.93_wp,0.96_wp,0.97_wp,0.98_wp,0.99_wp,1._wp,1.05_wp,1.2_wp,1.3_wp,1.4_wp,1.5_wp,1.6_wp,1.7_wp,1.8_wp,1.9_wp,2._wp]&
-			!![0.1_wp,0.5_wp,0.7_wp,0.9_wp,1.05_wp,1.1_wp,1.15_wp,1.16_wp,1.19_wp,1.3_wp,1.4_wp,1.5_wp,1.7_wp,2._wp]&
-			!![0.1_wp,0.5_wp,0.7_wp,0.8_wp,0.9_wp,0.93_wp,0.96_wp,0.97_wp,0.98_wp,0.99_wp,1._wp,1.05_wp,1.2_wp,1.3_wp,1.4_wp,1.5_wp,1.6_wp,1.7_wp,1.8_wp,1.9_wp,2._wp]&
-			!],id=1)
-		!g=for_in(x=[&
-			!(0._wp,i=1,21)&
-			!!(0.02_wp,i=1,21)&
-			!],id=2)
-		!Jk=for_in(x=[0.1_wp],id=1)
-		!g=for_in(x=[0.2_wp],id=2)
-		!a_f=for_in([0.001_wp,0.04_wp,0.41_wp,0.41_wp,0.5_wp*s,0.5_wp*s],id=4)
-		!a_b=for_in([1._wp-r-0.001_wp,1._wp-r-0.04_wp,1._wp-r-0.41_wp,1._wp-r-0.41_wp,1._wp-r-0.5_wp*s,1._wp+r+0.5_wp*s],id=5)
-		!a_f=for_in([0.04_wp,0.41_wp,0.5_wp*s,0.5_wp*s],id=4)
-		!a_b=for_in([1._wp-r-0.04_wp,1._wp-r-0.41_wp,1._wp-r-0.5_wp*s,1._wp+r+0.5_wp*s],id=5)
-		!a_f=for_in([0.5_wp*s],id=4)
-		!a_b=for_in([1._wp+r+0.5_wp*s],id=5)
-		!a_f=for_in([1._wp/(1._wp+kp)],id=4)
-		!a_b=for_in([1._wp-1._wp/(1._wp+kp)],id=5)
-		a_f=for_in([0.413_wp],id=4)
-		a_b=for_in([1._wp-r-0.413_wp],id=5)
-		!a_f=for_in([0.04_wp],id=4)
-		!a_b=for_in([1._wp-r-0.04_wp],id=5)
-		!Jk=for_in(x=[0.5_wp,0.978_wp],id=1)
-		!g=for_in(x=[0.0_wp,0.0_wp],id=2)
-		!kp=for_in(x=[(i*0.1_wp,i=15,1,-1)],id=1)
-		if(any(isnan([Jk,g,kp,r,s,a_f,a_b]))) then
-			exit
-		endif
-		call phy%init(10)
-
-		!write(26,"(A)")"T Fn Fa pT pFn pFa"
-		write(26,"(A)")"T F1 F2 pT pF1 pF2"! F2 F3 F4 F5 F6 pT pF1 pF2 pF3 pF4 pF5 pF6"
-		flag=.true.
-		Tk=for_in(id=3)
-		do
-			if(flag) then
-				Tk=for_in(x=[&
-					 [90:10:-5]*1e-3_wp&
-					,[90:10:-5]*1e-4_wp&
-					,[90:10:-5]*1e-5_wp&
-					,[90:10:-5]*1e-6_wp&
-					,[90:10:-5]*1e-7_wp&
-					,[90:10:-5]*1e-8_wp&
-					,[90:10:-5]*1e-9_wp&
-					,[90:10:-5]*1e-10_wp&
-					!,[96:10:-2]*1e-7_wp&
-					!,[96:10:-2]*1e-8_wp&
-					!,[96:10:-2]*1e-9_wp&
-					!,[96:10:-2]*1e-10_wp&
-					!,[96:10:-2]*1e-11_wp&
-					!,[96:10:-2]*1e-12_wp&
-					],id=3)
-				if(isnan(Tk)) then
-					write(*,*)"End of T!!!"
-					exit
-				endif
-				!if(Tk-5e-5_wp>eps) then
-					!flag=.false.
-				!else
-					!exit
-				!endif
-
-				!Tk=1e-7_wp
-				!s=for_in([1e-2_wp,(i*0.1_wp,i=1,19),2._wp-1e-2_wp],id=3)
-				!r=for_in([0._wp,0.05_wp,0.1_wp,0.15_wp,0.2_wp,0.25_wp,0.3_wp,0.35_wp,0.4_wp],id=3)
-				!a_f=for_in([0.00001_wp,0.0008_wp,0.003_wp,0.0076_wp,0.014_wp,0.0247_wp,0.04_wp,0.064_wp,0.116_wp],id=4)
-				!a_f=for_in([0.769_wp,0.715_wp,0.66_wp,0.603_wp,0.543_wp,0.481_wp,0.41_wp,0.339_wp,0.237_wp],id=4)
-			else
-				Tk=Tk-5e-5_wp
-				flag=.true.
-			endif
-			beta=1d0/Tk
-			if(any(isnan([Jk,g,kp,r,s,Tk]))) then
-				exit
-			endif
-
-			tau(1:n/2)=omega(n/2+1:n)/(3._wp*omega(n)-omega(n-1))/Tk
-			tau(n/2+1:)=1._wp/Tk-tau(n/2:1:-1)
-
-
-			write(*,"(*(A4,es9.2))")"T:  ",Tk," Jk:",Jk," kp:",kp," r: ",r," g: ",g
-			!call phy%set_Gfunction([set_Gt])
-			!call phy%export([22],[export_Gw])
-
-			call aphy%analytic(a_f=a_f,a_b=a_b)
-			phy%Gc0=aphy%Gc0
-			phy%Gphi0=aphy%Gphi0
-
-			call phy%self_consistent(1e-5_wp,[500,1],3e-3_wp)
-			if(.not.phy%conv) then
-				write(*,*)"not converge!"
-				exit
-			else
-				!rewind(23)
-				!rewind(22)
-			endif
-			call phy%set_Gfunction([set_SE,set_rSE,set_Gt,set_rG])
-			call phy%export([22,23],[export_Gw,export_Gt])
-			if(is_expinit) then
-				call phy%export([10],[export_SE])
-				is_expinit=.false.
-			endif
-
-			call aphy%analytic(a_f=a_f,a_b=a_b)
-			call aphy%set_Gfunction([set_SE])
-			call aphy%export([22],[export_Gw])
-
-			!mphy=aphy
-			!call xscale(mphy%Gf(n/2+1:),omega(n/2+1:),0.555_wp)
-			!mphy%Gf(1:n/2)=-conjg(mphy%Gf(n:n/2+1:-1))
-			!mphy%SEf=omega-1._wp/mphy%Gf
-			!call mphy%set_Gfunction([set_SE])
-			!call mphy%export([22,23],[export_Gw,export_Gt])
-			!!!!call xscale(phy%GB(n/2+1:),omega(n/2+1:),1.02_wp)
-			!!!call xscale(phy%GB(n/2+1:),omega(n/2+1:),1._wp)
-			!!!phy%GB(1:n/2)=conjg(phy%GB(n:n/2+1:-1))
-
-			!write(*,*)phy%fenergy()
-			!write(*,*)aphy%fenergy()
-			write(26,"(*(e29.20e3))")Tk,phy%fenergy(),aphy%fenergy()!,mphy%fenergy(),phy%entropy()
-			!if((Tk-1e-8_wp)<1e-13_wp) then
-			write(25,"(*(e29.20e3))")Tk,Jk,g,r,s,kp,phy%entropy(),aphy%entropy()!,mphy%entropy()
-			!endif
-			!write(25,"(*(e29.20e3))")Tk,Jk,g,r,s,kp,afn()
-			!exit
-
-		enddo
-		if(flag) then
-			write(26,"(x)")
-			write(25,"(x)")
-			write(22,"(x)")
-			write(23,"(x)")
-		endif
-	enddo
-end program

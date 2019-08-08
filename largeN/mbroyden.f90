@@ -4,13 +4,13 @@ module M_solution
 		procedure :: rmbroyden,cmbroyden
 	end interface
 contains
-	subroutine rmbroyden(n,vo,vn,alpha,nsave,id)
-		real(wp) :: vo(:),vn(:)
+	subroutine rmbroyden(n,vo,F,alpha,nsave,id)
+		real(wp) :: vo(:),F(:)
 		real(wp), optional :: alpha
 		integer :: n
 		integer, optional :: id,nsave
 		integer :: i,j,k,m,md
-		real(wp) :: Fm(size(vo,1)),v(size(vo,1))
+		real(wp) :: v(size(vo,1))
 		real(wp), allocatable, save :: dF(:,:,:),dV(:,:,:),w(:,:),beta(:,:)
 		real(wp), save :: alpha_
 		integer, save :: nsave_
@@ -30,6 +30,8 @@ contains
 			alpha_=alpha
 			mid=id_
 			allocate(dF(size(vo),nsave,mid),dV(size(vo),nsave,mid),w(nsave,mid),beta(nsave,nsave))
+			dF=0._wp
+			dV=0._wp
 		elseif(n==huge(1)) then
 			if(allocated(dF)) deallocate(beta,dF,dV,w)
 		else
@@ -37,14 +39,17 @@ contains
 			m=min(n-1,nsave_)
 			md=nsave_
 
-			Fm=vn-vo
 			v=vo
 			if(n>1) then
 				k=n-1-(n-2)/md*md
 				w(k,id_)=1._wp
 				dV(:s,k,id_)=vo-dV(:s,k,id_)
-				dF(:s,k,id_)=Fm-dF(:s,k,id_)
+				dF(:s,k,id_)=F-dF(:s,k,id_)
 				norm=sqrt(sum(dF(:s,k,id_)**2))
+				if(norm<eps) then
+					write(*,*)"not changing"
+					norm=1._wp
+				endif
 				dV(:s,k,id_)=dV(:s,k,id_)/norm
 				dF(:s,k,id_)=dF(:s,k,id_)/norm
 			else
@@ -58,11 +63,11 @@ contains
 				enddo
 			enddo
 			if(m>0) call mat_inv(beta(1:m,1:m))
-			vo=v+alpha_*Fm
+			vo=v+alpha_*F
 			do i=1,m
 				tmp=0._wp
 				do j=1,m
-					tmp=tmp+w(j,id_)*sum(dF(:s,j,id_)*Fm)*beta(j,i)
+					tmp=tmp+w(j,id_)*sum(dF(:s,j,id_)*F)*beta(j,i)
 				enddo
 				vo=vo-w(i,id_)*tmp*(alpha_*dF(:s,i,id_)+dV(:s,i,id_))
 			enddo
@@ -73,11 +78,11 @@ contains
 				k=n-(n-1)/md*md
 			endif
 			dV(:s,k,id_)=v
-			dF(:s,k,id_)=Fm
+			dF(:s,k,id_)=F
 		endif
 	end subroutine
-	subroutine cmbroyden(n,vo,vn,alpha,nsave,id)
-		complex(wp) :: vo(:),vn(:)
+	subroutine cmbroyden(n,vo,F,alpha,nsave,id)
+		complex(wp) :: vo(:),F(:)
 		real(wp), optional :: alpha
 		integer :: n
 		integer, optional :: id,nsave
@@ -109,7 +114,7 @@ contains
 			m=min(n-1,nsave_)
 			md=nsave_
 			
-			Fm=[vn%re-vo%re,vn%im-vo%im]
+			Fm=[F%re,F%im]
 			v=[vo%re,vo%im]
 			if(n>1) then
 				k=n-1-(n-2)/md*md
@@ -117,6 +122,10 @@ contains
 				dV(:s,k,id_)=[vo%re,vo%im]-dV(:s,k,id_)
 				dF(:s,k,id_)=Fm-dF(:s,k,id_)
 				norm=sqrt(sum(dF(:s,k,id_)**2))
+				if(norm<eps) then
+					write(*,*)"not changing"
+					norm=1._wp
+				endif
 				dV(:s,k,id_)=dV(:s,k,id_)/norm
 				dF(:s,k,id_)=dF(:s,k,id_)/norm
 			else

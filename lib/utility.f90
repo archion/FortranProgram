@@ -39,47 +39,68 @@ module M_utility
 	end interface
 	real(wp) :: otime(0:6)=0._wp
 contains
-	logical function next(x,y,dx,xtol,ytol) result(rt)
-		real(wp) :: x,y
-		real(wp), optional :: dx,xtol,ytol
-		real(wp), save :: px,py,dx_,xtol_,ytol_
-		logical, save :: flag
+	logical function next(xtol,ytol,dx,id) result(rt)
+		! sign of dx determine the direction of x will approache.
+		real(wp), optional :: xtol,ytol,dx
+		integer, optional :: id
+		real(wp), save :: px(5),py(5),dx_(5),xtol_(5),ytol_(5),id_
+		logical, save :: flag(5),dir(5)
 		rt=.false.
+		if(present(id)) then
+			if(id>5) stop "id is large than 5"
+			id_=id
+		else
+			id_=1
+		endif
 		if(present(dx)) then 
-			py=nan
-			flag=.false.
-			dx_=dx
+			py(id_)=nan
+			flag(id_)=.false.
+			dx_(id_)=dx
+			dir(id_)=dx<0._wp
 			if(present(xtol)) then
-				xtol_=xtol
+				xtol_(id_)=xtol
 			else
-				xtol_=huge(1._wp)
+				xtol_(id_)=huge(1._wp)
 			endif
 			if(present(ytol)) then
-				ytol_=ytol
+				ytol_(id_)=ytol
 			else
-				ytol_=huge(1._wp)
+				ytol_(id_)=huge(1._wp)
 			endif
 			return
+		elseif(.not.(present(xtol).and.present(ytol))) then
+			stop "x and y must present!!!"
 		endif
-		if(.not.isnan(py)) then
-			if(py*y<0._wp) flag=.true.
-			if(flag) then
-				dx_=dx_/2._wp
+		if(.not.isnan(py(id_))) then
+			if((py(id_)-ytol)/(px(id_)-xtol)<0._wp) write(*,*)"warning!! not a increasing function, try to change the sign of the function."
+			if(py(id_)*ytol<0._wp) then
+				px(id_)=merge(max(xtol,px(id_)),min(xtol,px(id_)),dir(id_))
+				py(id_)=merge(max(py(id_),ytol),min(py(id_),ytol),dir(id_))
+				flag(id_)=.true.
+			else
+				px(id_)=xtol
+				py(id_)=ytol
 			endif
-			if(py*y<0._wp) then
-				dx_=-dx_
-			elseif(sign(1._wp,py)*sign(1._wp,(py-y)/(px-x)*dx_)>0._wp) then 
-				x=px
-				dx_=-dx_
+			if(flag(id_)) then
+				dx_(id_)=dx_(id_)*0.5_wp
 			endif
+		else
+			px(id_)=xtol
+			py(id_)=ytol
 		endif
-		px=x
-		py=y
-		!if(abs(dx_)<tol_) then
-		if(abs(y)<ytol_.and.abs(dx_)<xtol_) then
+		if(py(id_)>0._wp) then
+			dx_(id_)=-abs(dx_(id_))
+		else
+			dx_(id_)=abs(dx_(id_))
+		endif
+		if(abs(ytol)<ytol_(id_).and.abs(dx_(id_))<xtol_(id_)) then
 			rt=.true.
 		else
-			x=x+dx_
+			if(ytol_(id_)/=huge(1._wp).and.abs(dx_(id_))<1e-6_wp) then
+				rt=.true.
+			else
+				xtol=px(id_)+dx_(id_)
+			endif
 		endif
 	end function
 	real(wp) function rintegrate(x,A) result(f)
@@ -344,6 +365,7 @@ contains
 				x_(1:n_(id),id)=x
 			else
 				i_(id)=0
+				return
 			endif
 			i_(id)=i_(id)+1
 			if(i_(id)<=n_(id)) then
@@ -573,7 +595,7 @@ contains
 	end subroutine
 	subroutine rcollect(self,a)
 		real(wp) :: self(:)
-		integer :: i,j,tmp(size(self))
+		integer :: i,j,tmp(size(self)+1)
 		integer, allocatable :: a(:)
 		tmp(1)=1
 		j=1
@@ -650,7 +672,7 @@ contains
 	end subroutine
 	subroutine rmcollect(self,a)
 		real(wp) :: self(:,:)
-		integer :: i,j,tmp(size(self,2))
+		integer :: i,j,tmp(size(self,2)+1)
 		integer, allocatable :: a(:)
 		tmp(1)=1
 		j=1
@@ -703,7 +725,7 @@ contains
 	end subroutine
 	subroutine scollect(self,a)
 		class(t_sort) :: self(:)
-		integer :: i,j,tmp(10000)
+		integer :: i,j,tmp(size(self)+1)
 		integer, allocatable :: a(:)
 		tmp(1)=1
 		j=1

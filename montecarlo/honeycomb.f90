@@ -11,9 +11,10 @@ module global
 	use omp_lib
 	use mkl_service
 	implicit none
-	real(8) :: t(3)=[1._wp,0.1_wp/2.8_wp,0.07_wp/2.8_wp]
-	!real(8) :: t(1)=[1._wp]
-	real(8), parameter :: V=0._wp,U=3.6_wp
+	!real(8) :: t(3)=[1._wp,0.1_wp/2.8_wp,0.07_wp/2.8_wp]
+	real(8) :: t(1)=[1._wp]
+	!real(8), parameter :: V=0._wp,U=3.6_wp
+	real(8), parameter :: V=0._wp,U=0._wp
 	type(t_mc) :: mc[ica1,*]
 	integer :: isc
 contains
@@ -36,8 +37,8 @@ contains
 		latt%c2=latt%a2
 		!latt%T1=[3._wp,0._wp,0._wp]*4._wp
 		!latt%T2=[0._wp,sqrt(3._wp),0._wp]*7._wp
-		latt%T1=latt%a1*12._wp
-		latt%T2=latt%a2*12._wp
+		latt%T1=latt%a1*5._wp
+		latt%T2=latt%a2*5._wp
 		latt%bdc=[1._wp,1._wp,0._wp]
 		allocate(latt%rsb(2,3))
 		latt%rsb(1,:)=[0._wp,0._wp,0._wp]
@@ -54,14 +55,14 @@ contains
 		allocate(Ham%var(-10:10),Hmf%var(-10:10),Hja%var(-10:10),mc%sphy%var(-10:10),mc%dphy%var(-10:10))
 
 !*************************meanfield***********************************
-		!! cp
-		!idx=Hmf%add(nb=0,ca=[(c("i",i,+1),c("i",i,-1),c("i",i,+2),c("i",i,-2),i=1,2)],n=2,sg=[1._wp,-1._wp,1._wp,-1._wp],label="cp",is_var=.false.)
-		!Hmf%var(idx)%bd=-1._wp
-		!!Hmf%var(idx)%val=-1._wp
-		!Hmf%var(idx)%val=1.0218_wp
+		! cp
+		idx=Hmf%add(nb=0,ca=[(c("i",i,+1),c("i",i,-1),c("i",i,+2),c("i",i,-2),i=1,2)],n=2,sg=[1._wp,-1._wp,1._wp,-1._wp],label="cp",is_var=.true.)
+		Hmf%var(idx)%bd=-1._wp
+		!Hmf%var(idx)%val=-1._wp
+		Hmf%var(idx)%val=1.0218_wp
 
 		! d+id
-		idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",2,-2),c("j",2,+1),c("i",1,-2),c("i",1,+2),c("j",2,-1),c("j",2,+2),c("i",1,-1)],n=2,cg=[.false.,.false.,.true.,.true.],is_var=.false.)
+		idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",2,-2),c("j",2,+1),c("i",1,-2),c("i",1,+2),c("j",2,-1),c("j",2,+2),c("i",1,-1)],n=2,cg=[.false.,.false.,.true.,.true.],is_var=.true.)
 		isc=idx
 		do i=1,size(Hmf%var(idx)%bd)
 			if(abs(latt%nb(1)%bd(i)%dr(2))<1e-6_wp) then
@@ -209,7 +210,8 @@ program main
 	endif
 	otime=0._wp
 
-	mc%ne(1)=Ns/2+nint(Ns/8._wp)
+	!mc%ne(1)=Ns/2+nint(Ns/8._wp)
+	mc%ne(1)=Ns/2
 	if(is_ph) then
 		mc%ne(2)=Ns-mc%ne(1)
 	else
@@ -217,12 +219,12 @@ program main
 	endif
 
 	call mc%init(.true.)
-	if(this_image()==1) then
-		call Hmf%band(80,[0._wp,0._wp,0._wp],brizon%Ta(1,:),100)
-		call Hmf%band(80,brizon%Ta(1,:),(brizon%Ta(1,:)+brizon%Ta(2,:))/2._wp,100)
-		call Hmf%band(80,(brizon%Ta(1,:)+brizon%Ta(2,:))/2._wp,[0._wp,0._wp,0._wp],100)
-	endif
-	stop
+	!if(this_image()==1) then
+		!call Hmf%band(80,[0._wp,0._wp,0._wp],brizon%Ta(1,:),100)
+		!call Hmf%band(80,brizon%Ta(1,:),(brizon%Ta(1,:)+brizon%Ta(2,:))/2._wp,100)
+		!call Hmf%band(80,(brizon%Ta(1,:)+brizon%Ta(2,:))/2._wp,[0._wp,0._wp,0._wp],100)
+	!endif
+	!stop
 
 	mc%hot=1024*16*8
 	mc%step=nint(sqrt(real(Ns)))

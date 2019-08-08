@@ -321,7 +321,7 @@ contains
 		do l=1,size(idx)
 			il=idx(l)
 			if(size(self%var(il)%c,1)/=2) then
-				write(*,*)"warning!!, only quadratic term is considered" 
+				write(*,*)"warning!!, only quadratic term is considered: ",self%var(il)%label,size(self%var(il)%c,1)
 				cycle
 			endif
 			nb=abs(self%var(il)%nb)
