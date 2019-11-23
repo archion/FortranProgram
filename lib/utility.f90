@@ -338,43 +338,84 @@ contains
 			rt=nan
 		endif
 	end function
-	real(wp) function for_in(x,i,id) result(rt)
-		real(wp), optional, intent(in) :: x(:)
-		integer, optional, intent(in) :: i
-		integer, intent(in) :: id
-		integer, save :: i_(20)=0
-		integer, save :: n_(20)=0
-		real(wp), save :: x_(200,20)
-		if(present(i)) then
-			if(i>0) then
-				if(i<=n_(id)) then
-					rt=x_(i,id)
-				else
-					rt=nan
-				endif
-			else
-				if(i+i_(id)>0) then
-					rt=x_(i+i_(id),id)
-				else
-					rt=nan
-				endif
-			endif
-		else
-			if(present(x)) then
-				n_(id)=size(x,1)
-				x_(1:n_(id),id)=x
-			else
-				i_(id)=0
-				return
-			endif
-			i_(id)=i_(id)+1
-			if(i_(id)<=n_(id)) then
-				rt=x_(i_(id),id)
-			else
-				rt=nan
-			endif
-		endif
-	end function
+	!real(wp) function for_in(x,i,id) result(rt)
+		!real(wp), optional, intent(in) :: x(:)
+		!integer, optional, intent(in) :: i
+		!integer, intent(in) :: id
+		!integer, save :: i_(20)=0
+		!integer, save :: n_(20)=0
+		!real(wp), save :: x_(200,20)
+		!if(present(i)) then
+			!if(i>0) then
+				!if(i<=n_(id)) then
+					!rt=x_(i,id)
+				!else
+					!rt=nan
+				!endif
+			!else
+				!if(i+i_(id)>0) then
+					!rt=x_(i+i_(id),id)
+				!else
+					!rt=nan
+				!endif
+			!endif
+		!else
+			!if(present(x)) then
+				!n_(id)=size(x,1)
+				!x_(1:n_(id),id)=x
+			!else
+				!i_(id)=0
+				!return
+			!endif
+			!i_(id)=i_(id)+1
+			!if(i_(id)<=n_(id)) then
+				!rt=x_(i_(id),id)
+			!else
+				!rt=nan
+			!endif
+		!endif
+	!end function
+	real(wp) function for_in(x,i,id,dir) result(rt)                                                  
+		real(wp), optional, intent(in) :: x(:)                                                   
+		integer, optional, intent(in) :: i,dir                                                   
+		integer, intent(in) :: id           
+		integer, save :: i_(20)=0           
+		integer, save :: n_(20)=0           
+		real(wp), save :: x_(200,20)        
+		if(present(i)) then                 
+			if(i>0) then                
+				if(i<=n_(id)) then                                                       
+					rt=x_(i,id)                                                      
+				else                
+					rt=nan                                                           
+				endif               
+			else                        
+				if(i+i_(id)>0) then                                                      
+					rt=x_(i+i_(id),id)                                               
+				else                
+					rt=nan                                                           
+				endif               
+			endif                       
+		else                                
+			if(present(x)) then         
+				n_(id)=size(x,1)                                                         
+				x_(1:n_(id),id)=x                                                        
+			else                        
+				i_(id)=0            
+				return              
+			endif                       
+			if(present(dir)) then       
+				i_(id)=i_(id)+dir                                                        
+			else                        
+				i_(id)=i_(id)+1                                                          
+			endif                       
+			if(i_(id)<=n_(id).and.i_(id)>=1) then                                            
+				rt=x_(i_(id),id)                                                         
+			else                        
+				rt=nan              
+			endif                       
+		endif                               
+	end function                                
 	subroutine show_time()
 		integer :: i
 		write(*,"(A)")"The timing results is:"
