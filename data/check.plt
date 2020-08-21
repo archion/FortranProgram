@@ -55,8 +55,10 @@ set style line 2 dashtype 2
 array cl[1]=["iGf"]
 #array fact[2]=[0.,0.27]
 array fact[2]=[0,0]
-plot for [i=1:|cl|] for[j=1:1] "-" index j u "omega":(column(cl[i])+fact[i+1]) with l
-set key font ",".(ticfontsize-2) at graph 0.84,0.25,1 horizontal maxcols 1 spacing 0.9 samplen 1.5 autotitle #opaque
+set logscale x
+set xrange [0.0001:0.01]
+set yrange [:]
+plot "-" u 1:(abs($2)) w l
 set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){
 	set key at screen 1,1,1

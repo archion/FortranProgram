@@ -8,7 +8,7 @@ else
 	CFLAG= $(AFLAG) -warn nounused
 endif
 ifeq ($(ARCH),64)
-	LFLAG_A= $(LFLAG) -lmy -lnlopt -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lm -ldl
+	LFLAG_A= $(LFLAG) -lmy -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lm -ldl
 	#LFLAG_A= $(LFLAG) -lmy -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lnlopt -lm
 else
 	LFLAG_A= $(LFLAG) -lmy -lmkl_intel -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lmkl_lapack95

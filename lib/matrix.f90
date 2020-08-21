@@ -3,8 +3,11 @@ module M_matrix
 	use ifport, ifort_qsort => qsort
 	use M_const
 	implicit none
+	interface det
+		module procedure rdet,cdet
+	end interface
 	interface diag
-		module procedure mdiag, ndiag, mcdiag, ncdiag
+		module procedure mdiag, ndiag, mcdiag, ncdiag, mmdiag, mmcdiag
 	end interface
 	interface crsmv
 		module procedure c_crsmv,r_crsmv
@@ -22,6 +25,10 @@ contains
 		real(min(dp,wp)) :: A_(size(A,1),size(A,2))
 		integer :: ipiv(size(A,1)),info1
 		integer, optional :: info
+		if(size(A,1)==1.and.size(A,2)==1) then
+			A=1._wp/A
+			return
+		endif
 		if(size(A,1)==2.and.size(A,2)==2) then
 			det=(A(1,1)*A(2,2)-A(1,2)*A(2,1))
 			if(abs(det)<eps*100._wp) then
@@ -64,6 +71,10 @@ contains
 		complex(min(dp,wp)) :: A_(size(A,1),size(A,2))
 		integer :: ipiv(size(A,1)),info1
 		integer, optional :: info
+		if(size(A,1)==1.and.size(A,2)==1) then
+			A=1._wp/A
+			return
+		endif
 		if(size(A,1)==2.and.size(A,2)==2) then
 			det=(A(1,1)*A(2,2)-A(1,2)*A(2,1))
 			if(abs(det)<eps*100._wp) then
@@ -84,6 +95,7 @@ contains
 				info=info1
 				return
 			else
+				write(*,*)info1
 				write(*,*)"inverse matrix err1"
 				write(*,*)RAISEQQ(SIG$ABORT)
 			endif
@@ -100,11 +112,11 @@ contains
 			endif
 		endif
 	end subroutine
-	function det(A,info)
+	function cdet(A,info) result(rt)
 		complex(wp) :: A(:,:)
 		complex(min(wp,dp)) :: A_(size(A,1),size(A,2))
 		integer, optional :: info
-		complex(wp) :: det
+		complex(wp) :: rt
 		integer :: i,ipiv(size(A,1))
 		A_=cmplx(A,kind=min(wp,dp))
 		if(present(info)) then
@@ -115,13 +127,53 @@ contains
 		else
 			call getrf(A_,ipiv)
 		endif
-		det=1._wp
+		rt=1._wp
 		do i=1,size(A,1)
 			if(ipiv(i)/=i) then
-				det=-det*A_(i,i)
+				rt=-rt*A_(i,i)
 			else
-				det=det*A_(i,i)
+				rt=rt*A_(i,i)
 			endif
+		enddo
+	end function
+	function rdet(A,info) result(rt)
+		real(wp) :: A(:,:)
+		real(min(wp,dp)) :: A_(size(A,1),size(A,2))
+		integer, optional :: info
+		real(wp) :: rt
+		integer :: i,ipiv(size(A,1))
+		A_=A
+		if(present(info)) then
+			call getrf(A_,ipiv,info)
+			if(info/=0) then
+				stop "determinant err"
+			endif
+		else
+			call getrf(A_,ipiv)
+		endif
+		rt=1._wp
+		do i=1,size(A,1)
+			if(ipiv(i)/=i) then
+				rt=-rt*A_(i,i)
+			else
+				rt=rt*A_(i,i)
+			endif
+		enddo
+	end function
+	function mmdiag(a)
+		real(wp) :: a(:,:) 
+		real(wp) :: mmdiag(size(a))
+		integer :: i
+		do i=1,size(a,1)
+			mmdiag(i)=a(i,i)
+		enddo
+	end function
+	function mmcdiag(a)
+		complex(wp) :: a(:,:) 
+		complex(wp) :: mmcdiag(size(a))
+		integer :: i
+		do i=1,size(a,1)
+			mmcdiag(i)=a(i,i)
 		enddo
 	end function
 	function mdiag(a)

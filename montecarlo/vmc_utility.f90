@@ -87,7 +87,7 @@ contains
 					deallocate(Hmf%var)
 					allocate(Hmf%var(Hmf%rg(1)-1:Hmf%rg(2)))
 					Hmf%var(Hmf%rg(1):Hmf%rg(2))=vtmp
-					idx=Hmf%add(nb=0,ca=[(c("i",i,+1),c("i",i,-1),c("i",i,+2),c("i",i,-2),i=1,latt%sb)],n=latt%sb,sg=[(1._wp,-1._wp,i=1,latt%sb)],label="cp",is_var=.false.)
+					idx=Hmf%add(nb=0,ca=[(c("i",i,+1),c("i",i,-1),c("i",i,+2),c("i",i,-2),i=1,latt%sb)],n=2,sg=[(1._wp,-1._wp,i=1,latt%sb)],label="cp",is_var=.false.)
 					Hmf%var(idx)%bd=-1._wp
 					Hmf%var(idx)%val=real(-Hmf%var(idx)%bd(1)*(E(ord(self%ne(1)))+E(ord(self%ne(1)+1)))/2._wp)
 					if(this_image()==1) then
@@ -213,6 +213,8 @@ contains
 			endif
 			check=.false.
 		endif
+
+
 		if(allocated(self%wf)) deallocate(self%wf)
 		allocate(self%wf(size(H,1),size(H,2)))
 		self%wf=conjg(H)
@@ -326,7 +328,7 @@ contains
 					enddo
 				enddo
 			enddo
-			!grad=g
+			!self%g=g_
 			self%g=self%g*Ns
 		end select
 		sync all
@@ -350,7 +352,11 @@ contains
 		logical :: is_update,is_full,is_accept
 		type(randomNumberSequence) :: rnd
 		call mt_init_random_seed(rnd,seed)
-		sphyl=self%sphy;dphyl=self%dphy
+		sphyl%var=self%sphy%var
+		sphyl%rg=self%sphy%rg
+		dphyl%var=self%dphy%var
+		dphyl%rg=self%dphy%rg
+		!sphyl=self%sphy;dphyl=self%dphy
 		sphyp=0._wp;dphyp=0._wp;Ep=0._wp
 		Sp=0._wp; gp=0._wp; Op=0._wp
 		Ek2p=0._wp; Ok2p=0._wp
@@ -367,27 +373,30 @@ contains
 		A=wf(icfg,:)
 		iA=A(:,iEcfg)
 		call mat_inv(iA,info)
-		n=0
-		do
-			n=n+1
-			call change(cfgl,icfg,dcfg,k,rnd,.true.)
-			cfgl(-dcfg(2:dcfg(0):2))=cfgl(-dcfg(2:dcfg(0):2))+cfgl(dcfg(1:dcfg(0):2))
-			cfgl(dcfg(1:dcfg(0):2))=cfgl(-dcfg(2:dcfg(0):2))-cfgl(dcfg(1:dcfg(0):2))
-			cfgl(-dcfg(2:dcfg(0):2))=cfgl(-dcfg(2:dcfg(0):2))-cfgl(dcfg(1:dcfg(0):2))
-			icfg(k(1:k(0):2))=k(2:k(0):2)
-			if(n>latt%Ns*10) then
-				A=wf(icfg,:)
-				iA=A(:,iEcfg)
-				call mat_inv(iA,info)
-				if(sum(abs(matmul(A(:,iEcfg),iA)-diag(1._wp,size(A,1))))<1e-6_wp) then
-					exit
-				else
-					if(n>latt%Ns*10+200) then
-						stop "ini cfg err"
+		if(sum(abs(matmul(A(:,iEcfg),iA)-diag(1._wp,size(A,1))))>1e-6_wp) then
+			n=0
+			do
+				n=n+1
+				!call change(cfgl,icfg,dcfg,k,rnd,.true.)
+				call change(cfgl,icfg,dcfg,k,rnd,is_project)
+				cfgl(-dcfg(2:dcfg(0):2))=cfgl(-dcfg(2:dcfg(0):2))+cfgl(dcfg(1:dcfg(0):2))
+				cfgl(dcfg(1:dcfg(0):2))=cfgl(-dcfg(2:dcfg(0):2))-cfgl(dcfg(1:dcfg(0):2))
+				cfgl(-dcfg(2:dcfg(0):2))=cfgl(-dcfg(2:dcfg(0):2))-cfgl(dcfg(1:dcfg(0):2))
+				icfg(k(1:k(0):2))=k(2:k(0):2)
+				if(n>latt%Ns*10) then
+					A=wf(icfg,:)
+					iA=A(:,iEcfg)
+					call mat_inv(iA,info)
+					if(sum(abs(matmul(A(:,iEcfg),iA)-diag(1._wp,size(A,1))))<1e-6_wp) then
+						exit
+					else
+						if(n>latt%Ns*10+200) then
+							stop "ini cfg err"
+						endif
 					endif
 				endif
-			endif
-		enddo
+			enddo
+		endif
 		WA=matmul(wf(:,iEcfg),iA)
 		AW=matmul(iA,wf(icfg,:))
 		WAW=matmul(wf(:,iEcfg),AW)
@@ -415,7 +424,6 @@ contains
 			!call random_number(rd)
 			pb=pb*exp(2._wp*jast(cfgl,dcfg(1:dcfg(0))))
 			!do i=1,size(cfgl)/2
-				!if(cfgl(i)>0.and.cfgl(i+Ns)==0) then
 					!write(*,*)"double"
 				!endif
 			!enddo
@@ -696,38 +704,49 @@ contains
 		class(t_mc) :: self[ica1,*]
 		integer :: omp,n
 		real(wp) :: x(sum(Hmf%var(1:)%n)+sum(Hja%var(1:)%n),n),er,pgrad(size(x)),El(n)
-		integer :: i,hot,ord(n)
+		integer :: i,hot,ord(n),id_(Hmf%rg(2)+Hja%rg(2))
 		logical :: init_cfg
 		self%sg=2
 		hot=self%hot
 		i=0
+		id_(1)=1
+		do i=2,size(id_)
+			if(i<=Hmf%rg(2)+1) then
+				id_(i)=id_(i-1)+Hmf%var(i-1)%n
+			else
+				id_(i)=id_(i-1)+Hja%var(i-1-Hmf%rg(2))%n
+			endif
+		enddo
 		if(size(x)==0) then
-			call self%init(.true.)
 			call self%do_vmc()
 			if(this_image()==1) then
 				write(*,"(es12.4$)")Hmf%var(1:)%val(1),Hja%var(1:)%val(1)
 				write(*,"(es14.6$)")self%E
 				write(*,"(es9.2$)")self%err
-				write(*,"(i3$)")int(sign(1._wp,self%g))
+				write(*,"(i3$)")int(sign(1._wp,self%g(id_)))
 			endif
 			return
 		endif
 		x(:sum(Hmf%var(1:)%n),1)=Hmf%put([1:Hmf%rg(2)])
 		x(sum(Hmf%var(1:)%n)+1:,1)=Hja%put([1:Hja%rg(2)])
-		init_cfg=.true.
+		!init_cfg=.true.
+		init_cfg=.false.
+		i=0
 		do 
 			i=i+1
 			if(allocated(self%g)) pgrad=self%g
 			call Hmf%get_val(x(:sum(Hmf%var(1:)%n),i),[1:Hmf%rg(2)])
 			call Hja%get_val(x(sum(Hmf%var(1:)%n)+1:,i),[1:Hja%rg(2)])
-			if(this_image()==1) write(*,"(i4$)")i
+			if(this_image()==1) then
+				write(*,"(i4$)")i
+				write(*,"(es12.4$)")Hmf%var(1:)%val(1),Hja%var(1:)%val(1)
+			endif
 			call self%init(init_cfg)
 			call self%do_vmc()
 			if(this_image()==1) then
-				write(*,"(es12.4$)")Hmf%var(1:)%val(1),Hja%var(1:)%val(1)
 				write(*,"(es14.6$)")self%E
 				write(*,"(es9.2$)")self%err
-				write(*,"(i3$)")int(sign(1._wp,self%g))
+				write(*,"(i3$)")int(sign(1._wp,self%g(id_)))
 			endif
 			El(i)=self%E
 			ord(i)=i

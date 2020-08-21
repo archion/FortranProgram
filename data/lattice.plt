@@ -44,7 +44,7 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 		 #"-" index 0 every :::1::1 using 1:2 w l title "",\
 		 #"-" index 0 every :::2::2 using 1:2:4:5 w vectors head title "",\
 		 #"-" index 0 every :::3::3 using 1:2 w l title "",\
-		 #for[j=4:*] "-" index 0 every :::j::j using 1:2 w p pt 7 ps 0.5 title ""
+		 #for[j=4:*] "-" index 0 every :::j::j using 1:2 w p pt 7 ps 0.5 lc black title ""
 
 set style arrow 1 head noborder lc rgb "gray"
 set style arrow 2 head noborder lc rgb "blue"
@@ -55,7 +55,7 @@ plot [:][:] \
 		 for [j=3:*] "-" index 1 every :::j::j using 1:2 w p pt 6 ps 1 notitle,\
 		 for [j=0:0] "-" index 2 every :::j::j using 1:2:4:5:((($7)>1e-8?1:2)) w vectors arrowstyle variable title "",\
 		 for [j=3:*] "-" index 1 every :::j::j using 1:2:7 w labels font ",".ticfontsize/2 tc "green" notitle
-set key font ",".fontsize at graph 1,1,1 horizontal maxcols 1 spacing 1.5 samplen 1.5 #opaque autotitle
+#set key font ",".fontsize at graph 1,1,1 horizontal maxcols 1 spacing 1.5 samplen 1.5 #opaque autotitle
 #set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){
 	set key at screen 1,1,1

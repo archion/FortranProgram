@@ -61,10 +61,10 @@ do for[i=0:(ix*iy-1)]{
 	#}
 	#set label sprintf("(%1.3f)",0.11+0.005*i) at graph 0.1/(gx*sx),1.-0.15/(gy*sy)
 	#set y2range [0:]
-	#set logscale x
+	set logscale x
 	#set logscale y
-	#plot [-0.5:15.5][-0.5:15.5] "-" index 0 u 1:2:($4-$5) w p pt 7 ps 1.0 palette title ""
-	plot [:][:] "-" index 0 u 1:2 w p pt 7 ps 0.3 title "", "-" index 1 u 1:2:7 w p pt 5 ps 0.5 palette title ""
+	plot [-0.5:15.5][-0.5:15.5] "-" index 0 u 1:2:($4-$5) w p pt 7 ps 1.0 palette title ""
+	#plot [:][:] "-" index 0 u "x":"y":"S" w p pt 7 palette title ""
 	unset label
 	unset format
 }

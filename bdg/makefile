@@ -1,2 +1,2 @@
-out = bdg.out
+out = rkky.out
 include ../makefile

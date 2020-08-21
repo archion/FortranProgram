@@ -506,7 +506,7 @@ contains
 
 			k0=0._wp
 			if(all(abs(bdc(:2))>err)) then
-				k0(:2)=matmul(reshape((/T2(2),-T1(2),-T2(1),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/)),(/theta((/real(bdc(1)),imag(bdc(1))/)),theta((/real(bdc(2)),imag(bdc(2))/))/))
+				k0(:2)=matmul(reshape((/T2(2),-T2(1),-T1(2),T1(1)/)/(T1(1)*T2(2)-T1(2)*T2(1)),(/2,2/)),(/theta((/real(bdc(1)),imag(bdc(1))/)),theta((/real(bdc(2)),imag(bdc(2))/))/))
 			elseif(all(abs(bdc(:2))<err)) then
 				allocate(brizon%k(1,3))
 				allocate(brizon%q(1,3))

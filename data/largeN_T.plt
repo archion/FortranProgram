@@ -1,7 +1,7 @@
 reset
 sx=4.3
 sy=3.12
-x1lb="X"
+x1lb="T"
 y1lb="Y"
 #x2lb="X"
 #y2lb="Y"
@@ -40,10 +40,21 @@ set yrange [:]
 set zrange [:]
 set logscale x
 set logscale y
-a=-0.2
-b=1
-fit [x=0.00001:0.1] b*x**a  "-" index 0 u 1:(abs($2)) via a,b
-plot for[i=0:0] "-" index i u ($1):(abs($2)) with l notitle "".i, b*x**a w line dt 2 title sprintf("f(x)= %1.2fx^{%1.3f}",b,a)
+a_=-0.9
+b_=1.
+n=4
+array a[n]
+array b[n]
+#do for[i=1:n] {
+	#fit [x=1e-8:1e-6] b_*x**a_  "-" index 0 every :::i-1::i-1 u "T":(abs(column("rGB0"))) via a_,b_
+	#a[i]=a_
+	#b[i]=b_
+#}
+#plot for[i=1:n] "-" every :::i-1::i-1 u (column("T")):(abs(column("rGB0"))) with l lc i notitle "".i, for[i=1:n] b[i]*x**a[i] w l lc i dt 2 title sprintf("{/Symbol a}=%1.3f",1+a[i])
+unset logscale y
+set xrange [:]
+set yrange [:]
+plot for[i=1:9] for[j=1:1] "-" every :::i-1::i-1 u (column("T")):(abs(column(word("S1 S2",j)))) with l lc i dt j notitle "".j#, log(2.) w l dt 2 lc 0
 set key font ",".fontsize at graph 1,0.98,1 horizontal maxcols 1 spacing 1.0 samplen 1.5 #opaque autotitle
 set label "(a)" font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,1-c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){

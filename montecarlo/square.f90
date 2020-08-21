@@ -13,8 +13,9 @@ module global
 	implicit none
 	real(wp) :: t(1)=[1._wp]
 	!real(8) :: t(1)=[1._wp]
-	real(wp), parameter :: V=0._wp,U=3.6_wp,DJ=0.3_wp
+	real(wp), parameter :: V=0._wp,U=8._wp,DJ=0.3_wp
 	type(t_mc) :: mc[ica1,*]
+	integer :: ivar
 contains
 	subroutine initial()
 		integer :: i,l,idx,sb,tp
@@ -22,9 +23,9 @@ contains
 			pi,0._wp&
 			],[2,ica1])
 !***************************parameter setting*************************
-		is_project=.true.
+		is_project=.false.
 		is_ph=.true.
-		dx=0.3_wp
+		dx=0.1_wp
 		!call init_random_seed()
 
 !****************************lattice**********************************
@@ -37,10 +38,10 @@ contains
 		latt%c2=[-1._wp,1._wp,0._wp]
 		!latt%c1=[4._wp,1._wp,0._wp]
 		!latt%c2=[0._wp,2._wp,0._wp]
-		latt%c1=[8._wp,0._wp,0._wp]
-		latt%c2=[0._wp,1._wp,0._wp]
-		latt%T1=[1._wp,0._wp,0._wp]*8._wp
-		latt%T2=[0._wp,1._wp,0._wp]*8._wp
+		!latt%c1=[8._wp,0._wp,0._wp]
+		!latt%c2=[0._wp,1._wp,0._wp]
+		latt%T1=[1._wp,0._wp,0._wp]*10._wp
+		latt%T2=[0._wp,1._wp,0._wp]*10._wp
 		latt%bdc=[1._wp,-1._wp,0._wp]
 		allocate(latt%rsb(1,3))
 		latt%rsb(1,:)=[0._wp,0._wp,0._wp]
@@ -54,13 +55,13 @@ contains
 
 !*********************************************************************
 		allocate(Ham%var(-10:10),Hmf%var(-10:10),Hja%var(-10:10),mc%sphy%var(-10:10),mc%dphy%var(-10:10))
-		! cp
-		idx=Hmf%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,+2),c("i",1,-2)],n=2,sg=[1._wp,-1._wp],label="cp")
-		Hmf%var(idx)%bd=-1._wp
-		Hmf%var(idx)%val=-4.3355E-01_wp
+		!! cp
+		!idx=Hmf%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,+2),c("i",1,-2)],n=2,sg=[1._wp,-1._wp],label="cp",is_var=.false.)
+		!Hmf%var(idx)%bd=-1._wp
+		!Hmf%var(idx)%val=-0._wp
 
 		! d-wave sc
-		idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2),c("j",1,+2),c("i",1,-1),c("i",1,+2),c("j",1,-1)],n=2,label="sc")
+		idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2),c("j",1,+2),c("i",1,-1),c("i",1,+2),c("j",1,-1)],n=2,label="sc",is_var=.false.)
 		do i=1,size(Hmf%var(idx)%bd)
 			if(abs(latt%nb(1)%bd(i)%dr(1))>1e-6_wp) then
 				Hmf%var(idx)%bd(i)=1._wp
@@ -97,23 +98,24 @@ contains
 		!enddo
 		!Hmf%var(idx)%val=1e-1_wp
 
-		!! sdw
-		!idx=Hmf%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,+2),c("i",1,-2)],n=2)
-		!do i=1,size(Hmf%var(idx)%bd)
-			!if(mod(nint(sum(latt%nb(0)%bd(latt%nb(0)%bd(i)%i(1))%r)),2)==0) then
-				!Hmf%var(idx)%bd(i)=1._wp
-			!else
-				!Hmf%var(idx)%bd(i)=-1._wp
-			!endif
-		!enddo
-		!Hmf%var(idx)%val=1e-1_wp
-
-		! bond order
-		do l=2,size(t)
-			idx=Hmf%add(nb=l,ca=[c("i",1,+1),c("j",1,-1),c("j",1,+1),c("i",1,-1),c("i",1,+2),c("j",1,-2),c("j",1,+2),c("i",1,-2)],n=2,sg=[+1._wp,+1._wp,-1._wp,-1._wp])
-			Hmf%var(idx)%bd=-1._wp
-			Hmf%var(idx)%val=-t(l)
+		! sdw
+		idx=Hmf%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,+2),c("i",1,-2)],n=2)
+		do i=1,size(Hmf%var(idx)%bd)
+			if(mod(nint(sum(latt%nb(0)%bd(latt%nb(0)%bd(i)%i(1))%r)),2)==0) then
+				Hmf%var(idx)%bd(i)=1._wp
+			else
+				Hmf%var(idx)%bd(i)=-1._wp
+			endif
 		enddo
+		Hmf%var(idx)%val=1.3e0_wp
+		ivar=idx
+
+		!! bond order
+		!do l=2,size(t)
+			!idx=Hmf%add(nb=l,ca=[c("i",1,+1),c("j",1,-1),c("j",1,+1),c("i",1,-1),c("i",1,+2),c("j",1,-2),c("j",1,+2),c("i",1,-2)],n=2,sg=[+1._wp,+1._wp,-1._wp,-1._wp])
+			!Hmf%var(idx)%bd=-1._wp
+			!Hmf%var(idx)%val=-t(l)
+		!enddo
 
 		! hp
 		do l=1,size(t)
@@ -123,9 +125,9 @@ contains
 		enddo
 
 !************************jastrow**************************************
-		!idx=Hja%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2)],n=4)
-		!Hja%var(idx)%bd=-1._wp
-		!Hja%var(idx)%val=0._wp
+		idx=Hja%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2)],n=4)
+		Hja%var(idx)%bd=-1._wp
+		Hja%var(idx)%val=0.64_wp
 
 !*************************Hamiltionian********************************
 		do l=1,size(t)
@@ -134,19 +136,19 @@ contains
 			Ham%var(idx)%val=t(l)
 		enddo
 
-		! t-J interaction
-		idx=Ham%add(nb=1,ca=[c("i",1,+1),c("i",1,+2),c("j",1,-2),c("j",1,-1),c("j",1,+1),c("j",1,+2),c("i",1,-2),c("i",1,-1)],n=4,V=DJ/2._wp,label="J")
-		Ham%var(idx)%bd=1._wp
-		Ham%var(idx)%val=1._wp
-
-		idx=Ham%add(nb=1,ca=[c("i",1,+1),c("i",1,-1),c("j",1,+1),c("j",1,-1),c("i",1,-2),c("i",1,+2),c("j",1,-2),c("j",1,+2),c("i",1,+1),c("i",1,-1),c("j",1,-2),c("j",1,+2),c("i",1,-2),c("i",1,+2),c("j",1,+1),c("j",1,-1)],n=4,sg=[V+DJ/4._wp,V+DJ/4._wp,V-DJ/4._wp,V-DJ/4._wp],label="4term")
-		Ham%var(idx)%bd=1._wp
-		Ham%var(idx)%val=1._wp
-
-		!! hubbard interaction
-		!idx=Ham%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2)],n=4)
+		!! t-J interaction
+		!idx=Ham%add(nb=1,ca=[c("i",1,+1),c("i",1,+2),c("j",1,-2),c("j",1,-1),c("j",1,+1),c("j",1,+2),c("i",1,-2),c("i",1,-1)],n=4,V=DJ/2._wp,label="J")
 		!Ham%var(idx)%bd=1._wp
-		!Ham%var(idx)%val=U
+		!Ham%var(idx)%val=1._wp
+
+		!idx=Ham%add(nb=1,ca=[c("i",1,+1),c("i",1,-1),c("j",1,+1),c("j",1,-1),c("i",1,-2),c("i",1,+2),c("j",1,-2),c("j",1,+2),c("i",1,+1),c("i",1,-1),c("j",1,-2),c("j",1,+2),c("i",1,-2),c("i",1,+2),c("j",1,+1),c("j",1,-1)],n=4,sg=[V+DJ/4._wp,V+DJ/4._wp,V-DJ/4._wp,V-DJ/4._wp],label="4term")
+		!Ham%var(idx)%bd=1._wp
+		!Ham%var(idx)%val=1._wp
+
+		! hubbard interaction
+		idx=Ham%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2)],n=4)
+		Ham%var(idx)%bd=1._wp
+		Ham%var(idx)%val=U
 
 
 !*************************static measurement**************************
@@ -232,7 +234,7 @@ program main
 	!stop
 
 
-	mc%ne(1)=Ns/2-4
+	mc%ne(1)=Ns/2
 	if(is_ph) then
 		mc%ne(2)=Ns-mc%ne(1)
 	else
@@ -241,7 +243,30 @@ program main
 
 	mc%step=nint(sqrt(real(Ns)))
 
-	mc%samp=1024*16*8
+	mc%samp=1024*16*8*4*2
+	do 
+		Hmf%var(ivar)%val=for_in([-10:10]*0.05_wp+1.3_wp,id=1)
+		!Hja%var(ivar)%val=for_in([0:15]*0.08_wp,id=1)
+		if(isnan(Hmf%var(ivar)%val(1))) then
+		!if(isnan(Hja%var(ivar)%val(1))) then
+			exit
+		endif
+		mc%sg=2
+		call mc%init(.true.)
+		call mc%do_vmc()
+		if(this_image()==1) then
+			!write(*,*)Hmf%var(ivar)%val,mc%E,mc%err
+			!write(81,*)Hmf%var(ivar)%val,mc%E,mc%err
+			!write(*,*)Hja%var(ivar)%val,mc%E,mc%err
+			!write(81,*)Hja%var(ivar)%val,mc%E,mc%err
+			write(*,"(es12.4$)")Hmf%var(1:)%val(1),Hja%var(1:)%val(1)
+			write(*,"(es14.6$)")mc%E
+			write(*,"(es9.2$)")mc%err
+			write(*,"(*(i3))")int(sign(1._wp,mc%g))
+		endif
+	enddo
+	stop
+
 	call mc%do_var(20)
 
 end program

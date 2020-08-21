@@ -11,7 +11,7 @@ xlb=" "
 ylb=" "
 ml=0.1/sx
 mb=0.1/sy
-mr=0.1/sx
+mr=0.5/sx
 mt=0.1/sy
 gx=(1.-ml-mr)/ix
 gy=(1.-mb-mt)/iy
@@ -66,7 +66,11 @@ do for[i=0:(ix*iy-1)]{
 	#set logscale y
 	set style arrow 1 head noborder size screen 0.025,20,130 lw 7 lt 8
 	#plot [:][:] "-" index 0 u 1:2:(20*(($4+$5)/2-0.8)) w p pt 7 ps var lw 5 lc rgb "#aeafac" title "" , "-" index 1 using ($1-$4/2):($2-$5/2):4:5:7 w vectors nohead lw 8 palette title "", "-" index 0 u ($1-(1*($4-$5))):($2-(1*($4-$5))):(2*($4-$5)):(2*($4-$5)) w vectors arrowstyle 1 title ""
-	plot [:][:] "-" index 1 using ($1-$4/2):($2-$5/2):4:5:($7) w vectors nohead lw 8 palette title ""
+	#set cbrange [0.8:0.7]
+	#set cbrange [1.2:1.3]
+	#plot [:][:] "-" index 0 using "x":"y":(column("n")) w p pt 7 palette title ""
+	set cbrange [:]
+	plot [:][:] "-" index 0 using "x":"y":(column("S")) w p pt 7 palette title ""
 	unset label
 	unset format
 }
