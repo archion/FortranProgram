@@ -29,7 +29,7 @@ module M_DMFT
 		integer :: n=n,D=D,nk=nk,Ns=Ns,Nc=Nc
 		real(wp) :: k(D,nk**D*Nc),ks(D,nk**D*Nc/Ns),kc(D,nk**D),Qs(D,Ns),Qc(D,Nc/Ns),Ef=0._wp,mu=0._wp
 		real(wp) :: rs(D,Ns),rc(D,Nc),r(D,nk**D*Nc)
-		real(wp) :: n_c(Nc),n_f(Nc),db(Nc),ek(nk**D*Nc),fsd,fs(nk**D*Nc)
+		real(wp) :: n_c(Nc),n_cimp(Nc),n_f(Nc),db(Nc),ek(nk**D*Nc),fsd,fs(nk**D*Nc)
 		integer, allocatable :: uk2k(:,:),ukc2kc(:,:)
 		complex(wp) :: Gk(n,nk**D*Nc),dGk(n,nk**D*Nc),dSEk(n,nk**D*Nc),ife,fe,Susr(nkD*Nc),Susc(nkD,Nc,Nc),Sus(nkD*Nc),Sus0(nkD*Nc)
 #ifdef cluster
@@ -600,21 +600,28 @@ contains
 							enddo
 						enddo
 					endif
+					select case(lse)
+					case(0)
 #ifdef cluster
-					iBc=self%Gc(iw,1:Nc,1:Nc)
-					call mat_inv(iBc)
-					iBc=matmul(matmul(iBc,self%dGc(ik,iw,1:Nc,1:Nc)),iBc)
-					iAc=self%Delta(iw,1:Nc,1:Nc)+iAc
+						iBc=self%Gc(iw,1:Nc,1:Nc)
+						call mat_inv(iBc)
+						iBc=matmul(matmul(iBc,self%dGc(ik,iw,1:Nc,1:Nc)),iBc)
+						iAc=self%Delta(iw,1:Nc,1:Nc)+iAc
 #else
-					do i=1,Nc
-						do j=1,Nc
-							iBc(i,j)=self%dGc(ik,iw,i,j)/(self%Gc(iw,i)*self%Gc(iw,j))
+						do i=1,Nc
+							do j=1,Nc
+								iBc(i,j)=self%dGc(ik,iw,i,j)/(self%Gc(iw,i)*self%Gc(iw,j))
+							enddo
+							iAc(i,i)=self%Delta(iw,i)+iAc(i,i)
 						enddo
-						iAc(i,i)=self%Delta(iw,i)+iAc(i,i)
-					enddo
 #endif
-					call mat_inv(iAc)
-					self%Gck(ik,iw,1:Nc,1:Nc)=iAc+matmul(matmul(iAc,iBc),iAc)
+						call mat_inv(iAc)
+						self%Gck(ik,iw,1:Nc,1:Nc)=iAc+matmul(matmul(iAc,iBc),iAc)
+					case(1:2)
+						iAc=diag(iomega(iw)+self%mu,Nc)-self%SEck(ik,iw,1:Nc,1:Nc)+iAc
+						call mat_inv(iAc)
+						self%Gck(ik,iw,1:Nc,1:Nc)=iAc
+					end select
 					self%Gcl(iw,1:Nc,1:Nc)=self%Gcl(iw,1:Nc,1:Nc)+self%Gck(ik,iw,1:Nc,1:Nc)
 				enddo
 				self%Gcl(iw,1:Nc,1:Nc)=self%Gcl(iw,1:Nc,1:Nc)/nkD
@@ -625,21 +632,45 @@ contains
 			!$OMP PARALLEL DO PRIVATE(iAc)
 			do iw=1,n
 				do ik=1,nkD
-					iAc=self%Gck(ik,iw,1:Nc,1:Nc)
-					call mat_inv(iAc)
-					self%SEck(ik,iw,1:Nc,1:Nc)=diag(iomega(iw)+self%mu,Nc)-iAc
-					if(is_CDMFT.or.(.not.is_dual_pureDCA)) then
-						self%SEck(ik,iw,1:Nc,1:Nc)=self%SEck(ik,iw,1:Nc,1:Nc)-self%ekc(ik,1:Nc,1:Nc)
-					elseif(is_dual_pureDCA) then
-						do i=1,Nc
-							do j=1,Nc
-								self%SEck(ik,iw,1:Nc,1:Nc)=self%SEck(ik,iw,1:Nc,1:Nc)-self%ekc(ik,i,j)*exp(-img*sum(self%kc(:,ik)*(self%rc(:,i)-self%rc(:,j))))
+					select case(lse)
+					case(0)
+						iAc=self%Gck(ik,iw,1:Nc,1:Nc)
+						call mat_inv(iAc)
+						self%SEck(ik,iw,1:Nc,1:Nc)=diag(iomega(iw)+self%mu,Nc)-iAc
+						if(is_CDMFT.or.(.not.is_dual_pureDCA)) then
+							self%SEck(ik,iw,1:Nc,1:Nc)=self%SEck(ik,iw,1:Nc,1:Nc)-self%ekc(ik,1:Nc,1:Nc)
+						elseif(is_dual_pureDCA) then
+							do i=1,Nc
+								do j=1,Nc
+									self%SEck(ik,iw,1:Nc,1:Nc)=self%SEck(ik,iw,1:Nc,1:Nc)-self%ekc(ik,i,j)*exp(-img*sum(self%kc(:,ik)*(self%rc(:,i)-self%rc(:,j))))
+								enddo
 							enddo
-						enddo
-					endif
+						endif
+					case(1)
+#ifdef cluster
+						iAc=diag(1._wp,Nc)+matmul(self%Gc(iw,1:Nc,1:Nc),self%dSEc(ik,iw,1:Nc,1:Nc))
+						call mat_inv(iAc)
+						self%SEck(ik,iw,1:Nc,1:Nc)=self%SEc(iw,1:Nc,1:Nc)+matmul(self%dSEc(ik,iw,1:Nc,1:Nc),iAc)
+#else
+						if(Nc>1) then
+							write(*,*)"SEck not implimented for noncluster"
+							stop
+						endif
+						iAc=diag(1._wp,Nc)+matmul(diag(self%Gc(iw,1:Nc)),self%dSEc(ik,iw,1:Nc,1:Nc))
+						call mat_inv(iAc)
+						self%SEck(ik,iw,1:Nc,1:Nc)=diag(self%SEc(iw,1:Nc))+matmul(self%dSEc(ik,iw,1:Nc,1:Nc),iAc)
+#endif
+					case(2)
+#ifdef cluster
+						self%SEck(ik,iw,1:Nc,1:Nc)=self%SEc(iw,1:Nc,1:Nc)+self%dSEc(ik,iw,1:Nc,1:Nc)
+#else
+						self%SEck(ik,iw,1:Nc,1:Nc)=diag(self%SEc(iw,1:Nc))+self%dSEc(ik,iw,1:Nc,1:Nc)
+#endif
+					end select
 				enddo
 			enddo
 			!$OMP END PARALLEL DO
+			!write(*,*)U*n_f,self%SEck(1,1,1,1)
 		case(SEc)
 			rt="SEc"; if(debug) return
 			!$OMP PARALLEL DO PRIVATE(iAc)
@@ -702,6 +733,11 @@ contains
 			if(debug) write(*,*)"inc, image: ",this_image()
 			do i=1,Nc
 				self%n_c(i)=Tk*real(msum(self%Gcl(1:n,i,i),not_conv=underscore))
+#ifdef cluster
+				self%n_cimp(i)=Tk*real(msum(self%Gc(1:n,i,i),not_conv=underscore))
+#else
+				self%n_cimp(i)=Tk*real(msum(self%Gc(1:n,i),not_conv=underscore))
+#endif
 			enddo
 			!stop
 		case(fsd)
@@ -1109,41 +1145,60 @@ contains
 		case(Delta)
 			rt="Delta"; if(debug) return
 			!call self%io([out_w],[out_w])
-			!$OMP PARALLEL DO PRIVATE(iAc,iBc)
-			do iw=1,n
-				iAc=0._wp
-				do ik=1,nkD
-					iAc=iAc+self%dGc(ik,iw,1:Nc,1:Nc)
-				enddo
-				iAc=iAc/nkD
-				iBc=self%Gcl(iw,1:Nc,1:Nc)
-				!do i=1,Nc
-					!do j=1,Nc
-						!if(i/=j) then
-							!iBc(i,j)=0._wp
-						!endif
+			select case(sc_scheme)
+			case(1)
+				!$OMP PARALLEL DO PRIVATE(iAc,iBc)
+				do iw=1,n
+					iAc=0._wp
+					do ik=1,nkD
+						iAc=iAc+self%dGc(ik,iw,1:Nc,1:Nc)
+					enddo
+					iAc=iAc/nkD
+					iBc=self%Gcl(iw,1:Nc,1:Nc)
+					!do i=1,Nc
+						!do j=1,Nc
+							!if(i/=j) then
+								!iBc(i,j)=0._wp
+							!endif
+						!enddo
 					!enddo
-				!enddo
 #ifdef cluster
-				call mat_inv(iBc)
-				iBc=matmul(iAc,iBc)
-				iAc=self%Gc(iw,1:Nc,1:Nc)
-				call mat_inv(iAc)
-				self%Delta(iw,1:Nc,1:Nc)=self%Delta(iw,1:Nc,1:Nc)+matmul(iAc,iBc)
-				!do i=1,Nc
-					!do j=1,Nc
-						!if(i/=j) then
-							!self%Delta(iw,i,j)=0._wp
-						!endif
+					call mat_inv(iBc)
+					iBc=matmul(iAc,iBc)
+					iAc=self%Gc(iw,1:Nc,1:Nc)
+					call mat_inv(iAc)
+					self%Delta(iw,1:Nc,1:Nc)=self%Delta(iw,1:Nc,1:Nc)+matmul(iAc,iBc)
+					!do i=1,Nc
+						!do j=1,Nc
+							!if(i/=j) then
+								!self%Delta(iw,i,j)=0._wp
+							!endif
+						!enddo
 					!enddo
-				!enddo
 #else
-				do i=1,Nc
-					self%Delta(iw,i)=self%Delta(iw,i)+iAc(i,i)/(iBc(i,i)*self%Gc(iw,i))
-				enddo
+					do i=1,Nc
+						self%Delta(iw,i)=self%Delta(iw,i)+iAc(i,i)/(iBc(i,i)*self%Gc(iw,i))
+					enddo
 #endif
-			enddo
-			!$OMP END PARALLEL DO
+				enddo
+				!$OMP END PARALLEL DO
+			case(2)
+				!$OMP PARALLEL DO PRIVATE(iAc,iBc)
+				do iw=1,n
+					iBc=self%Gcl(iw,1:Nc,1:Nc)
+#ifdef cluster
+					iAc=self%Gc(iw,1:Nc,1:Nc)
+					call mat_inv(iBc)
+					call mat_inv(iAc)
+					self%Delta(iw,1:Nc,1:Nc)=self%Delta(iw,1:Nc,1:Nc)+iAc-iBc
+#else
+					do i=1,Nc
+						self%Delta(iw,i)=self%Delta(iw,i)+1._wp/self%Gc(iw,i)-1._wp/iBc(i,i)
+					enddo
+#endif
+				enddo
+				!$OMP END PARALLEL DO
+			end select
 			self%is_symbk=.false.
 			do iw=1,n
 #ifdef cluster
@@ -1952,7 +2007,7 @@ contains
 				if(.not.self%conv) then
 					write(ut(k),"(A$)")"#"
 				endif
-				write(ut(k),"(e29.20e3$)")Tk,U,self%Ef,self%mu,sum(abs(self%n_c(1:Ns)-sum(self%n_c)/Nc))/Ns,sum(abs(self%n_f(1:Ns)-sum(self%n_f)/Nc))/Ns,sum(self%n_c)/Nc,sum(self%n_f)/Nc,(self%Qs(:,iQ)+dr)/pi,self%fe,self%ife,sum(self%db)/Nc,self%fsd,merge(maxval(real(self%Sus)),minval(real(self%Sus)),all(real(self%Sus)>=0._wp))
+				write(ut(k),"(e29.20e3$)")Tk,U,self%Ef,self%mu,sum(abs(self%n_c(1:Ns)-sum(self%n_c)/Nc))/Ns,sum(abs(self%n_f(1:Ns)-sum(self%n_f)/Nc))/Ns,sum(self%n_c)/Nc,sum(self%n_cimp)/Nc,sum(self%n_f)/Nc,(self%Qs(:,iQ)+dr)/pi,self%fe,self%ife,sum(self%db)/Nc,self%fsd,merge(maxval(real(self%Sus)),minval(real(self%Sus)),all(real(self%Sus)>=0._wp))
 				write(ut(k),"(l3)")self%is_symbk
 			case(out_pattern)
 				if(self%conv) then
@@ -2043,7 +2098,8 @@ contains
 				write(*,"('scell:',4es12.4)")scell
 				write(*,"('clust:',4es12.4)")clust
 				write(*,"('bcut:',4es12.4)")bcut
-				write(*,"('is_real:',l2,', which_gen_cfg:',i2,', is_SE:',l2,', sc_scheme:',A,', is_CDMFT:',l2,', is_dF4_iter:',l2,', is_dual_pureDCA:',l2,', is_cluster:',l2)")is_real,which_gen_cfg,is_SE,pack(["DMFT","dDMFT","dDMFT_all","dDMFT_simp","dDMFT_simp_nc"],[DMFT,dDMFT,dDMFT_all,dDMFT_simp,dDMFT_simp_nc]==scheme),is_CDMFT,is_dF4_iter,is_dual_pureDCA,&
+				write(*,"('is_real:',l2,', which_gen_cfg:',i2,', is_SE:',l2,', sc_scheme:',A,i3,', lse: ',i3,', is_CDMFT:',l2,', is_dF4_iter:',l2,', is_dual_pureDCA:',l2,', is_cluster:',l2)")&
+					is_real,which_gen_cfg,is_SE,pack(["DMFT","dDMFT","dDMFT_all","dDMFT_simp","dDMFT_simp_nc"],[DMFT,dDMFT,dDMFT_all,dDMFT_simp,dDMFT_simp_nc]==scheme),sc_scheme,lse,is_CDMFT,is_dF4_iter,is_dual_pureDCA,&
 #ifdef cluster
 .true.
 #else
@@ -2058,7 +2114,8 @@ contains
 						write(i,"('#scell:',4es12.4)")scell
 						write(i,"('#clust:',4es12.4)")clust
 						write(i,"('#bcut:',4es12.4)")bcut
-						write(i,"('#is_real:',l2,', which_gen_cfg:',i2,', is_SE:',l2,', sc_scheme:',A,', is_CDMFT:',l2,', is_dF4_iter:',l2,', is_dual_pureDCA:',l2,', is_cluster:',l2)")is_real,which_gen_cfg,is_SE,pack(["DMFT","dDMFT","dDMFT_all","dDMFT_simp","dDMFT_simp_nc"],[DMFT,dDMFT,dDMFT_all,dDMFT_simp,dDMFT_simp_nc]==scheme),is_CDMFT,is_dF4_iter,is_dual_pureDCA,&
+						write(i,"('#is_real:',l2,', which_gen_cfg:',i2,', is_SE:',l2,', sc_scheme:',A,i3,', lse: ',i3,', is_CDMFT:',l2,', is_dF4_iter:',l2,', is_dual_pureDCA:',l2,', is_cluster:',l2)")&
+							is_real,which_gen_cfg,is_SE,pack(["DMFT","dDMFT","dDMFT_all","dDMFT_simp","dDMFT_simp_nc"],[DMFT,dDMFT,dDMFT_all,dDMFT_simp,dDMFT_simp_nc]==scheme),sc_scheme,lse,is_CDMFT,is_dF4_iter,is_dual_pureDCA,&
 #ifdef cluster
 .true.
 #else
@@ -2083,7 +2140,7 @@ contains
 				enddo
 				write(out_T,"(*(e29.20e3))")Tc(:,1)/pi
 				write(out_T,"(x/)")
-				write(out_T,"(A)")"T U ef mu tnc tnf nc nf Qx Qy fe _ ife _ db fsd Sus symbrk"
+				write(out_T,"(A)")"T U ef mu tnc tnf nc ncimp nf Qx Qy fe _ ife _ db fsd Sus symbrk"
 
 				write(out_pattern,"(A)")"x y"
 				write(out_pattern,"(*(e29.20e3))")0._wp,0._wp
@@ -2403,11 +2460,18 @@ contains
 		inode(dSus0,1:2)=[dGc,dGcp]
 		inode(V4c,1:3)=[Delta,mu,Ef]
 		inode(Sus,1:5)=[Gc,dGc,dGcp,V4c,dSus0]
-		inode(Gck_l,1:3)=[Delta,dGc,dGcp]
+		if(lse==0) then
+			inode(SEck,1:2)=[Gck_l,mu]
+			inode(Gck_l,1:3)=[Delta,dGc,dGcp]
+		else
+			inode(SEck,1:3)=[SEc,Gc,dSEc]
+			inode(Gck_l,1:2)=[mu,SEck]
+		endif
 		inode(inc,1:1)=[Gck_l]
 		inode(fsd,1:1)=[Gck_l]
 		inode(Gk,1:1)=[Gck_l]
 		inode(fs,1:1)=[Gk]
+		inode(SEc,1:3)=[Delta,Gc,mu]
 		if((.not.fix_cp).and.split_cp) then
 			inode(Ef,1:1)=[SC_cp]
 			inode(mu,1:1)=[SC_cp]
@@ -2418,14 +2482,16 @@ contains
 			inode(dGcp,1:1)=[dGc0]
 			inode(Delta,1:1)=[SC_DMFT]
 			if(fix_cp) then
-				inode(SC_DMFT,1:4)=[Gck_l,dGcp,Gc,Delta]
-				underscore=evaluate(graph=[Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,dGcp,dGc0,Gc,Delta],dSEc,mu,Ef,mat_omega,lattice,omega_grid,PMT])
+				!inode(SC_DMFT,1:4)=[Gck_l,dGcp,Gc,Delta]
+				!underscore=evaluate(graph=[Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,dGcp,dGc0,Gc,Delta],dSEc,mu,Ef,mat_omega,lattice,omega_grid,PMT])
 
-				!inode(Ef,1:1)=[SC_DMFT]
-				!inode(SC_DMFT,1:5)=[Gck_l,dGcp,Gc,Delta,Ef]
-				!inode(SEc,1:3)=[Delta,Gc,mu]
-				!inode(SEck,1:2)=[Gck_l,mu]
-				!underscore=evaluate(graph=[SEck,SEc,Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,dGcp,dGc0,Gc,Delta,Ef],dSEc,mu,mat_omega,lattice,omega_grid,PMT])
+				inode(Ef,1:1)=[SC_DMFT]
+				inode(SC_DMFT,1:5)=[Gck_l,dGcp,Gc,Delta,Ef]
+				if(lse==0) then
+					underscore=evaluate(graph=[SEck,SEc,Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,dGcp,dGc0,Gc,Delta,Ef],dSEc,mu,mat_omega,lattice,omega_grid,PMT])
+				else
+					underscore=evaluate(graph=[Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,SEck,dGcp,dGc0,SEc,Gc,Delta,Ef],dSEc,mu,mat_omega,lattice,omega_grid,PMT])
+				endif
 			else
 				if(split_cp) then
 					inode(SC_DMFT,1:4)=[Gck_l,dGcp,Gc,Delta]
@@ -2442,23 +2508,33 @@ contains
 			inode(Delta,1:1)=[SC_dDMFT]
 			inode(dSEc,1:1)=[SC_dDMFT]
 			if(fix_cp) then
-				inode(SC_dDMFT,1:7)=[Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta]
-				underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta],mu,Ef,mat_omega,lattice,omega_grid,PMT])
+				!inode(SC_dDMFT,1:7)=[Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta]
+				!underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta],mu,Ef,mat_omega,lattice,omega_grid,PMT])
 
-				!inode(Ef,1:1)=[SC_dDMFT]
-				!inode(SC_dDMFT,1:9)=[inc,Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta,Ef]
-				!inode(SEc,1:3)=[Delta,Gc,mu]
-				!inode(SEck,1:2)=[Gck_l,mu]
-				!underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta,Ef],mu,lattice,mat_omega,omega_grid,PMT])
+				inode(Ef,1:1)=[SC_dDMFT]
+				inode(SC_dDMFT,1:9)=[inc,Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta,Ef]
+				if(lse==0) then
+					underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta,Ef],mu,lattice,mat_omega,omega_grid,PMT])
+				else
+					underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,SEck,V4c,dSus0,dGc,dGc0,SEc,Gc,dSEc,Delta,Ef],mu,lattice,mat_omega,omega_grid,PMT])
+				endif
 			else
 				if(split_cp) then
 					inode(SC_dDMFT,1:7)=[Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta]
-					underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,V4c,dSus0,[SC_cp,inc,Gck_l,dGc,dGc0,Gc,Ef,mu],dSEc,Delta],mat_omega,lattice,omega_grid,PMT])
+					if(lse==0) then
+						underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,[SC_dDMFT,V4c,dSus0,[SC_cp,inc,Gck_l,dGc,dGc0,Gc,Ef,mu],dSEc,Delta],mat_omega,lattice,omega_grid,PMT])
+					else
+						underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,V4c,dSus0,[SC_cp,inc,Gck_l,SEck,dGc,dGc0,SEc,Gc,Ef,mu],dSEc,Delta],mat_omega,lattice,omega_grid,PMT])
+					endif
 				else
 					inode(mu,1:1)=[SC_dDMFT]
 					inode(Ef,1:1)=[SC_dDMFT]
 					inode(SC_dDMFT,1:10)=[inc,Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta,mu,Ef]
-					underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta,mu,Ef],lattice,mat_omega,omega_grid,PMT])
+					if(lse==0) then
+						underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta,mu,Ef],lattice,mat_omega,omega_grid,PMT])
+					else
+						underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,SEck,V4c,dSus0,dGc,dGc0,SEc,Gc,dSEc,Delta,mu,Ef],lattice,mat_omega,omega_grid,PMT])
+					endif
 				endif
 			endif
 		case(dDMFT_simp)
@@ -2466,30 +2542,44 @@ contains
 			inode(dSEc,1:1)=[SC_dDMFT]
 			inode(SC_dDMFT,1:4)=[dSus0,V4c,dGc,dSEc]
 			if(fix_cp) then
-				underscore=evaluate(graph=[Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,dSus0,dGc,dSEc],V4c,dGc0,Gc,Delta,mu,Ef,lattice,mat_omega,omega_grid,PMT])
+				!underscore=evaluate(graph=[Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,dSus0,dGc,dSEc],V4c,dGc0,Gc,Delta,mu,Ef,lattice,mat_omega,omega_grid,PMT])
 
-				!inode(Ef,1:1)=[SC_dDMFT]
-				!inode(SC_dDMFT,1:8)=[inc,Gck_l,Gc,V4c,dSus0,dGc,dSEc,Ef]
-				!inode(SEc,1:3)=[Delta,Gc,mu]
-				!inode(SEck,1:2)=[Gck_l,mu]
-				!underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,dSus0,dGc,V4c,dGc0,Gc,dSEc,Ef],Delta,mu,lattice,mat_omega,omega_grid,PMT])
+				inode(Ef,1:1)=[SC_dDMFT]
+				inode(SC_dDMFT,1:8)=[inc,Gck_l,Gc,V4c,dSus0,dGc,dSEc,Ef]
+				if(lse==0) then
+					underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,dSus0,dGc,V4c,dGc0,Gc,dSEc,Ef],Delta,mu,lattice,mat_omega,omega_grid,PMT])
+				else
+					underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,SEck,dSus0,dGc,V4c,dGc0,SEc,Gc,dSEc,Ef],Delta,mu,lattice,mat_omega,omega_grid,PMT])
+				endif
 			else
 				inode(Ef,:)=0
 				inode(mu,:)=0
 				inode(SC_cp,:)=0
-				underscore=evaluate(graph=[Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,dSus0,dGc,dSEc],V4c,dGc0,Gc,Ef,mu,Delta,mat_omega,lattice,omega_grid,PMT])
+				if(lse==0) then
+					underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,dSus0,dGc,dSEc],V4c,dGc0,Gc,Ef,mu,Delta,mat_omega,lattice,omega_grid,PMT])
+				else
+					underscore=evaluate(graph=[Sus,fs,fsd,Gk,inc,Gck_l,SEck,[SC_dDMFT,dSus0,dGc,dSEc],V4c,dGc0,SEc,Gc,Ef,mu,Delta,mat_omega,lattice,omega_grid,PMT])
+				endif
 			endif
 		case(dDMFT_simp_nc)
 			inode(dGc,1:2)=[dGc0,dSEc]
 			inode(dSEc,1:1)=[SC_dDMFT]
 			if(split_cp) then
 				inode(SC_dDMFT,1:4)=[dSus0,V4c,dGc,dSEc]
-				underscore=evaluate(graph=[Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,dSus0,V4c,[SC_cp,inc,Gck_l,dGc,dGc0,Gc,Ef,mu],dSEc],Delta,mat_omega,lattice,omega_grid,PMT])
+				if(lse==0) then
+					underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,dSus0,V4c,[SC_cp,inc,Gck_l,dGc,dGc0,Gc,Ef,mu],dSEc],Delta,mat_omega,lattice,omega_grid,PMT])
+				else
+					underscore=evaluate(graph=[Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,dSus0,V4c,[SC_cp,inc,Gck_l,SEck,dGc,dGc0,SEc,Gc,Ef,mu],dSEc],Delta,mat_omega,lattice,omega_grid,PMT])
+				endif
 			else
 				inode(mu,1:1)=[SC_dDMFT]
 				inode(Ef,1:1)=[SC_dDMFT]
 				inode(SC_dDMFT,1:9)=[inc,Gck_l,dSus0,V4c,dGc,Gc,dSEc,mu,Ef]
-				underscore=evaluate(graph=[Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,inc,Gck_l,dSus0,V4c,dGc,dGc0,Gc,dSEc,Ef,mu],Delta,mat_omega,lattice,omega_grid,PMT])
+				if(lse==0) then
+					underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,inc,Gck_l,dSus0,V4c,dGc,dGc0,Gc,dSEc,Ef,mu],Delta,mat_omega,lattice,omega_grid,PMT])
+				else
+					underscore=evaluate(graph=[Sus,fs,fsd,Gk,inc,Gck_l,[SC_dDMFT,inc,Gck_l,SEck,dSus0,V4c,dGc,dGc0,SEc,Gc,dSEc,Ef,mu],Delta,mat_omega,lattice,omega_grid,PMT])
+				endif
 			endif
 		end select
 	end subroutine

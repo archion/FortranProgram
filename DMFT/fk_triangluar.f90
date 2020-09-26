@@ -16,6 +16,13 @@ module global
 		nkD=nk**D
 	logical :: is_real=.false.,is_normal_mat=.false.,is_SE=.false.,&
 		is_CDMFT=.true.,is_dF4_iter=.false.,is_dual_pureDCA=.true.,fix_cp=.false.,split_cp=.true.
+	integer :: lse=&
+		0 !from relation of dyson equation
+		!1 !from relation with double counting
+		!2 !from relation without double counting
+	integer :: sc_scheme=&
+		!1 !Hatree diagram vanished
+		2 !local equal
 	integer :: sdiagram(2)=& ! -1: infinite; 0 none
 		[1,-1]
 	integer :: ddiagram(2)=&
@@ -60,7 +67,7 @@ program main
 	endif
 	open(unit=inout_save,File="../data/fk_save.dat",status='old',access='stream',form='unformatted')
 
-	U=6._wp
+	U=16._wp
 	self%mu=U*0.5_wp
 	self%Ef=0._wp
 	flag=.true.
@@ -84,7 +91,7 @@ program main
 	self%dSEc=cmplx(0._wp,0._wp,kind=wp)
 
 	niter(SC_DMFT)=250; iter_err(SC_DMFT)=1e-6_wp; iter_rate(SC_DMFT)=0.5_wp
-	niter(SC_dDMFT)=150; iter_err(SC_dDMFT)=1e-5_wp; iter_rate(SC_dDMFT)=0.5_wp
+	niter(SC_dDMFT)=150; iter_err(SC_dDMFT)=1e-5_wp; iter_rate(SC_dDMFT)=0.1_wp
 	niter(SC_cp)=150; iter_err(SC_cp)=1e-5_wp; iter_rate(SC_cp)=0.5_wp
 	scheme=dDMFT
 	call gen_graph(scheme)
@@ -95,39 +102,29 @@ program main
 	!read(inout_save)Tk,U,self%Delta,self%dSEc,self%mu,self%Ef
 	!write(*,*)this_image(),Tk,self%Ef
 
-	!do 
-		!scheme=dDMFT
-		!fix_cp=.true.
-		!call gen_graph(scheme)
-		!!self%mu=for_in([[-6:1]*1._wp,[10:20]*0.2_wp,[5:11]*1._wp,[60:70]*0.2_wp,[15:20]*1._wp],id=1)
-		!!self%mu=for_in([[60:70]*0.2_wp,[15:20]*1._wp],id=1)
-		!!self%mu=for_in([[11:5:-1]*1._wp,[20:10:-1]*0.2_wp,[1:-6:-1]*1._wp],id=1)
-		!!self%mu=for_in([11._wp],id=1)
-		!self%mu=for_in([[20:10:-1]*0.2_wp],id=1)
-		!if(isnan(self%mu)) exit
-		!if(any(scheme==[dDMFT_simp,dDMFT_simp_nc])) then
-			!call gen_graph(DMFT)
-			!self%conv=evaluate(nodes=[Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
-			!call gen_graph(scheme)
-		!endif
-		!if(flag) then
-			!Tk=0.15_wp
-			!self%conv=evaluate(nodes=[SEc,SEck,fsd,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
-			!Tk=0.12_wp
-			!self%conv=evaluate(nodes=[SEc,SEck,fsd,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
-			!Tk=0.1_wp
-			!self%conv=evaluate(nodes=[SEc,SEck,fsd,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
-			!Tk=0.09_wp
-			!self%conv=evaluate(nodes=[SEc,SEck,fsd,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
-			!Tk=0.08_wp
-			!self%conv=evaluate(nodes=[SEc,SEck,fsd,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
-			!flag=.false.
-		!endif
-		!Tk=0.07_wp
-		!self%conv=evaluate(nodes=[SEc,SEck,fsd,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
-		!call self%io([out_r,out_k,out_T,out_pattern,out_w],[out_r,out_k,out_T,out_pattern,out_w])
-	!enddo
-	!stop
+	!self%mu=3.85_wp
+
+	Tk=0.2_wp
+	do 
+		scheme=dDMFT
+		fix_cp=.true.
+		call gen_graph(scheme)
+		!self%mu=for_in([[-6:1]*1._wp,[10:20]*0.2_wp,[5:11]*1._wp,[60:70]*0.2_wp,[15:20]*1._wp],id=1)
+		!self%mu=for_in([[60:70]*0.2_wp,[15:20]*1._wp],id=1)
+		!self%mu=for_in([[11:5:-1]*1._wp,[20:10:-1]*0.2_wp,[1:-6:-1]*1._wp],id=1)
+		!self%mu=for_in([11._wp],id=1)
+		!self%mu=for_in([[9:0:-1]*2._wp],id=1)
+		self%mu=for_in([[12*2:3*2:-1]*0.5_wp],id=1)
+		if(isnan(self%mu)) exit
+		if(any(scheme==[dDMFT_simp,dDMFT_simp_nc])) then
+			call gen_graph(DMFT)
+			self%conv=evaluate(nodes=[Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
+			call gen_graph(scheme)
+		endif
+		self%conv=evaluate(nodes=[SEc,SEck,fsd,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
+		call self%io([out_r,out_k,out_T,out_pattern,out_w],[out_r,out_k,out_T,out_pattern,out_w])
+	enddo
+	stop
 
 	if(Nc>1) then
 	!if(.false.) then
@@ -213,12 +210,14 @@ program main
 		else
 			vl=merge(maxval(real(self%Sus)),minval(real(self%Sus)),all(real(self%Sus)>=0._wp))
 			if(isnan(Tk)) then
-				Tk=0.2_wp
+				Tk=0.15_wp
 			else
 				Tk=Tk+7._wp*dTk
 			endif
 			Tk=Tk+dTk
 		endif
+		split_cp=.true.
+		call gen_graph(scheme)
 		do
 			if(i==1) then
 				if(vl<1e-4_wp) then
@@ -235,7 +234,7 @@ program main
 					exit
 				endif
 				if(vl>0._wp) then
-					dTk=min(max(1._wp/vl*0.02_wp,7e-5_wp),5e-3_wp)
+					dTk=min(max(1._wp/vl*0.02_wp,7e-5_wp),1e-3_wp)
 				endif
 				Tk=Tk-dTk
 			endif
@@ -252,23 +251,23 @@ program main
 			!endif
 			if(any(scheme==[dDMFT_simp,dDMFT_simp_nc])) then
 				call gen_graph(DMFT)
-				self%conv=evaluate(nodes=[Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
+				self%conv=evaluate(nodes=[SEc,SEck,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
 				call gen_graph(scheme)
 			endif
 
 			if(.true.) then
 			!if(i==-1) then
-				self%conv=evaluate(nodes=[Sus,fs,fsd,inc,Delta,dSEc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
+				self%conv=evaluate(nodes=[SEc,SEck,Sus,fs,fsd,inc,Delta,dSEc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
 			else
-				self%conv=evaluate(nodes=[fsd,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
+				self%conv=evaluate(nodes=[SEc,SEck,fsd,Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])
 			endif
-			if(self%conv) then
+			!if(self%conv) then
 				split_cp=.false.
 				call gen_graph(scheme)
-			else
-				split_cp=.true.
-				call gen_graph(scheme)
-			endif
+			!else
+				!split_cp=.true.
+				!call gen_graph(scheme)
+			!endif
 			call self%io([out_r,out_k,out_T,out_pattern],[out_r,out_k,out_T,out_pattern])
 		enddo
 	enddo

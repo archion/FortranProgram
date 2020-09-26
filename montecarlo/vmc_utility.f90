@@ -703,7 +703,7 @@ contains
 	subroutine do_var(self,n)
 		class(t_mc) :: self[ica1,*]
 		integer :: omp,n
-		real(wp) :: x(sum(Hmf%var(1:)%n)+sum(Hja%var(1:)%n),n),er,pgrad(size(x)),El(n)
+		real(wp) :: x(sum(Hmf%var(1:)%n)+sum(Hja%var(1:)%n),n),er,El(n)
 		integer :: i,hot,ord(n),id_(Hmf%rg(2)+Hja%rg(2))
 		logical :: init_cfg
 		self%sg=2
@@ -734,7 +734,6 @@ contains
 		i=0
 		do 
 			i=i+1
-			if(allocated(self%g)) pgrad=self%g
 			call Hmf%get_val(x(:sum(Hmf%var(1:)%n),i),[1:Hmf%rg(2)])
 			call Hja%get_val(x(sum(Hmf%var(1:)%n)+1:,i),[1:Hja%rg(2)])
 			if(this_image()==1) then

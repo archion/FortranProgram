@@ -4,13 +4,13 @@ module global
 	use M_DGC
 	implicit none
 	integer, parameter :: in_init=10,out_Gw=20,out_T=30,out_Gt=40,out_init=50,out_info=60,out_param=70,xx_save=1,xx_diff=2,xx_new=-1
-	integer, parameter :: omega_grid=1,tau_grid=2,Gc0=3,Gd=4,Gc=5,Q=6,SEc=7,lambda=8,Gf=9,rhoc=10,Gb=11,tSEf=12,tSEb=13,Gft=14,Gbt=15,PMT=16,output=17,SEf=18,SEb=19,tlambda=20,SC1=-1,SC2=-2
+	integer, parameter :: omega_grid=1,tau_grid=2,Gc0=3,Gd=4,Gc=5,Q=6,SEc=7,lambda=8,Gf=9,rhoc=10,Gb=11,tSEf=12,tSEb=13,Gft=14,Gbt=15,PMT=16,output=17,SEf=18,SEb=19,tlambda=20,Fimp=21,SC1=-1,SC2=-2
 	logical :: is_expinit=.true.,is_bathT=.false.
 	type gfs
 		real(wp) :: rhoc(n),lambda,Q(1)
 		complex(wp) :: Gf(n),Gb(n),Gc(n),Gd(n),Gc0(n)
 		complex(wp) :: tSEf(n),tSEb(n),SEf(n),SEb(n),SEc(n),SEd(n)
-		real(wp) :: Gft(n),Gbt(n)
+		real(wp) :: Gft(n),Gbt(n),Fimp
 		logical :: conv=.false.
 	contains
 		procedure :: io
@@ -24,7 +24,7 @@ contains
 	function compute_(node) result(rt)
 		integer :: node
 		character(:), allocatable :: rt
-		integer, save :: nx,cnd_=0
+		integer, save :: nx,cnd_=0,im
 		integer :: i,j
 		logical :: is_
 		real(wp) :: rho(n),norm,W
@@ -54,8 +54,8 @@ contains
 			do i=1,n
 				rho(i)=A_c(omega(i))
 			enddo
-			!norm=1._wp/integrate(omega,A=rho)
-			!self%rhoc=rho*norm
+			norm=1._wp/integrate(omega,A=rho)
+			self%rhoc=rho*norm
 			self%rhoc=rho
 			self%Gc0%im=-pi*self%rhoc
 			call set_realpart(omega,self%Gc0)
@@ -78,9 +78,19 @@ contains
 			call get_Gtau(omega,G=(2._wp*self%Gf+2._wp*kp*self%Gb),eta=-1,time=[-eps*1e3_wp],rt=self%Q)
 		case(lambda)
 			rt="lambda"; if(debug) return
+			!write(*,*)0.5_wp*(self%SEf(n/2)%re+self%SEf(n/2+1)%re)+ed-0.5_wp*(self%SEb(n/2)%re+self%SEb(n/2+1)%re)
 		case(tlambda)
 			rt="tlambda"; if(debug) return
-			self%lambda=min(0.5_wp*(self%SEf(n/2)%re+self%SEf(n/2+1)%re)+ed,0.5_wp*(self%SEb(n/2)%re+self%SEb(n/2+1)%re))
+			self%lambda=min(0.5_wp*(self%SEf(n/2)%re+self%SEf(n/2+1)%re)+ed,(0.5_wp*(self%SEb(n/2)%re+self%SEb(n/2+1)%re)))
+			!self%lambda=0.5_wp*(0.5_wp*(self%SEf(n/2)%re+self%SEf(n/2+1)%re)+ed+(0.5_wp*(self%SEb(n/2)%re+self%SEb(n/2+1)%re)))
+			!if((0.5_wp*(self%SEf(n/2)%re+self%SEf(n/2+1)%re)+ed<(0.5_wp*(self%SEb(n/2)%re+self%SEb(n/2+1)%re))+Tk)) then
+			!else
+			!if(Tk>4e-5_wp) then
+				!self%lambda=0.5_wp*(self%SEf(n/2)%re+self%SEf(n/2+1)%re)+ed
+			!else
+				!self%lambda=0.5_wp*(self%SEb(n/2)%re+self%SEb(n/2+1)%re)
+			!endif
+			!endif
 		case(tSEf)
 			rt="tSEf"; if(debug) return
 			call get_convolution(omega,A=2._wp*kp*V2*self%Gb,B=self%Gc0,tau=[1,1],rt=self%tSEf)
@@ -99,6 +109,9 @@ contains
 			rt="Gd"; if(debug) return
 			call get_convolution(omega,A=self%Gf/self%Q(1),B=self%Gb,tau=[1,-1],rt=self%Gd,two=underscore)
 			call set_realpart(omega,self%Gd)
+		case(Fimp)
+			rt="Fimp"; if(debug) return
+			self%Fimp=self%lambda-Tk*log(self%Q(1))
 		case(SEc)
 			rt="SEc"; if(debug) return
 			self%SEc=1._wp/(1._wp/(V2*self%Gd)+self%Gc0)
@@ -129,10 +142,14 @@ contains
 			
 			if(iter_exit(node)==1) then
 				write(*,"('SC=',i2,' T=',es10.3,', V2: ',es9.2,', ed: ',es9.2,', kp: ',es9.2,', r: ',es9.2,' initial...')")node,Tk,V2,ed,kp,r
-				call mbroyden(0,x,x_,iter_rate(node),nsave=20,id=abs(node))
+				if(onode(cnd_,0)==1.and.onode(cnd_,1)==lambda) then
+					underscore=next(ytol=iter_err(cnd_),dx=iter_rate(cnd_),id=abs(cnd_))
+				else
+					call mbroyden(0,x,x_,iter_rate(node),nsave=80,id=abs(node))
+				endif
 			endif
 			write(*,"('SC=',i2,' T=',es10.3,' err=',es10.3,' iter=',i4,' lambda=',es10.3,' Q=',es10.3)")node,Tk,iter_err(abs(node)),iter_exit(node),self%lambda,self%Q(1)
-			if(iter_exit(node)==niter(node).or.(iter_err(abs(node))<=iter_err(node))) then
+			if(iter_exit(node)==abs(niter(node)).or.(iter_err(abs(node))<=iter_err(node))) then
 				call mbroyden(huge(1),x,x_,id=abs(node))
 				deallocate(x,x_)
 				write(*,"('SC=',i2,' T=',es10.3,', V2: ',es9.2,', ed: ',es9.2,', kp: ',es9.2,', r: ',es9.2,' finish...')")node,Tk,V2,ed,kp,r
@@ -164,12 +181,17 @@ contains
 				!iter_err(abs(cnd_))=maxval(abs(x_)/merge(abs(x),1._wp,abs(omega(1:n))<2.*fcut.and.abs(x)<1e-4_wp))
 				!iter_err(abs(cnd_))=maxval(abs(x_)/merge(abs(x),1._wp,abs(x)<1e-4_wp))
 				!iter_err(abs(cnd_))=maxval(abs(x_)/merge(1._wp,abs(x),abs(x)<1e-6_wp))
-				!iter_err(abs(cnd_))=maxval(abs(x_)/merge(1e-6_wp,abs(x),abs(x)<1e-6_wp))
-				if(niter(cnd_)>0) then
-					call mbroyden(iter_exit(cnd_),x,x_,id=abs(cnd_))
-					!x=x_+x
+				!iter_err(abs(cnd_))=maxval(abs(x_)/merge(1e-4_wp,abs(x),abs(x)<1e-4_wp))
+				if(onode(cnd_,0)==1.and.onode(cnd_,1)==lambda) then
+					underscore=next(self%lambda,x_(1),id=abs(cnd_))
+					return
 				else
-					x=x+iter_rate(cnd_)*x_
+					if(niter(cnd_)>0) then
+						call mbroyden(iter_exit(cnd_),x,x_,id=abs(cnd_))
+						!x=x_+x
+					else
+						x=x+iter_rate(cnd_)*x_
+					endif
 				endif
 				nx=0
 			endif
@@ -182,9 +204,11 @@ contains
 						case(xx_save)
 							x(nx+1:nx+size(self%tSEf))=self%tSEf%im
 						case(xx_diff)
-							x_(nx+1:nx+size(self%tSEf))=self%tSEf%im-x(nx+1:nx+size(self%tSEf))
+							x_(nx+1:nx+size(self%tSEf))=(self%tSEf%im-x(nx+1:nx+size(self%tSEf)))
 						case(xx_new)
+							!self%tSEf%im=-abs(x(nx+1:nx+size(self%tSEf)))
 							self%tSEf%im=x(nx+1:nx+size(self%tSEf))
+							!self%tSEf%im=x(nx+1:nx+size(self%tSEf))+0.5_wp*x_(nx+1:nx+size(self%tSEf))
 						end select
 					endif
 					nx=nx+size(self%tSEf)
@@ -197,8 +221,8 @@ contains
 						case(xx_diff)
 							x_(nx+1:nx+size(self%tSEb))=self%tSEb%im-x(nx+1:nx+size(self%tSEb))
 						case(xx_new)
+							!self%tSEb%im=-abs(x(nx+1:nx+size(self%tSEb)))
 							self%tSEb%im=x(nx+1:nx+size(self%tSEb))
-							call set_realpart(omega,self%tSEb)
 						end select
 					endif
 					nx=nx+size(self%tSEb)
@@ -209,13 +233,14 @@ contains
 							x(nx+1)=self%lambda
 						case(xx_diff)
 							!x_(nx+1)=ff(self%Q(1)-1._wp)-0.5_wp
-							x_(nx+1)=(self%Q(1)-1._wp)
+							!x_(nx+1)=(self%Q(1)-1._wp)**3
+							x_(nx+1)=min(0.5_wp*(self%SEf(n/2)%re+self%SEf(n/2+1)%re)+ed,(0.5_wp*(self%SEb(n/2)%re+self%SEb(n/2+1)%re)))-x(nx+1)
 						case(xx_new)
-							if(abs(self%lambda-x(nx+1))>max(0.1_wp*Tk,0._wp)) then
-								self%lambda=self%lambda-max(0.1_wp*Tk,0._wp)*sign(1._wp,(self%Q(1)-1._wp))
-							else
+							!if(abs(self%lambda-x(nx+1))>max(0.01_wp*Tk,0._wp)) then
+								!self%lambda=self%lambda-max(0.01_wp*Tk,0._wp)*sign(1._wp,(self%Q(1)-1._wp))
+							!else
 								self%lambda=x(nx+1)
-							endif
+							!endif
 						end select
 					endif
 					nx=nx+1
@@ -243,7 +268,7 @@ contains
 				enddo
 				write(ut(k),"(x)")
 			case(out_T)
-				write(ut(k),"(*(e29.20e3))")Tk,Tkunit,self%lambda,self%Q(1),(self%Gf(n/2+1)+self%Gf(n/2))/2.,(self%GB(n/2+1)+self%GB(n/2))/2.,(self%SEc(n/2+1)+self%SEc(n/2))/2.
+				write(ut(k),"(*(e29.20e3))")Tk,Tkunit,self%lambda,self%Q(1),self%Fimp,(self%Gf(n/2+1)+self%Gf(n/2))/2.,(self%GB(n/2+1)+self%GB(n/2))/2.,(self%SEc(n/2+1)+self%SEc(n/2))/2.
 			case(out_Gt)
 				write(ut(k),"(A)")"T tau Gft Gbt"
 				do i=1,n/2
@@ -299,7 +324,7 @@ contains
 						write(i,"('#nlog: ',i5,', nl: ',i5,', nadd: ',*(i5))")nlog,nl,nadd
 						write(i,"('#n: ',i5,', max freq: ',es13.5,', min freq: ',es13.5)")n,maxval(abs(omega)),minval(abs(omega))
 						if(i==out_T) then
-							write(i,"(A)")"T unit lambda Q rGf0 iGf0 rGB0 iGB0 rSEc iSEc"
+							write(i,"(A)")"T unit lambda Q Fimp rGf0 iGf0 rGB0 iGB0 rSEc iSEc"
 						endif
 					endif
 				enddo
@@ -318,22 +343,21 @@ contains
 	real(wp) elemental function A_c(x)
 		real(wp), intent(in) :: x
 		if(abs(x)<fcut) then
-			if(isnan(gap)) then
-				!A_c=(abs(x)/fcut)**r
-				A_c=0.5_wp
-			else
-				if(abs(x)<gap) then
-					A_c=0._wp
-				else
-					A_c=abs(x)/sqrt(x**2-gap**2)
-				endif
-			endif
-		!elseif(abs(x)<=(-omega(1))) then
-			!A_c=exp(-(x**2-fcut**2)/pi*fbeta)
+			A_c=(abs(x)/fcut)**r
+			!A_c=0.5_wp
+			!A_c=abs(x)/sqrt(x**2-gap**2)
+		elseif(abs(x)<=(-omega(1))) then
+			A_c=exp(-(x**2-fcut**2)/pi*fbeta)
 		else
 			A_c=0._wp
 		endif
 		A_c=exp(-x**2/pi)
+		if(.not.isnan(gap)) then
+			if(abs(x)<gap) then
+				A_c=0._wp
+				!A_c=1e-1_wp
+			endif
+		endif
 	end function
 	subroutine get_Gtau(omega,G,Gf,eta,time,rt)
 		real(wp) :: omega(:),time(:),rt(:)
@@ -374,7 +398,200 @@ contains
 			rt(k)=1._wp/pi*eta*rt(k)
 		enddo
 	end subroutine
+	subroutine get_convolution2(omega,ga,gb,A,B,C,tau,rt)
+		! calculate ga(x)gb(y)A(omg+tau(1)x)B(omg+tau(2)y)C(omg+tau(1)x+tau(2)y)
+		real(wp) :: omega(:),ga(:),gb(:),rt(:)
+		complex(wp) :: A(:),B(:),C(:)
+		integer :: i,j,k,jj,jjj,ii,iwb(0:n),iwb1(0:n),iwb2(0:n),tau(2),sg,sg2,d
+		complex(wp) :: A1,A2,B1,B2,C1,C2
+		real(wp) :: omg,ei1,ei2,ej1,ej2,ga1,ga2,gb1,gb2,rt1,rt2,rt_
+		do k=1,n
+			omg=omega(k)
+			do i=1,n
+				iwb(i)=find(omega,(omg+tau(1)*omega(i)))
+			enddo
+			iwb(0)=iwb(1)
+			if(tau(1)/=tau(2)) then
+				do i=1,n
+					iwb1(i)=find(omega,(omg+tau(2)*omega(i)))
+				enddo
+				iwb1(0)=iwb1(1)
+			else
+				iwb1=iwb
+			endif
+			ei1=omega(1)
+			ga1=0._wp
+			A1=0._wp
+			rt1=0._wp
+			rt_=0._wp
+			sg=(1+tau(1))/2 ! 1 for positive sign and 0 for negative sign
+			sg2=(1+tau(2))/2 ! 1 for positive sign and 0 for negative sign
+			! out integration
+			do i=1,n
+				do ii=iwb(i-1)+sg,iwb(i)+sg,sign(1,2*sg-1)
+					if(ii==iwb(i)+sg) then
+						ei2=omega(i)
+						ga2=ga(i)
+						if(iwb(i)>0.and.iwb(i)<n) then
+							A2=A(iwb(i))+((omg+tau(1)*ei2)-omega(iwb(i)))/(omega(iwb(i)+1)-omega(iwb(i)))*(A(iwb(i)+1)-A(iwb(i)))
+						else
+							A2=0._wp
+						endif
+					else
+						ei2=tau(1)*(omega(ii)-omg)
+						ga2=ga(i-1)+(ei2-omega(i-1))/(omega(i)-omega(i-1))*(ga(i)-ga(i-1))
+						A2=A(ii)
+					endif
+
+					do j=1,n
+						iwb2(j)=find(omega,omg+tau(1)*ei2+tau(2)*omega(j))
+					enddo
+					iwb2(0)=iwb2(1)
+					ej1=omega(1)
+					gb1=0._wp
+					B1=0._wp
+					C1=0._wp
+					rt2=0._wp
+					! inner integration
+					do j=1,n
+						jj=iwb1(j-1)+sg2
+						jjj=iwb2(j-1)+sg2
+						do
+							if(jj==iwb1(j)+sg2.and.jjj==iwb2(j)+sg2) then
+								ej2=omega(j)
+								gb2=gb(j)
+								if(iwb1(j)>0.and.iwb1(j)<n) then
+									B2=B(iwb1(j))+(omg+tau(2)*ej2-omega(iwb1(j)))/(omega(iwb1(j)+1)-omega(iwb1(j)))*(B(iwb1(j)+1)-B(iwb1(j)))
+								else
+									B2=0._wp
+								endif
+								if(iwb2(j)>0.and.iwb2(j)<n) then
+									C2=C(iwb2(j))+(omg+tau(1)*ei2+tau(2)*ej2-omega(iwb2(j)))/(omega(iwb2(j)+1)-omega(iwb2(j)))*(C(iwb2(j)+1)-C(iwb2(j)))
+								else
+									C2=0._wp
+								endif
+								d=0
+							elseif(jj==iwb1(j)+sg2) then
+								d=1
+							elseif(jjj==iwb2(j)+sg2) then
+								d=-1
+							else
+								d=1
+								if(tau(2)*(omega(jj)-omg)<tau(2)*(omega(jjj)-omg-tau(1)*ei2)) then
+									d=-1
+								endif
+							endif
+							if(d<0) then
+								ej2=tau(2)*(omega(jj)-omg)
+								gb2=gb(j-1)+(ej2-omega(j-1))/(omega(j)-omega(j-1))*(gb(j)-gb(j-1))
+								B2=B(jj)
+								if((jjj-1+sg2)>0.and.(jjj-1+sg2)<n) then
+									C2=C(jjj-1+sg2)+(omg+tau(1)*ei2+tau(2)*ej2-omega(jjj-1+sg2))/(omega(jjj+sg2)-omega(jjj-1+sg2))*(C(jjj+sg2)-C(jjj-1+sg2))
+								else
+									C2=0._wp
+								endif
+								jj=jj+sign(1,2*sg2-1)
+							elseif(d>0) then
+								ej2=tau(2)*(omega(jjj)-omg-tau(1)*ei2)
+								gb2=gb(j-1)+(ej2-omega(j-1))/(omega(j)-omega(j-1))*(gb(j)-gb(j-1))
+								if((jj-1+sg2)>0.and.(jj-1+sg2)<n) then
+									B2=B(jj-1+sg2)+(omg+tau(2)*ej2-omega(jj-1+sg2))/(omega(jj+sg2)-omega(jj-1+sg2))*(B(jj+sg2)-B(jj-1+sg2))
+								else
+									B2=0._wp
+								endif
+								C2=C(jjj)
+								jjj=jjj+sign(1,2*sg2-1)
+							endif
+							rt2=rt2+0.5_wp*(ej2-ej1)*(gb1*B1*C1+gb2*B2*C2)
+							ej1=ej2
+							gb1=gb2
+							B1=B2
+							C1=C2
+							if(jj==iwb1(j)+sg2.and.jjj==iwb2(j)+sg2) then
+								exit
+							endif
+						enddo
+					enddo
+					rt_=rt_+0.5_wp*(ei2-ei1)*(ga1*A1*rt1+ga2*A2*rt2)
+					ei1=ei2
+					ga1=ga2
+					A1=A2
+					rt1=rt2
+				enddo
+			enddo
+			rt(k)=rt(k)-rt_/pi
+		enddo
+	end subroutine
 	subroutine get_convolution(omega,A,B,tau,rt,two)
+		real(wp) :: omega(:)
+		complex(wp) :: rt(:)
+		complex(wp) :: A(:),B(:)
+		integer :: tau(2)
+		logical, optional :: two
+		integer :: i,j,k,n,iwb(0:size(omega)),sg
+		real(wp) :: e1,e2,omg,M_phi
+		complex(wp) :: A1,A2,B1,B2,rt_
+		rt=0._wp
+		n=size(omega)
+		!$OMP PARALLEL DO PRIVATE(omg,iwb,A1,B1,A2,B2,e1,e2,sg,rt_)
+		do k=1,n
+			omg=omega(k)
+			do i=1,n
+				iwb(i)=find(omega,tau(2)*(omg-tau(1)*omega(i)))
+			end do
+			iwb(0)=iwb(1)
+			e1=omega(1)
+			A1=0._wp
+			B1=0._wp
+			rt_=0._wp
+			sg=(1-tau(1)*tau(2))/2 ! 1 for positive sign and 0 for negative sign
+			do i=1,n
+				do j=iwb(i-1)+sg,iwb(i)+sg,sign(1,2*sg-1)
+					if(j==iwb(i)+sg) then
+						e2=omega(i)
+						A2=A(i)
+						if(iwb(i)>0.and.iwb(i)<n) then
+							B2=B(iwb(i))+(tau(2)*(omg-tau(1)*e2)-omega(iwb(i)))/(omega(iwb(i)+1)-omega(iwb(i)))*(B(iwb(i)+1)-B(iwb(i)))
+						else
+							B2=0._wp
+						endif
+					else
+						e2=tau(1)*(omg-tau(2)*omega(j))
+						A2=A(i-1)+(e2-omega(i-1))/(omega(i)-omega(i-1))*(A(i)-A(i-1))
+						B2=B(j)
+					endif
+					rt_=rt_+0.5_wp*(e2-e1)*cmplx(0._wp,&
+						(imag(A1)*imag(B1)*f(e1,omg)+&
+						imag(A2)*imag(B2)*f(e2,omg)),kind=wp)
+
+					
+					A1=A2
+					B1=B2
+					e1=e2
+				enddo
+			enddo
+			rt(k)=rt(k)-rt_/pi
+		enddo
+		!$OMP END PARALLEL DO
+	contains
+		real(wp) function f(x,y)
+			real(wp) :: x,y
+			if(present(two)) then
+				if(y>0._wp) then
+					f=(1._wp+exp(-beta*y))/(1._wp+exp(-beta*x)+exp(beta*(x-y))+exp(-beta*y))
+				else
+					f=(1._wp+exp(beta*y))/(1._wp+exp(beta*x)+exp(beta*(y-x))+exp(beta*y))
+				endif
+			else
+				if(y<0._wp) then
+					f=1._wp/(1._wp+(exp(-beta*(x-y))+exp(beta*(x)))/(1._wp+exp(beta*y)))
+				else
+					f=1._wp/(1._wp+(exp(-beta*x)+exp(beta*(x-y)))/(1._wp+exp(-beta*y)))
+				endif
+			endif
+		end function
+	end subroutine
+	subroutine get_convolution_old(omega,A,B,tau,rt,two)
 		real(wp) :: omega(:)
 		complex(wp) :: rt(:)
 		complex(wp) :: A(:),B(:)
