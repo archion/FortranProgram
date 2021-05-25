@@ -377,8 +377,13 @@ contains
 			n=0
 			do
 				n=n+1
-				!call change(cfgl,icfg,dcfg,k,rnd,.true.)
-				call change(cfgl,icfg,dcfg,k,rnd,is_project)
+				do
+					!call change(cfgl,icfg,dcfg,k,rnd,.true.)
+					call change(cfgl,icfg,dcfg,k,rnd,is_project)
+					if(k(0)/=0) then
+						exit
+					endif
+				enddo
 				cfgl(-dcfg(2:dcfg(0):2))=cfgl(-dcfg(2:dcfg(0):2))+cfgl(dcfg(1:dcfg(0):2))
 				cfgl(dcfg(1:dcfg(0):2))=cfgl(-dcfg(2:dcfg(0):2))-cfgl(dcfg(1:dcfg(0):2))
 				cfgl(-dcfg(2:dcfg(0):2))=cfgl(-dcfg(2:dcfg(0):2))-cfgl(dcfg(1:dcfg(0):2))
@@ -390,7 +395,7 @@ contains
 					if(sum(abs(matmul(A(:,iEcfg),iA)-diag(1._wp,size(A,1))))<1e-6_wp) then
 						exit
 					else
-						if(n>latt%Ns*10+200) then
+						if(n>latt%Ns*10+100) then
 							stop "ini cfg err"
 						endif
 					endif
@@ -410,16 +415,20 @@ contains
 			n=n+1
 			call change(cfgl,icfg,dcfg,k,rnd,is_project)
 
-			if(self%sg==3) then
-			!if(.false.) then
-				call get_Spb(cfgl,dcfg(1:dcfg(0)),Ecfgl,nn,pb,WA,iA,AW,WAW)
-				if(isnan(real(pb))) then
-					write(*,*)pb
-					stop
-				endif
+			if(k(0)==0) then
+				pb=0._wp
 			else
-				call get_pb(k(1:k(0)),shape(0),pb,WA=WA,WAl=WAl(:,:dly),WAr=WAr(:dly,:))
-				pb=pb*conjg(pb)
+				if(self%sg==3) then
+					!if(.false.) then
+					call get_Spb(cfgl,dcfg(1:dcfg(0)),Ecfgl,nn,pb,WA,iA,AW,WAW)
+					if(isnan(real(pb))) then
+						write(*,*)pb
+						stop
+					endif
+				else
+					call get_pb(k(1:k(0)),shape(0),pb,WA=WA,WAl=WAl(:,:dly),WAr=WAr(:dly,:))
+					pb=pb*conjg(pb)
+				endif
 			endif
 			!call random_number(rd)
 			pb=pb*exp(2._wp*jast(cfgl,dcfg(1:dcfg(0))))
@@ -626,6 +635,24 @@ contains
 			self%Ek2=Ek2p
 			self%Ok2=Ok2p
 		end select
+
+		!write(*,"(*(es16.5))")real(apt)*1._wp/n
+		if(this_image(self,2)==1) then
+			do i=1,latt%Ns
+				write(111,"(es12.4$)")latt%nb(0)%bd(i)%r(1:2)
+				if(cfgl(i)/=0.and.cfgl(i+latt%Ns)/=0) then
+					write(111,"(i3)")1
+				elseif(cfgl(i)==0.and.cfgl(i+latt%Ns)==0) then
+					write(111,"(i3)")-1
+				elseif(cfgl(i)==0.and.cfgl(i+latt%Ns)/=0) then
+					write(111,"(i3)")0
+				elseif(cfgl(i)/=0.and.cfgl(i+latt%Ns)==0) then
+					write(111,"(i3)")2
+				endif
+			enddo
+			write(111,"(x)")
+		endif
+
 		call finalize_RandomNumberSequence(rnd)
 	end subroutine
 	subroutine spect(self,ut,gm,omg,m,E)

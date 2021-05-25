@@ -28,7 +28,7 @@ set ticslevel 0
 #set grid xtics ytics
 set border 8+4+2+1+16+32+64+128+256+512+1024+2048 front
 set margin lmg,rmg,dmg,umg
-set size ratio -1
+#set size ratio -1
 
 set pm3d corners2color c2
 set palette rgbformulae 22,13,-31
@@ -40,9 +40,9 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
 #set xrange [:]
-set xrange [-4:4]
-#set yrange [1:1e-5]
-set yrange [-1:5]
+#set xrange [-4:4]
+set yrange [:]
+#set yrange [-1:5]
 set zrange [:]
 #set logscale x
 #set logscale y
@@ -63,7 +63,7 @@ array fact[3]=[5,5,1]
 array id[5]=[1,2,3,4,6]
 
 #fit [x=0.00000001:0.00001] b*x**a  "-" index 70 u 1:(abs($2)/10000.) via a,b
-plot "-" index 0 u "x":"y":"n" with p pt 7 ps var notitle
+plot "-" index 0 u "T":"b" with lp pt 7 notitle
 #plot for[i=1:*] for[j=1:1] "-" index 0 every :::i-1::i-1 u "T":(column(word("Sn Sa Snp",j))) with l lw j lc i dt j title word("LM C MCK MCK C' LM'",i)#, for[i=1:6] for[j=2:2] "-" index 0 every :::i-1::i-1 u "T":(column(word("Q gW Snp",j))) with l lw j lc i dt j notitle word("LM C MCK MCK C' LM'",i),
 #plot for[i=2:2] for[j=1:8] "-" index 0 every :::i-1::i-1 u "T":(column(word("Q gW GB g f B c phi",j))) with l lc j lw 2 dt j/5+1 title word("Q gW GB g f B c phi",j)
 #plot "-" index 0 u ((abs(column("T")-1e-5)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 0 u ((abs(column("T")-1e-7)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 1 u ((abs(column("T")-1e-7)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle, "-" index 1 u ((abs(column("T")-5e-10)<1e-11)?column("J"):1/0):(column(word("Sn Sa",1))) with p pt 7 ps .5 notitle

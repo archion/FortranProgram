@@ -54,7 +54,7 @@ program main
 	write(10,"(1X/)")
 	write(10,"("//TRIM(ADJUSTL(fmat(1)))//"e15.6)")(((-1)**(i+j)*0.5*(n(dn(1)*i+j,1)-n(dn(1)*i+j,2)),j=1,dn(1)),i=0,dn(2)-1)
 	close(10)
-end
+end subroutine
 subroutine inital(dt,n)
 	use global
 	implicit none
@@ -69,7 +69,7 @@ subroutine inital(dt,n)
 	n(:,1)=nf/2d0
 	n(:,2)=nf-n(:,1)
 	call gen_latt_square()
-end
+end subroutine
 subroutine bdg(dt,n)
 	use global
 	implicit none
@@ -131,7 +131,7 @@ subroutine bdg(dt,n)
 		n=np
 		write(*,*)"*",dt(1,1)
 	enddo 
-end
+end subroutine
 subroutine Ham(dt,n,sp,va,ja,ia)
 	use global
 	implicit none
@@ -168,7 +168,7 @@ subroutine Ham(dt,n,sp,va,ja,ia)
 		sg=-sg
 	enddo
 	dt=dconjg(dt)
-end
+end subroutine
 subroutine cbv(va,ja,ia,a,b,n,dt)
 	use global
 	implicit none
@@ -206,7 +206,7 @@ subroutine cbv(va,ja,ia,a,b,n,dt)
 	enddo
 	!$OMP END PARALLEL DO
 	n(:,2)=1d0-n(:,2)
-end
+end subroutine
 subroutine rescale(va,ja,ia,a,b)
 	use global
 	implicit none
@@ -222,7 +222,7 @@ subroutine rescale(va,ja,ia,a,b)
 		enddo
 	enddo
 	va=va/a
-end
+end subroutine
 subroutine lanmax(va,ja,ia,emax,emin,m,info)
 	implicit none
 	integer :: m,ja(*),ia(*),md(0:2),i,j,info
@@ -259,7 +259,7 @@ subroutine lanmax(va,ja,ia,emax,emin,m,info)
 	emax=e(min(i,m))
 	emin=e(1)
 	!deallocate(v,ap,bt,tmp,e,ep)
-end
+end subroutine
 subroutine crsmv(va,ja,ia,x,y,m)
 	implicit none
 	integer :: i,j,m
@@ -271,7 +271,7 @@ subroutine crsmv(va,ja,ia,x,y,m)
 			y(i)=y(i)+va(j)*x(ja(j))
 		enddo
 	enddo
-end
+end subroutine
 subroutine init_random_seed()
 	integer :: i, n, clock
 	integer, dimension(:), allocatable :: seed
@@ -294,6 +294,6 @@ subroutine gnuplot()
 	write(10,"(A)")"set palette rgbformulae 22,13,-31"
 	write(10,"(A)")"splot '-' matrix index 0"
 	write(10,"(A)")"#data"
-end
+end subroutine
 
 

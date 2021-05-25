@@ -25,30 +25,52 @@ module model_utility
 	logical :: is_project=.false.,is_ph=.true.
 contains
 	subroutine change_ph(cfg,icfg,dcfg,k,rnd,is_P)
+		!cfg: from site index to particle index
+		!icfg: from particle index to site index
+		!dcfg: index pair: particle index, new site index
 		integer :: cfg(:),icfg(:)
 		integer :: dcfg(0:),k(0:)
 		type(randomNumberSequence) :: rnd
 		logical :: is_P
 		integer :: i1,j1,i2,j2,n
+		!choose a random electron
 		!call random_number(i,size(icfg))
 		i1=mt_random_number(rnd,size(icfg))
+		!get the index in H
 		i1=icfg(i1)
+		!get the spin index
 		n=Hmf%H2s(i1,2)
+		!get the index in H for same site but opposite spin
 		i2=Hmf%s2H(Hmf%H2s(i1,1),mod(n,2)+1)
 		do 
+			!choose another random site
 			!call random_number(j,Ns)
 			j1=mt_random_number(rnd,Ns)
+
+			!!choose another random nn site
+			!j1=mt_random_number(rnd,size(latt%nb(1)%st(Hmf%H2s(i1,1))%j))
+			!j1=latt%nb(1)%st(Hmf%H2s(i1,1))%j(j1)
+
+
+			!get the index in H for the opposite spin for this site
 			j2=Hmf%s2H(j1,mod(n,2)+1)
+			!get the index in H for the same spin for this site
 			j1=Hmf%s2H(j1,n)
 			if(cfg(j1)==0) then
 				if((.not.is_P).or.sign(1,-cfg(j2))==sign(1,-cfg(i2))) then
+				!hop
+					!set the index for creation and annilation 
 					dcfg(0:2)=[2,j1,-i1]
+					!set the index for changing row in A to row in H 
 					k(0:2)=[2,cfg(abs(dcfg(2))),dcfg(1)]
 				else
+				!exchange opposite spin case
 					dcfg(0:4)=[4,j2,-i2,j1,-i1]
 					k(0:4)=[4,cfg(abs(dcfg(4))),dcfg(3),cfg(abs(dcfg(2))),dcfg(1)]
 				endif
 				exit
+			!else
+				!k(0)=0
 			endif
 		enddo
 	end subroutine
@@ -510,9 +532,10 @@ contains
 	real(wp) function jast(cfg,dcfg,Oja)
 		integer :: cfg(:),dcfg(:)
 		complex(wp), optional :: Oja(:)
-		integer :: i(0:size(dcfg)),j,plv,lv,ibd,l,l1,l2,ic,jc,nb,k(0:size(dcfg)),sg,sb(2)
-		real(wp) :: n
+		integer :: i(0:size(dcfg)),j,plv,lv,ibd,l,l1,l2,l3,ic,jc,nb,k(0:size(dcfg)*10),sg,sb(2),ij(2),m
+		real(wp) :: n(2)
 		character :: flag
+		logical :: is_dh
 		jast=0._wp
 		if(sum(Hja%var(:)%n)==0) then
 			return
@@ -523,6 +546,7 @@ contains
 		endif
 		! the index of jastrew facter
 		plv=0
+		! get the list of site that changes
 		i(0)=0
 		i(1:)=Hmf%H2s(abs(dcfg),1)
 		do l=1,size(dcfg)
@@ -531,40 +555,99 @@ contains
 				i(i(0))=i(l)
 			endif
 		enddo
+
 		do l=Hja%rg(1),Hja%rg(2)
 			nb=Hja%var(l)%nb
-			do l1=1,i(0)
-				do l2=1,size(latt%nb(nb)%st(i(l1))%j)
-					n=0._wp
-					j=latt%nb(nb)%st(i(l1))%j(l2)
-					if(any(i(1:l1-1)==j)) cycle
-					sb=latt%nb(0)%bd([i(l1),j])%sb(1)
-					flag=" "
-					do jc=1,size(Hja%var(l)%c,2)
-						if(all(merge(sb(1),sb(2),Hja%var(l)%c(:,jc)%l=="i")-Hja%var(l)%c(:,jc)%sb==0)) then
-							if(flag==" ") flag="i"
-						elseif(all(merge(sb(2),sb(1),Hja%var(l)%c(:,jc)%l=="i")-Hja%var(l)%c(:,jc)%sb==0)) then
-							if(flag==" ") flag="j"
+			is_dh=.false.
+			if(allocated(Hja%var(l)%label)) then
+				if(Hja%var(l)%label(:)=="dh") then
+					is_dh=.true.
+					!m=ichar(Hja%var(l)%label(3:3))-48
+				endif
+			endif
+			if(is_dh) then
+				do l1=1,i(0)
+					do l2=0,size(latt%nb(nb)%st(i(l1))%j)
+						ij(1)=merge(i(l1),latt%nb(nb)%st(i(l1))%j(l2),l2==0)
+						n=1._wp
+						do l3=1,size(latt%nb(nb)%st(ij(1))%j)
+							ij(2)=latt%nb(nb)%st(ij(1))%j(l3)
+							ibd=latt%nb(nb)%st(ij(1))%bd(l3)
+							if(abs(Hja%var(l)%bd(ibd))>1e-6_wp) then
+								if(abs(n(1))>1e-6_wp) then
+									if(get_row([Hmf%s2H(ij(1),1),[-Hmf%s2H(ij(1),2)]*merge(-1,1,is_ph),dcfg],cfg,k,sg,[integer::])) then
+										n(1)=0._wp
+									elseif(get_row([-Hmf%s2H(ij(1),1),[Hmf%s2H(ij(1),2)]*merge(-1,1,is_ph),dcfg],cfg,k,sg,[integer::])) then
+										n(1)=0._wp
+									elseif(get_row([Hmf%s2H(ij(1),1),-Hmf%s2H(ij(2),1),[Hmf%s2H(ij(1),2),-Hmf%s2H(ij(2),2)]*merge(-1,1,is_ph),dcfg],cfg,k,sg,[integer::])) then
+										n(1)=0._wp
+									elseif(get_row([Hmf%s2H(ij(2),1),-Hmf%s2H(ij(1),1),[Hmf%s2H(ij(2),2),-Hmf%s2H(ij(1),2)]*merge(-1,1,is_ph),dcfg],cfg,k,sg,[integer::])) then
+										n(1)=0._wp
+									endif
+								endif
+								if(abs(n(2))>1e-6_wp) then
+									if(get_row([Hmf%s2H(ij(1),1),[-Hmf%s2H(ij(1),2)]*merge(-1,1,is_ph)],cfg,k,sg,[integer::])) then
+										n(2)=0._wp
+									elseif(get_row([-Hmf%s2H(ij(1),1),[Hmf%s2H(ij(1),2)]*merge(-1,1,is_ph)],cfg,k,sg,[integer::])) then
+										n(2)=0._wp
+									elseif(get_row([Hmf%s2H(ij(1),1),-Hmf%s2H(ij(2),1),[Hmf%s2H(ij(1),2),-Hmf%s2H(ij(2),2)]*merge(-1,1,is_ph)],cfg,k,sg,[integer::])) then
+										n(2)=0._wp
+									elseif(get_row([Hmf%s2H(ij(2),1),-Hmf%s2H(ij(1),1),[Hmf%s2H(ij(2),2),-Hmf%s2H(ij(1),2)]*merge(-1,1,is_ph)],cfg,k,sg,[integer::])) then
+										n(2)=0._wp
+									endif
+								endif
+							endif
+						enddo
+						lv=Hja%var(l)%bd2v(ibd)
+						if(present(Oja).and.l>=1) then
+							Oja(plv+lv)=Oja(plv+lv)+(n(1)-n(2))
 						else
-							cycle
-						endif
-						if(get_row([(Hmf%s2H(merge(i(l1),j,Hja%var(l)%c(ic,jc)%l==flag),abs(Hja%var(l)%c(ic,jc)%tp))*sign(1,Hja%var(l)%c(ic,jc)%tp),ic=1,size(Hja%var(l)%c,1)),dcfg],cfg,k,sg,[integer::])) then
-							n=n+Hja%var(l)%sg(jc)
-						endif
-						if(get_row([(Hmf%s2H(merge(i(l1),j,Hja%var(l)%c(ic,jc)%l==flag),abs(Hja%var(l)%c(ic,jc)%tp))*sign(1,Hja%var(l)%c(ic,jc)%tp),ic=1,size(Hja%var(l)%c,1))],cfg,k,sg,[integer::])) then
-							n=n-Hja%var(l)%sg(jc)
+							jast=jast+Hja%var(l)%val(lv)*(n(1)-n(2))
 						endif
 					enddo
-					ibd=latt%nb(nb)%st(i(l1))%bd(l2)
-					lv=Hja%var(l)%bd2v(ibd)
-					n=n*Hja%var(l)%bd(ibd)
-					if(present(Oja).and.l>=1) then
-						Oja(plv+lv)=Oja(plv+lv)+n
-					else
-						jast=jast+Hja%var(l)%val(lv)*n
-					endif
 				enddo
-			enddo
+			else
+				do l1=1,i(0)
+					do l2=1,size(latt%nb(nb)%st(i(l1))%j)
+						n=0._wp
+						j=latt%nb(nb)%st(i(l1))%j(l2)
+						! check whether the nn site is already considerd
+						if(any(i(1:l1-1)==j)) cycle
+						sb=latt%nb(0)%bd([i(l1),j])%sb(1)
+						flag=" "
+						!for all terms
+						do jc=1,size(Hja%var(l)%c,2)
+							!assign the right i and j according to sb, if none, cycle
+							if(all(merge(sb(1),sb(2),Hja%var(l)%c(:,jc)%l=="i")-Hja%var(l)%c(:,jc)%sb==0)) then
+								if(flag==" ") flag="i"
+							elseif(all(merge(sb(2),sb(1),Hja%var(l)%c(:,jc)%l=="i")-Hja%var(l)%c(:,jc)%sb==0)) then
+								if(flag==" ") flag="j"
+							else
+								cycle
+							endif
+							!count terms for new cfg
+							if(get_row([(Hmf%s2H(merge(i(l1),j,Hja%var(l)%c(ic,jc)%l==flag),abs(Hja%var(l)%c(ic,jc)%tp))*sign(1,Hja%var(l)%c(ic,jc)%tp),ic=1,size(Hja%var(l)%c,1)),dcfg],cfg,k,sg,[integer::])) then
+								n(1)=n(1)+Hja%var(l)%sg(jc)
+							endif
+							!count terms for old cfg
+							if(get_row([(Hmf%s2H(merge(i(l1),j,Hja%var(l)%c(ic,jc)%l==flag),abs(Hja%var(l)%c(ic,jc)%tp))*sign(1,Hja%var(l)%c(ic,jc)%tp),ic=1,size(Hja%var(l)%c,1))],cfg,k,sg,[integer::])) then
+								n(2)=n(2)+Hja%var(l)%sg(jc)
+							endif
+						enddo
+						! get bond index for this nb
+						ibd=latt%nb(nb)%st(i(l1))%bd(l2)
+						! get value index for this bond
+						lv=Hja%var(l)%bd2v(ibd)
+						! multiply the bond value for this bond
+						n=n*Hja%var(l)%bd(ibd)%re
+						if(present(Oja).and.l>=1) then
+							Oja(plv+lv)=Oja(plv+lv)+(n(1)-n(2))
+						else
+							jast=jast+Hja%var(l)%val(lv)*(n(1)-n(2))
+						endif
+					enddo
+				enddo
+			endif
 			if(l>=0) then
 				plv=plv+Hja%var(l)%n
 			endif

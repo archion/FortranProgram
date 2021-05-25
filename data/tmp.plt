@@ -4,7 +4,7 @@ sy=(exist("sy")?sy:4)
 flabel="(a)"
 lmg=7.
 rmg=1.0
-umg=0.5
+umg=2.5
 dmg=2.5
 fontsize=15
 ticfontsize=floor(fontsize*0.7)
@@ -19,7 +19,7 @@ set ticslevel 0
 #set grid xtics ytics
 set border 8+4+2+1+16+32+64+128+256+512+1024+2048 front
 set margin lmg,rmg,dmg,umg
-#set size ratio -1
+set size ratio -1
 
 set pm3d corners2color c2
 set palette rgbformulae 22,13,-31
@@ -30,17 +30,19 @@ set colorbox horiz user origin graph 0,1+c2sy/sy*0.5 size graph 1,character 0.6
 #set cbtics scale 0.5 offset character -0.7, 0 font ",".(ticfontsize)
 #set colorbox user origin graph 1+c2sx/sx*0.5,0 size character 1, graph 1
 
-set xrange [0:0.1]
+set xrange [:]
 #set xrange [-1:5]
 #set yrange [1:1e-5]
-set yrange [0:]
+set yrange [:]
 #set yrange [-1:5]
 set zrange [:]
 #set logscale x
 #set logscale y
+set cbrange [-1:1]
 a=-0.771
 b=0.0001/5
-plot sin(x)
+i=10
+plot "-" index 0 every :::i::i u 1:2:($3==0?1/0:($3==2?0:$3)) with point pt 7 palette
 set key font ",".ticfontsize at graph 1.00,0.95,1 horizontal maxcols 1 spacing 0.8 samplen 0.5 #opaque autotitle
 #if(exist(flabel)) set label flabel font ",".fontsize front center textcolor rgb "black" at graph 0+c2sx/sx*2,c2sy/sy,1+2*c2sy/sy
 if(exists("zlb")){

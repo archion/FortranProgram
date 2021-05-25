@@ -162,7 +162,7 @@ contains
 	end function
 	function mmdiag(a)
 		real(wp) :: a(:,:) 
-		real(wp) :: mmdiag(size(a))
+		real(wp) :: mmdiag(size(a,1))
 		integer :: i
 		do i=1,size(a,1)
 			mmdiag(i)=a(i,i)
@@ -170,7 +170,7 @@ contains
 	end function
 	function mmcdiag(a)
 		complex(wp) :: a(:,:) 
-		complex(wp) :: mmcdiag(size(a))
+		complex(wp) :: mmcdiag(size(a,1))
 		integer :: i
 		do i=1,size(a,1)
 			mmcdiag(i)=a(i,i)

@@ -90,7 +90,7 @@ program main
 	enddo
 	self%dSEc=cmplx(0._wp,0._wp,kind=wp)
 
-	niter(SC_DMFT)=250; iter_err(SC_DMFT)=1e-6_wp; iter_rate(SC_DMFT)=0.5_wp
+	niter(SC_DMFT)=250; iter_err(SC_DMFT)=1e-6_wp; iter_rate(SC_DMFT)=0.3_wp
 	niter(SC_dDMFT)=150; iter_err(SC_dDMFT)=1e-5_wp; iter_rate(SC_dDMFT)=0.1_wp
 	niter(SC_cp)=150; iter_err(SC_cp)=1e-5_wp; iter_rate(SC_cp)=0.5_wp
 	scheme=dDMFT
@@ -104,7 +104,9 @@ program main
 
 	!self%mu=3.85_wp
 
-	Tk=0.2_wp
+	Tk=0.1_wp
+	self%Ef=0.92432439494450208128E-001_wp
+	self%mu=0.50000000000000000000E+001_wp
 	do 
 		scheme=dDMFT
 		fix_cp=.true.
@@ -114,8 +116,9 @@ program main
 		!self%mu=for_in([[11:5:-1]*1._wp,[20:10:-1]*0.2_wp,[1:-6:-1]*1._wp],id=1)
 		!self%mu=for_in([11._wp],id=1)
 		!self%mu=for_in([[9:0:-1]*2._wp],id=1)
-		self%mu=for_in([[12*2:3*2:-1]*0.5_wp],id=1)
-		if(isnan(self%mu)) exit
+		!self%mu=for_in([[-3*2:12*2:1]*0.5_wp],id=1)
+		self%Ef=0.92432439494450208128E-001_wp+for_in([0:-10]*0.02_wp,id=1)
+		if(isnan(self%mu).or.isnan(self%Ef)) exit
 		if(any(scheme==[dDMFT_simp,dDMFT_simp_nc])) then
 			call gen_graph(DMFT)
 			self%conv=evaluate(nodes=[Delta,dSEc,inc],updated_nodes=[dSEc,Delta,Ef,mu,PMT])

@@ -2485,10 +2485,13 @@ contains
 				!inode(SC_DMFT,1:4)=[Gck_l,dGcp,Gc,Delta]
 				!underscore=evaluate(graph=[Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,dGcp,dGc0,Gc,Delta],dSEc,mu,Ef,mat_omega,lattice,omega_grid,PMT])
 
-				inode(Ef,1:1)=[SC_DMFT]
-				inode(SC_DMFT,1:5)=[Gck_l,dGcp,Gc,Delta,Ef]
+				!inode(Ef,1:1)=[SC_DMFT]
+				!inode(SC_DMFT,1:5)=[Gck_l,dGcp,Gc,Delta,Ef]
+
+				inode(SC_DMFT,1:4)=[Gck_l,dGcp,Gc,Delta]
 				if(lse==0) then
-					underscore=evaluate(graph=[SEck,SEc,Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,dGcp,dGc0,Gc,Delta,Ef],dSEc,mu,mat_omega,lattice,omega_grid,PMT])
+					!underscore=evaluate(graph=[SEck,SEc,Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,dGcp,dGc0,Gc,Delta,Ef],dSEc,mu,mat_omega,lattice,omega_grid,PMT])
+					underscore=evaluate(graph=[SEck,SEc,Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,dGcp,dGc0,Gc,Delta],Ef,dSEc,mu,mat_omega,lattice,omega_grid,PMT])
 				else
 					underscore=evaluate(graph=[Sus,V4c,dSus0,fs,fsd,Gk,[SC_DMFT,inc,Gck_l,SEck,dGcp,dGc0,SEc,Gc,Delta,Ef],dSEc,mu,mat_omega,lattice,omega_grid,PMT])
 				endif
@@ -2511,10 +2514,13 @@ contains
 				!inode(SC_dDMFT,1:7)=[Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta]
 				!underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta],mu,Ef,mat_omega,lattice,omega_grid,PMT])
 
-				inode(Ef,1:1)=[SC_dDMFT]
-				inode(SC_dDMFT,1:9)=[inc,Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta,Ef]
+				!inode(Ef,1:1)=[SC_dDMFT]
+				!inode(SC_dDMFT,1:9)=[inc,Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta,Ef]
+
+				inode(SC_dDMFT,1:8)=[inc,Gck_l,Gc,V4c,dSus0,dGc,dSEc,Delta]
 				if(lse==0) then
-					underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta,Ef],mu,lattice,mat_omega,omega_grid,PMT])
+					!underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta,Ef],mu,lattice,mat_omega,omega_grid,PMT])
+					underscore=evaluate(graph=[SEc,SEck,Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,V4c,dSus0,dGc,dGc0,Gc,dSEc,Delta],Ef,mu,lattice,mat_omega,omega_grid,PMT])
 				else
 					underscore=evaluate(graph=[Sus,fs,fsd,Gk,[SC_dDMFT,inc,Gck_l,SEck,V4c,dSus0,dGc,dGc0,SEc,Gc,dSEc,Delta,Ef],mu,lattice,mat_omega,omega_grid,PMT])
 				endif

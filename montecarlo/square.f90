@@ -13,7 +13,7 @@ module global
 	implicit none
 	real(wp) :: t(1)=[1._wp]
 	!real(8) :: t(1)=[1._wp]
-	real(wp), parameter :: V=0._wp,U=8._wp,DJ=0.3_wp
+	real(wp), parameter :: V=0._wp,U=4._wp,DJ=0.3_wp
 	type(t_mc) :: mc[ica1,*]
 	integer :: ivar
 contains
@@ -61,7 +61,7 @@ contains
 		!Hmf%var(idx)%val=-0._wp
 
 		! d-wave sc
-		idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2),c("j",1,+2),c("i",1,-1),c("i",1,+2),c("j",1,-1)],n=2,label="sc",is_var=.false.)
+		idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2),c("j",1,+2),c("i",1,-1),c("i",1,+2),c("j",1,-1)],n=2,label="sc",is_var=.true.)
 		do i=1,size(Hmf%var(idx)%bd)
 			if(abs(latt%nb(1)%bd(i)%dr(1))>1e-6_wp) then
 				Hmf%var(idx)%bd(i)=1._wp
@@ -69,7 +69,7 @@ contains
 				Hmf%var(idx)%bd(i)=-1._wp
 			endif
 		enddo
-		Hmf%var(idx)%val=1e-4_wp
+		Hmf%var(idx)%val=1e-1_wp
 
 		!! PDW
 		!idx=Hmf%add(nb=1,ca=[c("i",1,+1),c("j",1,-2),c("j",1,+1),c("i",1,-2),c("j",1,+2),c("i",1,-1),c("i",1,+2),c("j",1,-1)],n=2,label="sc")
@@ -98,17 +98,17 @@ contains
 		!enddo
 		!Hmf%var(idx)%val=1e-1_wp
 
-		! sdw
-		idx=Hmf%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,+2),c("i",1,-2)],n=2)
-		do i=1,size(Hmf%var(idx)%bd)
-			if(mod(nint(sum(latt%nb(0)%bd(latt%nb(0)%bd(i)%i(1))%r)),2)==0) then
-				Hmf%var(idx)%bd(i)=1._wp
-			else
-				Hmf%var(idx)%bd(i)=-1._wp
-			endif
-		enddo
-		Hmf%var(idx)%val=1.3e0_wp
-		ivar=idx
+		!! sdw
+		!idx=Hmf%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,+2),c("i",1,-2)],n=2)
+		!do i=1,size(Hmf%var(idx)%bd)
+			!if(mod(nint(sum(latt%nb(0)%bd(latt%nb(0)%bd(i)%i(1))%r)),2)==0) then
+				!Hmf%var(idx)%bd(i)=1._wp
+			!else
+				!Hmf%var(idx)%bd(i)=-1._wp
+			!endif
+		!enddo
+		!Hmf%var(idx)%val=1.3e0_wp
+		!ivar=idx
 
 		!! bond order
 		!do l=2,size(t)
@@ -127,7 +127,14 @@ contains
 !************************jastrow**************************************
 		idx=Hja%add(nb=0,ca=[c("i",1,+1),c("i",1,-1),c("i",1,-2),c("i",1,+2)],n=4)
 		Hja%var(idx)%bd=-1._wp
-		Hja%var(idx)%val=0.64_wp
+		Hja%var(idx)%val=0.9_wp
+
+		!!!*******************Vzz term(exp(Siz*Sjz))********************* 
+		!idx=Hja%add(nb=1,ca=[c("i",1,+1),c("i",1,-1),c("j",1,+1),c("j",1,-1),c("i",1,+1),c("i",1,-1),c("j",1,-2),c("j",1,+2),&
+		!&c("i",1,-2),c("i",1,+2),c("j",1,+1),c("j",1,-1),c("i",1,-2),c("i",1,+2),c("j",1,-2),c("j",1,+2)],n=4,sg=[+1._wp,-1._wp,-1._wp,+1._wp],is_var=.true.)
+		!Hja%var(idx)%bd=-1._wp
+		!Hja%var(idx)%val=.2_wp
+		!ivar=idx
 
 !*************************Hamiltionian********************************
 		do l=1,size(t)
@@ -243,12 +250,16 @@ program main
 
 	mc%step=nint(sqrt(real(Ns)))
 
-	mc%samp=1024*16*8*4*2
+	mc%samp=1024*16*8!*4*2
+
+	call mc%init(.true.)
+	call mc%do_var(100)
+
 	do 
-		Hmf%var(ivar)%val=for_in([-10:10]*0.05_wp+1.3_wp,id=1)
-		!Hja%var(ivar)%val=for_in([0:15]*0.08_wp,id=1)
-		if(isnan(Hmf%var(ivar)%val(1))) then
-		!if(isnan(Hja%var(ivar)%val(1))) then
+		!Hmf%var(ivar)%val=for_in([-10:10]*0.1_wp,id=1)
+		Hja%var(ivar)%val=for_in([-10:10]*0.1_wp,id=1)
+		!if(isnan(Hmf%var(ivar)%val(1))) then
+		if(isnan(Hja%var(ivar)%val(1))) then
 			exit
 		endif
 		mc%sg=2

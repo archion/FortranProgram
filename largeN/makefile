@@ -1,4 +1,4 @@
-out = main_largeN.out
+out = chaos.out
 AFLAG = -qopenmp
 #LFLAG = -lslatec
 LFLAG = -lmath77 -lslatec
